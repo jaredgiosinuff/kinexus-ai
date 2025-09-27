@@ -1,0 +1,28 @@
+{
+  "app": "python3 infrastructure/app.py",
+  "watch": {
+    "include": [
+      "**"
+    ],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "requirements*.txt",
+      "source.bat",
+      "**/__init__.py",
+      "python/__pycache__",
+      "tests"
+    ]
+  },
+  "context": {
+    "@aws-cdk/aws-apigateway:usagePlanKeyOrderInsensitiveId": true,
+    "@aws-cdk/core:stackRelativeExports": true,
+    "@aws-cdk/aws-lambda:recognizeVersionProps": true,
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/core:target-partitions": [
+      "aws",
+      "aws-cn"
+    ]
+  }
+}

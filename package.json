@@ -1,0 +1,21 @@
+{
+  "name": "kinexus-ai",
+  "version": "1.0.0",
+  "description": "Autonomous Knowledge Management System for AWS AI Agent Hackathon",
+  "scripts": {
+    "cdk": "cdk",
+    "deploy": "npm run build && cdk deploy",
+    "deploy:dev": "npm run build && cdk deploy --profile default",
+    "build": "npm run build:layer",
+    "build:layer": "pip install -r requirements.txt -t lambda_layer/python && cd lambda_layer && zip -r ../lambda_layer.zip . && cd ..",
+    "test": "pytest tests/",
+    "clean": "rm -rf lambda_layer lambda_layer.zip cdk.out"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.100.0",
+    "aws-cdk-lib": "^2.100.0",
+    "constructs": "^10.0.0"
+  },
+  "author": "Kinexus AI Team",
+  "license": "Apache-2.0"
+}
