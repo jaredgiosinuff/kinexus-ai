@@ -1,0 +1,65 @@
+{
+  "name": "kinexus-ai-frontend",
+  "version": "1.0.0",
+  "description": "Human-supervised AI documentation management system frontend",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.1",
+    "@tanstack/react-query": "^5.14.2",
+    "@reduxjs/toolkit": "^2.0.1",
+    "react-redux": "^9.0.4",
+    "axios": "^1.6.2",
+    "@mui/material": "^5.15.3",
+    "@mui/icons-material": "^5.15.3",
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@monaco-editor/react": "^4.6.0",
+    "react-diff-viewer-continued": "^3.3.1",
+    "date-fns": "^3.0.6",
+    "react-hook-form": "^7.48.2",
+    "@hookform/resolvers": "^3.3.2",
+    "zod": "^3.22.4",
+    "react-hot-toast": "^2.4.1",
+    "framer-motion": "^10.18.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10",
+    "vitest": "^1.1.0",
+    "@vitest/ui": "^1.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "react",
+    "typescript",
+    "documentation",
+    "ai",
+    "review",
+    "kinexus"
+  ],
+  "author": "Kinexus AI Team",
+  "license": "MIT"
+}

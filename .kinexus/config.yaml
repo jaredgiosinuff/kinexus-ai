@@ -1,0 +1,180 @@
+# Kinexus AI Documentation Automation Configuration
+# Place this file in your repository root at .kinexus/config.yaml
+
+version: "2024-2025"
+project_name: "kinexus-ai"
+documentation_strategy: "tiered_updates"
+
+# Branch-based documentation update rules
+branches:
+  # Feature branches - repo-only updates for fast feedback
+  - branch_pattern: "feature/*"
+    branch_type: "feature"
+    update_scope: "repo_only"
+    target_platforms: ["github"]
+    auto_merge_docs: true
+    require_approval: false
+    documentation_mappings:
+      - doc_type: "developer_docs"
+        source_patterns:
+          - "src/**/*.py"
+          - "lib/**/*.js"
+          - "docs/**/*.md"
+        target_locations:
+          github: "docs/"
+        priority: 1
+
+  # Development branch - internal systems
+  - branch_pattern: "develop"
+    branch_type: "development"
+    update_scope: "internal_wiki"
+    target_platforms: ["github", "confluence"]
+    auto_merge_docs: false
+    require_approval: true
+    documentation_mappings:
+      - doc_type: "api_docs"
+        source_patterns:
+          - "src/api/**/*.py"
+          - "src/routes/**/*.js"
+          - "openapi.yaml"
+          - "swagger.json"
+        target_locations:
+          github: "docs/api/"
+          confluence: "SPACE:DEV/API Documentation"
+        priority: 1
+
+      - doc_type: "architecture"
+        source_patterns:
+          - "src/agents/**/*.py"
+          - "architecture/**/*"
+          - "docs/architecture/**/*"
+        target_locations:
+          github: "docs/architecture/"
+          confluence: "SPACE:DEV/Architecture"
+        priority: 2
+
+  # Main/Master branch - full enterprise sync
+  - branch_pattern: "main|master"
+    branch_type: "main"
+    update_scope: "full_enterprise"
+    target_platforms: ["github", "confluence", "sharepoint"]
+    auto_merge_docs: false
+    require_approval: true
+    documentation_mappings:
+      - doc_type: "api_docs"
+        source_patterns:
+          - "src/api/**/*"
+          - "openapi.yaml"
+          - "swagger.json"
+        target_locations:
+          github: "docs/api/"
+          confluence: "SPACE:PROD/API Documentation"
+          sharepoint: "sites/engineering/API Docs"
+        priority: 1
+
+      - doc_type: "user_guide"
+        source_patterns:
+          - "docs/user/**/*"
+          - "README.md"
+          - "USAGE.md"
+        target_locations:
+          github: "docs/user/"
+          confluence: "SPACE:PROD/User Guides"
+          sharepoint: "sites/support/User Documentation"
+        priority: 1
+
+      - doc_type: "architecture"
+        source_patterns:
+          - "src/agents/**/*.py"
+          - "architecture/**/*"
+          - "docs/architecture/**/*"
+          - "ARCHITECTURE.md"
+        target_locations:
+          github: "docs/architecture/"
+          confluence: "SPACE:PROD/System Architecture"
+          sharepoint: "sites/engineering/Architecture"
+        priority: 2
+
+      - doc_type: "release_notes"
+        source_patterns:
+          - "CHANGELOG.md"
+          - "RELEASE.md"
+          - "docs/releases/**/*"
+        target_locations:
+          github: "docs/releases/"
+          confluence: "SPACE:PROD/Release Notes"
+          sharepoint: "sites/support/Release Information"
+        priority: 1
+
+# Platform-specific configurations
+platforms:
+  github:
+    base_path: "docs/"
+    auto_create_directories: true
+    commit_strategy: "direct_commit"
+
+  confluence:
+    spaces:
+      dev: "SPACE:DEV"
+      prod: "SPACE:PROD"
+    page_template: "kinexus_documentation"
+    update_method: "api_preferred"
+
+  sharepoint:
+    sites:
+      engineering: "sites/engineering"
+      support: "sites/support"
+    update_method: "browser_automation"
+    authentication: "sso"
+
+# Advanced settings
+settings:
+  ai_enhancement: true
+  semantic_analysis: true
+  auto_generate_summaries: true
+  include_code_examples: true
+  multilingual_support: false
+
+  # Quality controls
+  spell_check: true
+  link_validation: true
+  formatting_consistency: true
+
+  # Performance optimization
+  parallel_updates: true
+  cache_embeddings: true
+  incremental_updates: true
+
+# Notification settings
+notifications:
+  slack:
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channels:
+      - "#documentation"
+      - "#engineering"
+
+  email:
+    recipients:
+      - "docs-team@company.com"
+      - "engineering-leads@company.com"
+
+  github:
+    create_issues: true
+    tag_reviewers: true
+
+# Custom templates for different documentation types
+templates:
+  api_docs:
+    format: "openapi"
+    include_examples: true
+    generate_sdk_snippets: true
+
+  architecture:
+    format: "markdown"
+    include_diagrams: true
+    diagram_tool: "mermaid"
+
+  user_guide:
+    format: "markdown"
+    include_screenshots: false
+    step_by_step_format: true

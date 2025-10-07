@@ -1,0 +1,278 @@
+# Docker Compose for Kinexus AI Development Environment
+# This file defines the local development services using port range 3100-3110
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: kinexus_postgres
+    environment:
+      POSTGRES_DB: kinexus_dev
+      POSTGRES_USER: kinexus_user
+      POSTGRES_PASSWORD: kinexus_pass
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+    ports:
+      - "3100:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - kinexus_dev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kinexus_user -d kinexus_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: kinexus_redis
+    ports:
+      - "3101:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kinexus_dev_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+
+  # LocalStack (AWS services emulator)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: kinexus_localstack
+    ports:
+      - "3102:4566"  # LocalStack Gateway
+    environment:
+      # LocalStack configuration
+      SERVICES: s3,dynamodb,lambda,sqs,sns,secretsmanager,ssm,iam,sts,events
+      DEBUG: 1
+      DATA_DIR: /tmp/localstack/data
+      DOCKER_HOST: unix:///var/run/docker.sock
+      HOST_TMP_FOLDER: /tmp/localstack
+      PERSISTENCE: 1
+      # AWS configuration
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - "/tmp/localstack:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - localstack_data:/tmp/localstack/data
+    networks:
+      - kinexus_dev_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # OpenSearch (for vector search)
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: kinexus_opensearch
+    environment:
+      - cluster.name=kinexus-cluster
+      - node.name=kinexus-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "3103:9200"
+      - "3104:9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    networks:
+      - kinexus_dev_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Kinexus API Server
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: kinexus_api
+    ports:
+      - "3105:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=kinexus_dev
+      - DB_USER=kinexus_user
+      - DB_PASSWORD=kinexus_pass
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    command: ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Mock Bedrock Service (for AI model mocking)
+  mock-bedrock:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mock-bedrock
+    container_name: kinexus_mock_bedrock
+    ports:
+      - "3106:8001"
+    environment:
+      - LOG_LEVEL=INFO
+    networks:
+      - kinexus_dev_network
+    volumes:
+      - ./docker/mock-bedrock:/app
+
+  # GraphRAG Service (for relationship-aware retrieval)
+  graphrag:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.graphrag
+    container_name: kinexus_graphrag
+    ports:
+      - "3111:8002"
+    environment:
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - GRAPHRAG_DATA_DIR=/app/data
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./src/agents/graphrag:/app/src/agents/graphrag
+      - ./scripts/graphrag:/app/scripts
+      - graphrag_data:/app/data
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Development Server
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend.dev
+    container_name: kinexus_frontend
+    ports:
+      - "3107:3000"
+    environment:
+      - VITE_API_URL=http://localhost:3105
+      - VITE_WS_URL=ws://localhost:3105
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      - api
+
+  # Adminer (Database administration tool)
+  adminer:
+    image: adminer:latest
+    container_name: kinexus_adminer
+    ports:
+      - "3108:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+
+  # Redis Commander (Redis administration tool)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: kinexus_redis_commander
+    ports:
+      - "3109:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      - redis
+    profiles:
+      - tools
+
+  # OpenSearch Dashboards
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    container_name: kinexus_opensearch_dashboards
+    ports:
+      - "3110:5601"
+    environment:
+      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
+      - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true"
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      - opensearch
+    profiles:
+      - tools
+
+# Named volumes for data persistence
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  localstack_data:
+    driver: local
+  opensearch_data:
+    driver: local
+  graphrag_data:
+    driver: local
+
+# Network for service communication
+networks:
+  kinexus_dev_network:
+    driver: bridge
+    name: kinexus_dev_network
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16

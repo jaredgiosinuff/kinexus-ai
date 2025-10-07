@@ -1,3 +1,63 @@
+# Kinexus AI - Comprehensive .gitignore
+# Security-focused gitignore for AWS AI Agent project
+
+# ====================
+# SECURITY & SECRETS
+# ====================
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.template
+
+# AWS credentials and config
+.aws/
+aws-exports.js
+aws-config.json
+.boto
+.s3cfg
+
+# API keys and tokens
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+secrets.json
+secrets.yaml
+secrets.yml
+config/secrets/
+**/secrets/**
+.secrets/
+
+# SSH keys
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.pub
+
+# Database credentials
+database.json
+db-config.json
+connection-string.txt
+
+# Docker secrets
+docker-compose.override.yml
+.docker/
+
+# GitHub tokens and credentials
+.github/secrets/
+github_token.txt
+*.token
+
+# ====================
+# DEPENDENCIES
+# ====================
+
 # Python
 __pycache__/
 *.py[cod]
@@ -16,94 +76,313 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
-.pytest_cache/
-.coverage
-.tox/
-.nox/
-.hypothesis/
-*.cover
-.coverage.*
 
-# Virtual Environment
+# Virtual environments
+.env/
+.venv/
 venv/
 ENV/
 env/
-.venv
+.conda/
 
-# IDE
+# Pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+.pnp.*
+.yarn/
+
+# ====================
+# DEVELOPMENT TOOLS
+# ====================
+
+# IDEs and editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+Thumbs.db
 
-# AWS
-.aws/
-*.zip
-lambda_layer.zip
-cdk.out/
-.cdk.staging/
-cdk.context.json
+# Jupyter Notebook
+.ipynb_checkpoints
 
-# Environment files
-.env
-.env.local
-.env.*.local
-*.env
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+*.swp
+*.swo
+.netrwhist
+
+# ====================
+# LOGS & TEMPORARY FILES
+# ====================
 
 # Logs
-*.log
 logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Runtime data
+pids
 *.pid
+*.seed
+*.pid.lock
 
-# Temporary files
-tmp/
-temp/
-*.tmp
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+.nyc_output
 
-# Secrets and credentials
-*.pem
-*.key
-*.cert
-*.crt
-secrets/
-credentials/
+# Test results
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
 
-# Node (for CDK)
-node_modules/
-package-lock.json
-yarn.lock
+# ====================
+# BUILD & DEPLOYMENT
+# ====================
 
-# Terraform (if used)
+# Build directories
+build/
+dist/
+out/
+target/
+
+# CDK
+cdk.out/
+cdk.context.json
+.cdk.staging/
+
+# Terraform
 *.tfstate
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
 
-# Documentation build artifacts
-docs/_build/
-docs/.doctrees/
+# Docker
+.dockerignore
 
-# Test outputs
-test-reports/
-coverage/
-htmlcov/
+# ====================
+# DATABASES & CACHE
+# ====================
 
-# Database
+# SQLite
 *.db
 *.sqlite
 *.sqlite3
 
-# MacOS
+# Redis dumps
+dump.rdb
+
+# PostgreSQL
+*.sql.backup
+
+# ====================
+# ARCHIVES & MEDIA
+# ====================
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+*.bz2
+*.xz
+*.tgz
+
+# Large media files
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+*.m4v
+
+# Images (large/generated)
+*.psd
+*.ai
+*.sketch
+*.xcf
+
+# Audio
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.m4a
+
+# Documents (large files)
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# ====================
+# CLOUD & DEPLOYMENT
+# ====================
+
+# AWS
+.serverless/
+.sam/
+lambda_layer.zip
+
+# Google Cloud
+.gcloud/
+gcloud-service-key.json
+
+# Azure
+.azure/
+
+# Kubernetes
+*.kubeconfig
+
+# ====================
+# AI/ML SPECIFIC
+# ====================
+
+# Model files
+*.pkl
+*.h5
+*.hdf5
+*.model
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.bin
+
+# Data files (large datasets)
+*.csv
+*.json
+*.jsonl
+*.parquet
+*.feather
+!**/config/**/*.json
+!**/examples/**/*.json
+
+# Jupyter notebooks (outputs)
+*.ipynb
+!**/examples/*.ipynb
+!**/docs/*.ipynb
+
+# ====================
+# KINEXUS AI SPECIFIC
+# ====================
+
+# Local development data
+/data/
+/uploads/
+/downloads/
+/cache/
+/tmp/
+
+# Generated documentation
+/docs/generated/
+/docs/build/
+
+# Documentation archives (kept locally but excluded from repo)
+docs/archive/consolidated/
+
+# Local testing files
+test-data/
+test-uploads/
+test-results/
+
+# Mock data
+mock-responses/
+sample-data/
+
+# Container volumes
+postgres-data/
+redis-data/
+opensearch-data/
+localstack-data/
+
+# Local scripts (user-specific)
+scripts/local/
+scripts/personal/
+
+# ====================
+# MONITORING & METRICS
+# ====================
+
+# Prometheus data
+prometheus-data/
+
+# Grafana data
+grafana-data/
+
+# Log aggregation
+fluentd-data/
+elasticsearch-data/
+
+# ====================
+# BACKUP FILES
+# ====================
+
+# Backup files
+*.backup
+*.bak
+*.old
+*.orig
+*.save
+*.tmp
+
+# Patch files
+*.patch
+*.diff
+
+# ====================
+# SYSTEM FILES
+# ====================
+
+# macOS
 .DS_Store
 .AppleDouble
 .LSOverride
-Icon
+Icon?
 ._*
 .DocumentRevisions-V100
 .fseventsd
@@ -112,3 +391,48 @@ Icon
 .Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.nfs*
+
+# ====================
+# MISCELLANEOUS
+# ====================
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Zero-byte files
+.empty
+
+# Lock files
+*.lock
+package-lock.json
+yarn.lock
+Pipfile.lock
+
+# IDE-specific files
+.project
+.classpath
+.settings/
+.metadata/
+
+# Custom user additions
+local/
+personal/
+scratch/
+
+# Claude Code project configuration (contains credentials)
+CLAUDE.md
+AGENTS.md

@@ -1,0 +1,249 @@
+# KinexusAI GitHub Actions - Tiered Documentation Sync
+# Automatically analyzes code changes and updates documentation using Agentic RAG
+
+name: Documentation Sync
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: ['main', 'master', 'dev', 'development', 'feature/*']
+  push:
+    branches: ['main', 'master', 'dev', 'development']
+
+env:
+  KINEXUS_API_URL: ${{ secrets.KINEXUS_API_URL }}
+  KINEXUS_API_KEY: ${{ secrets.KINEXUS_API_KEY }}
+  AWS_REGION: us-east-1
+
+jobs:
+  analyze-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      documentation-scope: ${{ steps.determine-scope.outputs.scope }}
+      affected-files: ${{ steps.analyze.outputs.files }}
+      impact-score: ${{ steps.analyze.outputs.impact }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Determine documentation scope
+      id: determine-scope
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
+          echo "scope=enterprise" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == "refs/heads/dev" || "${{ github.ref }}" == "refs/heads/development" ]]; then
+          echo "scope=internal" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.base_ref }}" == "main" || "${{ github.base_ref }}" == "master" ]]; then
+          echo "scope=enterprise" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.base_ref }}" == "dev" || "${{ github.base_ref }}" == "development" ]]; then
+          echo "scope=internal" >> $GITHUB_OUTPUT
+        else
+          echo "scope=repository" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Analyze code changes
+      id: analyze
+      run: |
+        # Get changed files
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+        else
+          CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD)
+        fi
+
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+
+        # Send to KinexusAI Change Analyzer
+        PAYLOAD=$(cat <<EOF
+        {
+          "repository": "${{ github.repository }}",
+          "ref": "${{ github.ref }}",
+          "sha": "${{ github.sha }}",
+          "changed_files": ["$(echo "$CHANGED_FILES" | tr '\n' ',' | sed 's/,$//' | sed 's/,/","/g')"],
+          "scope": "${{ steps.determine-scope.outputs.scope }}",
+          "pr_number": "${{ github.event.number }}",
+          "branch": "${{ github.head_ref || github.ref_name }}"
+        }
+        EOF
+        )
+
+        # Call KinexusAI API for change analysis
+        RESPONSE=$(curl -s -X POST \
+          -H "Authorization: Bearer $KINEXUS_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" \
+          "$KINEXUS_API_URL/api/v1/analyze-changes")
+
+        echo "files=$(echo "$CHANGED_FILES" | tr '\n' ',' | sed 's/,$//')" >> $GITHUB_OUTPUT
+        echo "impact=$(echo "$RESPONSE" | jq -r '.impact_score // 5')" >> $GITHUB_OUTPUT
+
+  update-repository-docs:
+    needs: analyze-changes
+    if: needs.analyze-changes.outputs.documentation-scope == 'repository'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update repository documentation
+      run: |
+        # Call KinexusAI Agentic RAG to update README, API docs, etc.
+        PAYLOAD=$(cat <<EOF
+        {
+          "action": "update_repository_docs",
+          "repository": "${{ github.repository }}",
+          "branch": "${{ github.head_ref || github.ref_name }}",
+          "changed_files": ["${{ needs.analyze-changes.outputs.affected-files }}"],
+          "scope": "repository"
+        }
+        EOF
+        )
+
+        RESPONSE=$(curl -s -X POST \
+          -H "Authorization: Bearer $KINEXUS_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" \
+          "$KINEXUS_API_URL/api/v1/update-documentation")
+
+        echo "Documentation update response:"
+        echo "$RESPONSE" | jq '.'
+
+    - name: Commit updated docs
+      run: |
+        git config --local user.email "kinexus-ai@noreply.github.com"
+        git config --local user.name "KinexusAI Documentation Bot"
+
+        if [[ -n $(git status --porcelain) ]]; then
+          git add -A
+          git commit -m "docs: Auto-update repository documentation via KinexusAI
+
+          🤖 Generated with KinexusAI Agentic RAG
+          📊 Impact Score: ${{ needs.analyze-changes.outputs.impact-score }}
+          🔍 Files Analyzed: ${{ needs.analyze-changes.outputs.affected-files }}
+
+          Co-Authored-By: KinexusAI <kinexus-ai@noreply.github.com>"
+
+          git push
+        else
+          echo "No documentation changes to commit"
+        fi
+
+  update-internal-docs:
+    needs: analyze-changes
+    if: needs.analyze-changes.outputs.documentation-scope == 'internal'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Update internal documentation systems
+      run: |
+        # Call KinexusAI to update internal wikis, Notion, etc.
+        PAYLOAD=$(cat <<EOF
+        {
+          "action": "update_internal_docs",
+          "repository": "${{ github.repository }}",
+          "branch": "${{ github.head_ref || github.ref_name }}",
+          "changed_files": ["${{ needs.analyze-changes.outputs.affected-files }}"],
+          "scope": "internal",
+          "targets": ["internal_wiki", "notion", "sharepoint_internal"]
+        }
+        EOF
+        )
+
+        curl -X POST \
+          -H "Authorization: Bearer $KINEXUS_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" \
+          "$KINEXUS_API_URL/api/v1/update-documentation"
+
+  update-enterprise-docs:
+    needs: analyze-changes
+    if: needs.analyze-changes.outputs.documentation-scope == 'enterprise'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Update enterprise documentation systems
+      run: |
+        # Call KinexusAI to update Confluence, SharePoint, enterprise wikis
+        PAYLOAD=$(cat <<EOF
+        {
+          "action": "update_enterprise_docs",
+          "repository": "${{ github.repository }}",
+          "branch": "${{ github.head_ref || github.ref_name }}",
+          "changed_files": ["${{ needs.analyze-changes.outputs.affected-files }}"],
+          "scope": "enterprise",
+          "targets": ["confluence", "sharepoint", "enterprise_wiki", "api_docs", "customer_docs"]
+        }
+        EOF
+        )
+
+        RESPONSE=$(curl -s -X POST \
+          -H "Authorization: Bearer $KINEXUS_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" \
+          "$KINEXUS_API_URL/api/v1/update-documentation")
+
+        echo "Enterprise documentation update initiated:"
+        echo "$RESPONSE" | jq '.'
+
+  quality-assurance:
+    needs: [analyze-changes, update-repository-docs, update-internal-docs, update-enterprise-docs]
+    if: always() && needs.analyze-changes.result == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Run documentation quality checks
+      run: |
+        # Use KinexusAI Quality Controller agent to validate updates
+        PAYLOAD=$(cat <<EOF
+        {
+          "action": "quality_check",
+          "repository": "${{ github.repository }}",
+          "scope": "${{ needs.analyze-changes.outputs.documentation-scope }}",
+          "impact_score": ${{ needs.analyze-changes.outputs.impact-score }}
+        }
+        EOF
+        )
+
+        curl -X POST \
+          -H "Authorization: Bearer $KINEXUS_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" \
+          "$KINEXUS_API_URL/api/v1/quality-check"
+
+    - name: Comment on PR with results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const comment = `## 🤖 KinexusAI Documentation Sync Report
+
+          **Scope**: \`${{ needs.analyze-changes.outputs.documentation-scope }}\`
+          **Impact Score**: ${{ needs.analyze-changes.outputs.impact-score }}/10
+          **Files Analyzed**: ${{ needs.analyze-changes.outputs.affected-files }}
+
+          ### Actions Taken:
+          ${{ needs.analyze-changes.outputs.documentation-scope == 'repository' && '✅ Repository documentation updated' || '' }}
+          ${{ needs.analyze-changes.outputs.documentation-scope == 'internal' && '✅ Internal documentation systems updated' || '' }}
+          ${{ needs.analyze-changes.outputs.documentation-scope == 'enterprise' && '✅ Enterprise documentation systems updated' || '' }}
+
+          ### Services Used:
+          - 🧠 **Agentic RAG System**: Intelligent document analysis
+          - 🕸️ **GraphRAG**: Relationship-aware retrieval
+          - 🔍 **Change Analyzer**: Impact assessment
+          - ✅ **Quality Controller**: Validation and review
+
+          *Generated by [KinexusAI](https://kinexusai.com) v2025.1*`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });

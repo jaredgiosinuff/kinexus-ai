@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY docker/mock-bedrock/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy mock service code
+COPY docker/mock-bedrock/ .
+
+EXPOSE 8001
+
+CMD ["uvicorn", "mock_bedrock_service:app", "--host", "0.0.0.0", "--port", "8001"]

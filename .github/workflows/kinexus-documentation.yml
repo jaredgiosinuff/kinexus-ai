@@ -1,0 +1,226 @@
+name: Kinexus AI Documentation Updates
+
+# Trigger on pull requests and pushes to main branches
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, master, develop, staging]
+  push:
+    branches: [main, master]
+
+# Environment variables
+env:
+  KINEXUS_API_VERSION: "2024-2025"
+
+jobs:
+  kinexus-documentation:
+    name: Update Documentation with Kinexus AI
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better change analysis
+
+      # Get list of changed files
+      - name: Get Changed Files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files: |
+            **/*.py
+            **/*.js
+            **/*.ts
+            **/*.md
+            **/*.yaml
+            **/*.json
+            docs/**/*
+            api/**/*
+            src/**/*
+
+      # Extract commit messages for better context
+      - name: Extract Commit Messages
+        id: commits
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            COMMITS=$(git log --pretty=format:'"%s"' ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | tr '\n' ',' | sed 's/,$//')
+          else
+            COMMITS=$(git log --pretty=format:'"%s"' -1)
+          fi
+          echo "messages=[$COMMITS]" >> $GITHUB_OUTPUT
+
+      # Prepare Kinexus AI payload
+      - name: Prepare Documentation Update Payload
+        id: payload
+        run: |
+          cat > kinexus_payload.json << EOF
+          {
+            "action": "github_actions_trigger",
+            "event_type": "${{ github.event_name }}",
+            "pull_request": {
+              "number": ${{ github.event.pull_request.number || 0 }},
+              "title": "${{ github.event.pull_request.title || github.event.head_commit.message }}",
+              "body": "${{ github.event.pull_request.body || '' }}",
+              "head": {
+                "ref": "${{ github.head_ref || github.ref_name }}",
+                "sha": "${{ github.sha }}"
+              },
+              "base": {
+                "ref": "${{ github.base_ref || 'main' }}"
+              },
+              "user": {
+                "login": "${{ github.actor }}"
+              }
+            },
+            "repository": {
+              "full_name": "${{ github.repository }}",
+              "name": "${{ github.event.repository.name }}",
+              "owner": "${{ github.repository_owner }}"
+            },
+            "changed_files": ${{ toJson(steps.changed-files.outputs.all_changed_files) }},
+            "commit_messages": ${{ steps.commits.outputs.messages }},
+            "github_actions_context": {
+              "workflow": "${{ github.workflow }}",
+              "run_id": "${{ github.run_id }}",
+              "run_number": "${{ github.run_number }}",
+              "actor": "${{ github.actor }}",
+              "ref": "${{ github.ref }}",
+              "sha": "${{ github.sha }}"
+            },
+            "kinexus_config": {
+              "version": "${{ env.KINEXUS_API_VERSION }}",
+              "trigger_source": "github_actions",
+              "automation_level": "full"
+            }
+          }
+          EOF
+
+      # Display payload for debugging (remove sensitive data)
+      - name: Debug Payload (Optional)
+        if: runner.debug == '1'
+        run: |
+          echo "Kinexus AI Payload:"
+          cat kinexus_payload.json | jq '.'
+
+      # Trigger Kinexus AI Documentation Update
+      - name: Trigger Kinexus AI Documentation Update
+        env:
+          KINEXUS_WEBHOOK_URL: ${{ secrets.KINEXUS_WEBHOOK_URL }}
+          KINEXUS_API_KEY: ${{ secrets.KINEXUS_API_KEY }}
+        run: |
+          # Validate required secrets
+          if [ -z "$KINEXUS_WEBHOOK_URL" ]; then
+            echo "⚠️ KINEXUS_WEBHOOK_URL secret not set"
+            echo "Please add your Kinexus AI webhook URL to repository secrets"
+            exit 1
+          fi
+
+          if [ -z "$KINEXUS_API_KEY" ]; then
+            echo "⚠️ KINEXUS_API_KEY secret not set"
+            echo "Please add your Kinexus AI API key to repository secrets"
+            exit 1
+          fi
+
+          # Send webhook to Kinexus AI
+          echo "🚀 Triggering Kinexus AI documentation update..."
+
+          RESPONSE=$(curl -s -w "%{http_code}" -X POST "$KINEXUS_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $KINEXUS_API_KEY" \
+            -H "X-GitHub-Event: ${{ github.event_name }}" \
+            -H "X-GitHub-Repository: ${{ github.repository }}" \
+            -H "User-Agent: Kinexus-AI-GitHub-Actions/1.0" \
+            --data @kinexus_payload.json \
+            -o response.json)
+
+          HTTP_CODE="${RESPONSE: -3}"
+
+          if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 202 ]; then
+            echo "✅ Kinexus AI documentation update triggered successfully"
+            echo "Response:"
+            cat response.json | jq '.'
+          else
+            echo "❌ Failed to trigger Kinexus AI documentation update"
+            echo "HTTP Status Code: $HTTP_CODE"
+            echo "Response:"
+            cat response.json
+            exit 1
+          fi
+
+      # Create documentation update summary
+      - name: Create Documentation Summary
+        if: always()
+        run: |
+          echo "## 📖 Kinexus AI Documentation Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.head_ref || github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Changed Files:** ${{ steps.changed-files.outputs.all_changed_files_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f response.json ]; then
+            echo "**Kinexus AI Response:**" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat response.json | jq '.' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Files Analyzed:**" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | head -10 >> $GITHUB_STEP_SUMMARY
+
+  # Optional: Create documentation PR for repo-only updates
+  create-doc-pr:
+    name: Create Documentation PR
+    needs: kinexus-documentation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && contains(github.head_ref, 'feature/')
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Documentation Branch
+        run: |
+          BRANCH_NAME="docs/auto-update-${{ github.event.pull_request.number }}"
+          git checkout -b "$BRANCH_NAME"
+
+          # Placeholder for generated documentation
+          echo "# Auto-generated Documentation Updates" > docs/auto-generated.md
+          echo "This documentation was automatically updated by Kinexus AI." >> docs/auto-generated.md
+          echo "" >> docs/auto-generated.md
+          echo "**Source PR:** #${{ github.event.pull_request.number }}" >> docs/auto-generated.md
+          echo "**Generated:** $(date)" >> docs/auto-generated.md
+
+          git add docs/auto-generated.md
+          git commit -m "Auto-update documentation for PR #${{ github.event.pull_request.number }}"
+          git push origin "$BRANCH_NAME"
+
+      - name: Create Documentation PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="docs/auto-update-${{ github.event.pull_request.number }}"
+
+          gh pr create \
+            --title "📖 Auto-generated documentation updates for PR #${{ github.event.pull_request.number }}" \
+            --body "This PR contains automatically generated documentation updates based on changes in PR #${{ github.event.pull_request.number }}.
+
+## Changes
+- Automated documentation generation
+- Updated relevant documentation sections
+- Generated by Kinexus AI
+
+## Review Notes
+- This is an automated PR generated by Kinexus AI
+- Please review the documentation changes for accuracy
+- Merge this PR after reviewing and approving the main feature PR
+
+**Related PR:** #${{ github.event.pull_request.number }}" \
+            --head "$BRANCH_NAME" \
+            --base "${{ github.base_ref }}" \
+            --label "documentation,automated"

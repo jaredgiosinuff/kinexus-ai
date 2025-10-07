@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinexus AI WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .connecting { background-color: #fff3cd; color: #856404; }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+
+        .message-log {
+            height: 400px;
+            overflow-y: scroll;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f8f9fa;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .message {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .message.incoming { background-color: #e3f2fd; }
+        .message.outgoing { background-color: #f3e5f5; }
+        .message.error { background-color: #ffebee; color: #c62828; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        input, select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+        }
+
+        .stats {
+            background-color: #e8f5e8;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔄 Kinexus AI WebSocket Test Client</h1>
+
+    <div class="container">
+        <h2>Connection</h2>
+        <div id="status" class="status disconnected">Disconnected</div>
+
+        <div>
+            <input type="text" id="tokenInput" placeholder="JWT Token" style="width: 300px;">
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+        </div>
+
+        <div style="margin-top: 10px;">
+            <button onclick="sendPing()">Send Ping</button>
+            <button onclick="getStats()">Get Stats</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="container">
+            <h2>Room Subscriptions</h2>
+            <div>
+                <select id="roomSelect">
+                    <option value="general">general</option>
+                    <option value="reviews">reviews</option>
+                    <option value="admin">admin</option>
+                    <option value="test-room">test-room</option>
+                </select>
+                <button onclick="subscribeToRoom()">Subscribe</button>
+                <button onclick="unsubscribeFromRoom()">Unsubscribe</button>
+            </div>
+        </div>
+
+        <div class="container">
+            <h2>Test Notifications</h2>
+            <div>
+                <select id="notificationTypeSelect">
+                    <option value="review_created">Review Created</option>
+                    <option value="review_assigned">Review Assigned</option>
+                    <option value="review_completed">Review Completed</option>
+                    <option value="queue_update">Queue Update</option>
+                    <option value="system_alert">System Alert</option>
+                </select>
+                <button onclick="triggerTestNotification()">Trigger Test</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Connection Stats</h2>
+        <div id="statsDisplay" class="stats">
+            Connect to see statistics
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Message Log</h2>
+        <div id="messageLog" class="message-log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let messageCount = 0;
+
+        function logMessage(message, type = 'incoming') {
+            const log = document.getElementById('messageLog');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+
+            const timestamp = new Date().toLocaleTimeString();
+            const content = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
+
+            messageDiv.innerHTML = `<strong>${timestamp} [${type.toUpperCase()}]:</strong><br><pre>${content}</pre>`;
+            log.appendChild(messageDiv);
+            log.scrollTop = log.scrollHeight;
+            messageCount++;
+        }
+
+        function updateStatus(status, className) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = status;
+            statusEl.className = `status ${className}`;
+        }
+
+        function connect() {
+            const token = document.getElementById('tokenInput').value;
+            if (!token) {
+                alert('Please enter a JWT token');
+                return;
+            }
+
+            if (ws) {
+                ws.close();
+            }
+
+            updateStatus('Connecting...', 'connecting');
+
+            const wsUrl = `ws://localhost:8000/api/ws/notifications?token=${encodeURIComponent(token)}`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function(event) {
+                updateStatus('Connected', 'connected');
+                logMessage('WebSocket connected successfully', 'incoming');
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    logMessage(data, 'incoming');
+
+                    // Update stats if this is a stats message
+                    if (data.type === 'connection_stats') {
+                        updateStatsDisplay(data.data);
+                    }
+                } catch (e) {
+                    logMessage('Received invalid JSON: ' + event.data, 'error');
+                }
+            };
+
+            ws.onclose = function(event) {
+                updateStatus('Disconnected', 'disconnected');
+                logMessage(`WebSocket closed: Code=${event.code}, Reason=${event.reason}`, 'error');
+                ws = null;
+            };
+
+            ws.onerror = function(error) {
+                logMessage('WebSocket error: ' + error, 'error');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function sendMessage(message) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('WebSocket not connected');
+                return;
+            }
+
+            ws.send(JSON.stringify(message));
+            logMessage(message, 'outgoing');
+        }
+
+        function sendPing() {
+            sendMessage({
+                type: 'ping',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function getStats() {
+            sendMessage({
+                type: 'get_stats',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function subscribeToRoom() {
+            const room = document.getElementById('roomSelect').value;
+            sendMessage({
+                type: 'subscribe',
+                room: room,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function unsubscribeFromRoom() {
+            const room = document.getElementById('roomSelect').value;
+            sendMessage({
+                type: 'unsubscribe',
+                room: room,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function triggerTestNotification() {
+            const notificationType = document.getElementById('notificationTypeSelect').value;
+
+            // Call the test notification endpoint
+            fetch(`/api/ws/test-notification?notification_type=${notificationType}`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                logMessage(`Test notification triggered: ${data.type}`, 'outgoing');
+            })
+            .catch(error => {
+                logMessage(`Failed to trigger test notification: ${error}`, 'error');
+            });
+        }
+
+        function updateStatsDisplay(stats) {
+            const statsEl = document.getElementById('statsDisplay');
+            statsEl.innerHTML = `
+                <strong>Connection Statistics:</strong><br>
+                Total Connections: ${stats.total_connections}<br>
+                Unique Users: ${stats.unique_users}<br>
+                Active Rooms: ${stats.rooms}<br>
+                Connections by Role: ${JSON.stringify(stats.connections_by_role)}<br>
+                Messages Received: ${messageCount}
+            `;
+        }
+
+        function clearLog() {
+            document.getElementById('messageLog').innerHTML = '';
+            messageCount = 0;
+        }
+
+        // Auto-reconnect demo token for development
+        document.addEventListener('DOMContentLoaded', function() {
+            const demoToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vLXVzZXItaWQiLCJleHAiOjk5OTk5OTk5OTl9.demo';
+            document.getElementById('tokenInput').value = demoToken;
+        });
+    </script>
+</body>
+</html>

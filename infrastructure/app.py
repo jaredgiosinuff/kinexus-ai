@@ -224,7 +224,31 @@ class KinexusAIMVPStack(Stack):
         )
 
 
+# Import production stack
+from production_stack import KinexusAIProductionStack
+
 # CDK App
 app = App()
-KinexusAIMVPStack(app, "KinexusAIMVPStack")
+
+# Get deployment type from context
+deployment_type = app.node.try_get_context("deployment_type") or "mvp"
+environment = app.node.try_get_context("environment") or "development"
+
+if deployment_type == "production":
+    # Deploy production stack with full infrastructure
+    KinexusAIProductionStack(
+        app,
+        f"KinexusAIProductionStack-{environment.title()}",
+        env={
+            "region": app.node.try_get_context("region") or "us-east-1",
+            "account": app.node.try_get_context("account")
+        }
+    )
+else:
+    # Deploy MVP stack for quick demos and development
+    KinexusAIMVPStack(
+        app,
+        f"KinexusAIMVPStack-{environment.title()}"
+    )
+
 app.synth()
