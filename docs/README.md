@@ -86,9 +86,26 @@ cd kinexus-ai
 
 ### Production Deployment
 ```bash
-./scripts/deploy-aws.sh
-./scripts/setup-integrations.sh
+./quick-start.sh prod
 ```
+
+## 🔌 Integration Setup
+
+Kinexus AI supports multiple enterprise integrations:
+
+| Integration | Status | Setup Guide |
+|-------------|--------|-------------|
+| **Confluence** | ✅ Production | [Configuration Guide](integration-configuration.md#confluence-integration) |
+| **Jira** | ✅ Production | [Configuration Guide](integration-configuration.md#jira-integration) |
+| **GitHub** | ✅ Production | [Configuration Guide](integration-configuration.md#github-integration) |
+| **Monday.com** | ✅ Working | [Configuration Guide](integration-configuration.md#mondaycom-integration) |
+| **SharePoint** | 📝 Scaffold | [Configuration Guide](integration-configuration.md#sharepoint-integration) |
+| **ServiceNow** | 📝 Scaffold | [Configuration Guide](integration-configuration.md#servicenow-integration) |
+
+**Quick Setup:**
+1. Choose your integrations from the [Integration Guide](integrations.md)
+2. Follow the [Configuration Guide](integration-configuration.md) for detailed setup
+3. Test connections via Admin Dashboard: http://localhost:3107
 
 ## 📊 Documentation Quality Standards
 
