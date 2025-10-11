@@ -86,7 +86,7 @@ sequenceDiagram
 ## Local Development Topology
 ```mermaid
 flowchart TB
-    subgraph Containers (docker-compose.yml)
+    subgraph Containers
         API[api]
         Frontend[frontend]
         Postgres[postgres]
