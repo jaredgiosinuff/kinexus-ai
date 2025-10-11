@@ -47,7 +47,8 @@
       "Bash(gh repo view:*)",
       "Bash(grep:*)",
       "Bash(git log:*)",
-      "Bash(git filter-branch:*)"
+      "Bash(git filter-branch:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []
