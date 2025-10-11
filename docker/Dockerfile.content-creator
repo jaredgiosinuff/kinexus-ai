@@ -1,0 +1,17 @@
+# Dockerfile for Content Creator Agent
+FROM kinexus-ai-agent-base:latest
+
+# Set specific environment variables for content creator
+ENV AGENT_TYPE=content-creator \
+    AGENT_PORT=8012 \
+    LOG_LEVEL=INFO
+
+# Expose content creator port
+EXPOSE 8012
+
+# Health check for content creator
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8012/health || exit 1
+
+# Run the content creator agent
+CMD ["poetry", "run", "python", "-m", "src.agents.nova_pro_integration", "--port", "8012", "--mode", "content-creator"]

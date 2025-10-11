@@ -1,0 +1,17 @@
+# Dockerfile for Document Orchestrator Agent
+FROM kinexus-ai-agent-base:latest
+
+# Set specific environment variables for orchestrator
+ENV AGENT_TYPE=orchestrator \
+    AGENT_PORT=8010 \
+    LOG_LEVEL=INFO
+
+# Expose orchestrator port
+EXPOSE 8010
+
+# Health check for orchestrator
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8010/health || exit 1
+
+# Run the orchestrator agent
+CMD ["poetry", "run", "python", "-m", "src.agents.multi_agent_supervisor", "--port", "8010"]

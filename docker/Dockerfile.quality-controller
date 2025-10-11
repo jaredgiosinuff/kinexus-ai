@@ -1,0 +1,17 @@
+# Dockerfile for Quality Controller Agent
+FROM kinexus-ai-agent-base:latest
+
+# Set specific environment variables for quality controller
+ENV AGENT_TYPE=quality-controller \
+    AGENT_PORT=8013 \
+    LOG_LEVEL=INFO
+
+# Expose quality controller port
+EXPOSE 8013
+
+# Health check for quality controller
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8013/health || exit 1
+
+# Run the quality controller agent
+CMD ["poetry", "run", "python", "-m", "src.agents.self_corrective_rag", "--port", "8013", "--mode", "quality-controller"]

@@ -139,7 +139,7 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
-    command: ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["poetry", "run", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   # Mock Bedrock Service (for AI model mocking)
   mock-bedrock:
@@ -189,6 +189,224 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # ==========================================
+  # AI AGENT SERVICES
+  # ==========================================
+
+  # Document Orchestrator Agent (Master Coordinator)
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.orchestrator
+      target: agent-base
+    container_name: kinexus_orchestrator
+    ports:
+      - "8010:8010"
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=kinexus_dev
+      - DB_USER=kinexus_user
+      - DB_PASSWORD=kinexus_pass
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - AGENT_TYPE=orchestrator
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Change Analyzer Agent (Claude 4 Sonnet for fast processing)
+  change-analyzer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.change-analyzer
+      target: agent-base
+    container_name: kinexus_change_analyzer
+    ports:
+      - "8011:8011"
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=kinexus_dev
+      - DB_USER=kinexus_user
+      - DB_PASSWORD=kinexus_pass
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - AGENT_TYPE=change-analyzer
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8011/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Content Creator Agent (Nova Pro + Canvas for document generation)
+  content-creator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.content-creator
+      target: agent-base
+    container_name: kinexus_content_creator
+    ports:
+      - "8012:8012"
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=kinexus_dev
+      - DB_USER=kinexus_user
+      - DB_PASSWORD=kinexus_pass
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - AGENT_TYPE=content-creator
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8012/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Quality Controller Agent (Nova Pro for quality assurance)
+  quality-controller:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.quality-controller
+      target: agent-base
+    container_name: kinexus_quality_controller
+    ports:
+      - "8013:8013"
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=kinexus_dev
+      - DB_USER=kinexus_user
+      - DB_PASSWORD=kinexus_pass
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - AGENT_TYPE=quality-controller
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8013/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Web Automator Agent (Nova Act for browser automation)
+  web-automator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web-automator
+      target: agent-base
+    container_name: kinexus_web_automator
+    ports:
+      - "8014:8014"
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=kinexus_dev
+      - DB_USER=kinexus_user
+      - DB_PASSWORD=kinexus_pass
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
+      - AGENT_TYPE=web-automator
+      - LOG_LEVEL=INFO
+      - DISPLAY=:99
+      - CHROME_BIN=/usr/bin/chromium
+      - CHROME_DRIVER=/usr/bin/chromedriver
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    networks:
+      - kinexus_dev_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8014/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # FRONTEND SERVICE
+  # ==========================================
 
   # Frontend Development Server
   frontend:

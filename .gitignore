@@ -267,6 +267,7 @@ dump.rdb
 .serverless/
 .sam/
 lambda_layer.zip
+lambda_layer/
 
 # Google Cloud
 .gcloud/

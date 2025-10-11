@@ -1,0 +1,57 @@
+# Production Multi-Stage Dockerfile for Frontend
+# ==========================================
+# BUILDER STAGE - Build React app
+# ==========================================
+FROM node:18-alpine as builder
+
+WORKDIR /app
+
+# Copy package files
+COPY frontend/package.json frontend/package-lock.json* ./
+
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy source code and build
+COPY frontend/ .
+
+# Build the application
+RUN npm run build
+
+# ==========================================
+# PRODUCTION STAGE - Nginx server
+# ==========================================
+FROM nginx:alpine as production
+
+# Copy custom nginx configuration
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Create non-root user for nginx
+RUN addgroup -g 1001 -S kinexus && \
+    adduser -S kinexus -u 1001 -G kinexus
+
+# Adjust permissions
+RUN chown -R kinexus:kinexus /usr/share/nginx/html && \
+    chown -R kinexus:kinexus /var/cache/nginx && \
+    chown -R kinexus:kinexus /var/log/nginx && \
+    chown -R kinexus:kinexus /etc/nginx/conf.d
+
+# Create run directory
+RUN touch /var/run/nginx.pid && \
+    chown -R kinexus:kinexus /var/run/nginx.pid
+
+# Switch to non-root user
+USER kinexus
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:80/ || exit 1
+
+# Expose port
+EXPOSE 80
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

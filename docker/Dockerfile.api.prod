@@ -1,0 +1,82 @@
+# Production Multi-Stage Dockerfile for Kinexus AI API
+FROM python:3.11-slim as base
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VENV_IN_PROJECT=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    libpq-dev \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+RUN pip install poetry==2.2.1
+
+# ==========================================
+# BUILDER STAGE - Install dependencies
+# ==========================================
+FROM base as builder
+
+WORKDIR /app
+
+# Copy Poetry configuration files
+COPY pyproject.toml poetry.lock ./
+
+# Install dependencies (including dev dependencies for building)
+RUN poetry install --no-interaction --no-ansi
+RUN rm -rf $POETRY_CACHE_DIR
+
+# ==========================================
+# PRODUCTION STAGE - Runtime image
+# ==========================================
+FROM base as production
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash kinexus && \
+    mkdir -p /app && \
+    chown -R kinexus:kinexus /app
+
+WORKDIR /app
+
+# Copy virtual environment from builder stage
+COPY --from=builder --chown=kinexus:kinexus /app/.venv /app/.venv
+
+# Copy Poetry configuration
+COPY --chown=kinexus:kinexus pyproject.toml poetry.lock ./
+
+# Reinstall Poetry (smaller production image)
+RUN pip install poetry==2.2.1
+
+# Install only production dependencies
+RUN poetry install --no-dev --no-interaction --no-ansi && \
+    rm -rf $POETRY_CACHE_DIR
+
+# Copy application code
+COPY --chown=kinexus:kinexus src/ ./src/
+COPY --chown=kinexus:kinexus alembic/ ./alembic/
+COPY --chown=kinexus:kinexus alembic.ini ./
+
+# Create necessary directories
+RUN mkdir -p /app/logs && chown -R kinexus:kinexus /app/logs
+
+# Switch to non-root user
+USER kinexus
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Use production WSGI server
+CMD ["poetry", "run", "gunicorn", "src.api.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-"]

@@ -1,4 +1,4 @@
-# Kinexus AI API with Poetry
+# Base Dockerfile for Kinexus AI Agent Services
 FROM python:3.11-slim
 
 # Set environment variables
@@ -27,23 +27,16 @@ WORKDIR /app
 # Copy Poetry configuration files
 COPY pyproject.toml poetry.lock* ./
 
-# Install Python dependencies
-RUN poetry install --no-dev --no-root && rm -rf $POETRY_CACHE_DIR
+# Install Python dependencies (agents need all dependencies)
+RUN poetry install --no-root && rm -rf $POETRY_CACHE_DIR
 
 # Copy application code
 COPY src/ ./src/
-COPY alembic/ ./alembic/
-COPY alembic.ini ./
+COPY scripts/ ./scripts/
 
 # Create necessary directories
-RUN mkdir -p /app/logs
+RUN mkdir -p /app/logs /app/data
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+# Health check (will be overridden by specific agents)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
-
-# Expose port
-EXPOSE 8000
-
-# Run the application
-CMD ["poetry", "run", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

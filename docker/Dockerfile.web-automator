@@ -1,0 +1,27 @@
+# Dockerfile for Web Automator Agent (Nova Act)
+FROM kinexus-ai-agent-base:latest
+
+# Install additional dependencies for web automation
+RUN apt-get update && apt-get install -y \
+    chromium \
+    chromium-driver \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set specific environment variables for web automator
+ENV AGENT_TYPE=web-automator \
+    AGENT_PORT=8014 \
+    LOG_LEVEL=INFO \
+    DISPLAY=:99 \
+    CHROME_BIN=/usr/bin/chromium \
+    CHROME_DRIVER=/usr/bin/chromedriver
+
+# Expose web automator port
+EXPOSE 8014
+
+# Health check for web automator
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8014/health || exit 1
+
+# Start Xvfb and run the web automator agent
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 & poetry run python -m src.agents.nova_act_automation --port 8014"]

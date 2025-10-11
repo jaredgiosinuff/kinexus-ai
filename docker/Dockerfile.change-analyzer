@@ -1,0 +1,17 @@
+# Dockerfile for Change Analyzer Agent
+FROM kinexus-ai-agent-base:latest
+
+# Set specific environment variables for change analyzer
+ENV AGENT_TYPE=change-analyzer \
+    AGENT_PORT=8011 \
+    LOG_LEVEL=INFO
+
+# Expose change analyzer port
+EXPOSE 8011
+
+# Health check for change analyzer
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8011/health || exit 1
+
+# Run the change analyzer agent
+CMD ["poetry", "run", "python", "-m", "src.agents.agentic_rag_system", "--port", "8011", "--mode", "change-analyzer"]
