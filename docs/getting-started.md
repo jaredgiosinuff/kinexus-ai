@@ -25,10 +25,10 @@ git clone https://github.com/jaredgiosinuff/kinexus-ai.git
 cd kinexus-ai
 
 # Start complete development environment
-./scripts/dev-setup.sh
+./quick-start.sh dev
 
 # Test everything works
-./scripts/dev-test.sh
+./quick-start.sh test
 
 # Access main services
 open http://localhost:3105  # API Documentation
@@ -81,7 +81,7 @@ aws configure
 
 ## 📊 Development Environment (Local)
 
-When you run `./scripts/dev-setup.sh`, you get these services:
+When you run `./quick-start.sh dev`, you get these services:
 
 | Service | Port | Purpose |
 |---------|------|---------|
@@ -242,9 +242,9 @@ curl -X POST http://localhost:3105/api/admin/integrations \
 ## 🆘 Getting Help
 
 ### **Quick Support**
-- **Health Check**: `./scripts/dev-test.sh`
-- **View Logs**: `podman-compose logs -f api`
-- **Reset Environment**: `./scripts/dev-down.sh --volumes && ./scripts/dev-setup.sh`
+- **Health Check**: `./quick-start.sh status`
+- **View Logs**: `./quick-start.sh logs api`
+- **Reset Environment**: `./quick-start.sh cleanup && ./quick-start.sh dev`
 
 ### **Documentation**
 - **API Docs**: http://localhost:3105/docs
@@ -276,4 +276,4 @@ curl -X POST http://localhost:3105/api/admin/integrations \
 
 Start with the local environment and explore the powerful AI agents that make autonomous knowledge management a reality.
 
-🚀 **Begin with**: `./scripts/dev-setup.sh`
+🚀 **Begin with**: `./quick-start.sh dev`

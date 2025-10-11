@@ -6,7 +6,21 @@ from datetime import datetime
 from .base_integration import BaseIntegration, SyncResult, TestResult
 
 class ServiceNowIntegration(BaseIntegration):
-    """ServiceNow integration for IT service management."""
+    """
+SCAFFOLD IMPLEMENTATION - ServiceNow integration for IT service management.
+
+This is a placeholder implementation that provides:
+- Basic connection testing
+- Authentication framework
+- Stub methods for sync and webhook processing
+
+TO IMPLEMENT: Full ServiceNow REST API integration with:
+- Incident, Change Request, Problem, and Task management
+- Knowledge Base article creation and updates
+- Service Catalog and CMDB integration
+- Workflow automation and approval processes
+- Advanced reporting and analytics
+"""
 
     def __init__(self, integration):
         super().__init__(integration)
@@ -51,21 +65,31 @@ class ServiceNowIntegration(BaseIntegration):
             )
 
     async def sync(self) -> SyncResult:
-        """Sync data from ServiceNow tables."""
-        # Implementation would sync incidents, change requests, problems, etc.
-        # This is a placeholder implementation
+        """SCAFFOLD: Sync data from ServiceNow tables."""
+        # TODO: Implement full ServiceNow data synchronization:
+        # - Connect to ServiceNow Table API
+        # - Sync incidents, change requests, problems, tasks
+        # - Process knowledge base articles and documentation
+        # - Handle CMDB configuration items and relationships
+        # - Manage service catalog requests and approvals
+        # - Process user and group information
 
         return SyncResult(
             success=True,
             records_processed=0,
-            metadata={"implementation": "placeholder"}
+            metadata={"implementation": "scaffold", "status": "not_implemented"}
         )
 
     async def process_webhook(self, event_type: str, payload: Dict[str, Any]) -> bool:
-        """Process ServiceNow webhook events."""
+        """SCAFFOLD: Process ServiceNow webhook events."""
         self.log_webhook_received(event_type)
 
-        # Implementation would handle record insert, update, delete events
-        # This is a placeholder implementation
+        # TODO: Implement ServiceNow webhook processing:
+        # - Handle record insert, update, delete events
+        # - Process incident state changes and assignments
+        # - Manage change request approvals and implementations
+        # - Track knowledge base article updates
+        # - Handle CMDB configuration item changes
+        # - Process workflow state transitions
 
         return True

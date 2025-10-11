@@ -6,7 +6,20 @@ from datetime import datetime
 from .base_integration import BaseIntegration, SyncResult, TestResult
 
 class SharePointIntegration(BaseIntegration):
-    """SharePoint integration for document management."""
+    """
+SCAFFOLD IMPLEMENTATION - SharePoint integration for document management.
+
+This is a placeholder implementation that provides:
+- Basic connection testing
+- Authentication framework
+- Stub methods for sync and webhook processing
+
+TO IMPLEMENT: Full SharePoint REST API integration with:
+- Document library management
+- File upload/download/update operations
+- Site collection and permission handling
+- Advanced search and metadata operations
+"""
 
     def __init__(self, integration):
         super().__init__(integration)
@@ -51,21 +64,29 @@ class SharePointIntegration(BaseIntegration):
             )
 
     async def sync(self) -> SyncResult:
-        """Sync documents from SharePoint libraries."""
-        # Implementation would sync document libraries, files, metadata
-        # This is a placeholder implementation
+        """SCAFFOLD: Sync documents from SharePoint libraries."""
+        # TODO: Implement full SharePoint document synchronization:
+        # - Connect to SharePoint REST API
+        # - Enumerate document libraries and sites
+        # - Sync file metadata, content, and permissions
+        # - Handle version history and check-in/check-out states
+        # - Process shared folders and collaboration spaces
 
         return SyncResult(
             success=True,
             records_processed=0,
-            metadata={"implementation": "placeholder"}
+            metadata={"implementation": "scaffold", "status": "not_implemented"}
         )
 
     async def process_webhook(self, event_type: str, payload: Dict[str, Any]) -> bool:
-        """Process SharePoint webhook events."""
+        """SCAFFOLD: Process SharePoint webhook events."""
         self.log_webhook_received(event_type)
 
-        # Implementation would handle file created, modified, deleted events
-        # This is a placeholder implementation
+        # TODO: Implement SharePoint webhook processing:
+        # - Handle file created, modified, deleted events
+        # - Process document library changes
+        # - Manage permission and sharing updates
+        # - Track version changes and collaboration events
+        # - Integration with Microsoft Graph API webhooks
 
         return True

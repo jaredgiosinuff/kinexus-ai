@@ -75,8 +75,8 @@ See: **[Deployment Guide](deployment.md)**
 ```bash
 git clone https://github.com/jaredgiosinuff/kinexus-ai.git
 cd kinexus-ai
-./scripts/dev-setup.sh
-./scripts/dev-test.sh
+./quick-start.sh dev
+./quick-start.sh test
 ```
 
 **Services Available:**

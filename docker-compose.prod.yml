@@ -1,0 +1,378 @@
+# Production Docker Compose for Kinexus AI
+# Optimized for production deployment with security and performance
+
+version: '3.8'
+
+services:
+  # ==========================================
+  # CORE API SERVICE
+  # ==========================================
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api.prod
+      target: production
+    container_name: kinexus_api_prod
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-kinexus_prod}
+      - DB_USER=${DB_USER:-kinexus_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - LOG_LEVEL=INFO
+    networks:
+      - kinexus_prod_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================
+  # AI AGENT SERVICES
+  # ==========================================
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent-base.prod
+      target: production
+    container_name: kinexus_orchestrator_prod
+    ports:
+      - "8010:8010"
+    environment:
+      - ENVIRONMENT=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-kinexus_prod}
+      - DB_USER=${DB_USER:-kinexus_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - AGENT_TYPE=orchestrator
+      - LOG_LEVEL=INFO
+    networks:
+      - kinexus_prod_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["poetry", "run", "python", "-m", "src.agents.multi_agent_supervisor", "--port", "8010"]
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  change-analyzer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent-base.prod
+      target: production
+    container_name: kinexus_change_analyzer_prod
+    ports:
+      - "8011:8011"
+    environment:
+      - ENVIRONMENT=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-kinexus_prod}
+      - DB_USER=${DB_USER:-kinexus_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - AGENT_TYPE=change-analyzer
+      - LOG_LEVEL=INFO
+    networks:
+      - kinexus_prod_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["poetry", "run", "python", "-m", "src.agents.agentic_rag_system", "--port", "8011", "--mode", "change-analyzer"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1.5G
+        reservations:
+          cpus: '0.75'
+          memory: 768M
+
+  content-creator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent-base.prod
+      target: production
+    container_name: kinexus_content_creator_prod
+    ports:
+      - "8012:8012"
+    environment:
+      - ENVIRONMENT=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-kinexus_prod}
+      - DB_USER=${DB_USER:-kinexus_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - AGENT_TYPE=content-creator
+      - LOG_LEVEL=INFO
+    networks:
+      - kinexus_prod_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["poetry", "run", "python", "-m", "src.agents.nova_pro_integration", "--port", "8012", "--mode", "content-creator"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1.5G
+        reservations:
+          cpus: '0.75'
+          memory: 768M
+
+  quality-controller:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent-base.prod
+      target: production
+    container_name: kinexus_quality_controller_prod
+    ports:
+      - "8013:8013"
+    environment:
+      - ENVIRONMENT=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-kinexus_prod}
+      - DB_USER=${DB_USER:-kinexus_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - AGENT_TYPE=quality-controller
+      - LOG_LEVEL=INFO
+    networks:
+      - kinexus_prod_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["poetry", "run", "python", "-m", "src.agents.self_corrective_rag", "--port", "8013", "--mode", "quality-controller"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  web-automator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web-automator
+      target: agent-base
+    container_name: kinexus_web_automator_prod
+    ports:
+      - "8014:8014"
+    environment:
+      - ENVIRONMENT=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-kinexus_prod}
+      - DB_USER=${DB_USER:-kinexus_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AGENT_TYPE=web-automator
+      - LOG_LEVEL=INFO
+      - DISPLAY=:99
+      - CHROME_BIN=/usr/bin/chromium
+      - CHROME_DRIVER=/usr/bin/chromedriver
+    networks:
+      - kinexus_prod_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================
+  # FRONTEND SERVICE
+  # ==========================================
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend.prod
+      target: production
+    container_name: kinexus_frontend_prod
+    ports:
+      - "80:80"
+    networks:
+      - kinexus_prod_network
+    depends_on:
+      - api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ==========================================
+  # INFRASTRUCTURE SERVICES
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: kinexus_postgres_prod
+    environment:
+      POSTGRES_DB: ${DB_NAME:-kinexus_prod}
+      POSTGRES_USER: ${DB_USER:-kinexus_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - kinexus_prod_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-kinexus_user} -d ${DB_NAME:-kinexus_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    container_name: kinexus_redis_prod
+    volumes:
+      - redis_data:/data
+    networks:
+      - kinexus_prod_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: kinexus_opensearch_prod
+    environment:
+      - cluster.name=kinexus-prod-cluster
+      - node.name=kinexus-prod-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms2g -Xmx2g"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    networks:
+      - kinexus_prod_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+# Named volumes for data persistence
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  opensearch_data:
+    driver: local
+
+# Production network
+networks:
+  kinexus_prod_network:
+    driver: bridge
+    name: kinexus_prod_network

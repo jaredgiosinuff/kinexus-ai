@@ -105,7 +105,7 @@ flowchart TB
     Agents --> MockBedrock
 ```
 
-- `./scripts/dev-setup.sh` orchestrates the stack, runs Alembic migrations, and launches API + frontend containers.
+- `./quick-start.sh dev` orchestrates the stack, generates Poetry lock files, builds Docker images, and launches all containerized services.
 - `mock-bedrock` offers deterministic responses for integration tests; switch to live Bedrock by setting `BEDROCK_ENDPOINT_URL` and credentials.
 - LocalStack keeps S3, DynamoDB, and EventBridge APIs available for the agent scripts that expect AWS resources.
 

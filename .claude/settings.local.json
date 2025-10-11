@@ -48,7 +48,14 @@
       "Bash(grep:*)",
       "Bash(git log:*)",
       "Bash(git filter-branch:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(poetry --version)",
+      "Bash(poetry init:*)",
+      "Bash(poetry lock:*)",
+      "Bash(timeout:*)",
+      "Bash(./quick-start.sh:*)",
+      "Bash(./scripts/health-check.sh:*)",
+      "Bash(poetry run python -m pytest:*)"
     ],
     "deny": [],
     "ask": []

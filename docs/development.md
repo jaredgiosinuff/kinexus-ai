@@ -15,10 +15,13 @@ This comprehensive guide covers everything you need for local Kinexus AI develop
 ### One-Command Setup
 ```bash
 # Setup entire development environment
-./scripts/dev-setup.sh
+./quick-start.sh dev
 
 # Test everything is working
-./scripts/dev-test.sh
+./quick-start.sh test
+
+# View service status
+./quick-start.sh status
 ```
 
 ## 📊 Local Development Stack
@@ -131,25 +134,26 @@ curl -X POST http://localhost:3106/agents/document-orchestrator/invoke \
 
 #### Python Environment
 ```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate
+# Install Poetry (if not already installed)
+pip install poetry==2.2.1
 
 # Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+poetry install
+
+# Activate virtual environment
+poetry shell
 ```
 
 #### Starting Development
 ```bash
 # Start all services
-./scripts/dev-setup.sh
+./quick-start.sh dev
 
 # Check status
-./scripts/dev-test.sh
+./quick-start.sh status
 
 # View logs
-podman-compose logs -f api
+./quick-start.sh logs api
 ```
 
 ### Making Code Changes
@@ -217,7 +221,7 @@ pytest tests/test_mcp_integration.py
 pytest --cov=src tests/
 
 # Run in container
-podman-compose exec api pytest
+./quick-start.sh test
 ```
 
 ### Code Quality Tools
@@ -278,31 +282,31 @@ podman-compose exec -T postgres psql -U kinexus_user -d kinexus_dev < backup.sql
 ### Basic Operations
 ```bash
 # View running containers
-podman-compose ps
+./quick-start.sh status
 
-# View all services
-podman-compose config --services
+# Stop all services
+./quick-start.sh stop
 
-# Stop specific service
-podman-compose stop [service]
-
-# Restart service
-podman-compose restart [service]
+# Restart all services
+./quick-start.sh restart
 
 # Remove everything
-podman-compose down -v
+./quick-start.sh cleanup
+
+# Build images only
+./quick-start.sh build
 ```
 
 ### Log Management
 ```bash
-# View logs (follow)
-podman-compose logs -f
+# View logs (follow all services)
+./quick-start.sh logs
 
 # View specific service logs
-podman-compose logs -f api
+./quick-start.sh logs api
 
-# View last 50 lines
-podman-compose logs --tail 50 api
+# View orchestrator logs
+./quick-start.sh logs orchestrator
 ```
 
 ## 🐛 Troubleshooting
@@ -312,17 +316,17 @@ podman-compose logs --tail 50 api
 #### Services Won't Start
 ```bash
 # Check container status
-podman-compose ps
+./quick-start.sh status
 
 # View logs
-podman-compose logs [service-name]
+./quick-start.sh logs [service-name]
 
-# Restart specific service
-podman-compose restart [service-name]
+# Restart all services
+./quick-start.sh restart
 
 # Full reset
-./scripts/dev-down.sh --volumes
-./scripts/dev-setup.sh
+./quick-start.sh cleanup
+./quick-start.sh dev
 ```
 
 #### Database Connection Issues
@@ -341,7 +345,7 @@ podman-compose up -d postgres
 #### API Errors
 ```bash
 # Check API logs
-podman-compose logs api
+./quick-start.sh logs api
 
 # Check health
 curl http://localhost:3105/health
@@ -371,15 +375,15 @@ podman system reset
 
 #### LocalStack Issues
 - Delete `/tmp/localstack` to reset if stale state causes issues
-- Check LocalStack logs: `podman-compose logs localstack`
+- Check LocalStack logs: `./quick-start.sh logs localstack`
 
 ### Reset Environment
 ```bash
 # Stop and remove everything
-./scripts/dev-down.sh --volumes
+./quick-start.sh cleanup
 
 # Rebuild and restart
-./scripts/dev-setup.sh
+./quick-start.sh dev
 ```
 
 ## ⚙️ Configuration
@@ -456,7 +460,7 @@ curl -X POST http://localhost:3105/api/documentation-plans/{id}/link-review \
 
 ### Before You Push
 
-1. **Test locally**: `./scripts/dev-test.sh`
+1. **Test locally**: `./quick-start.sh test`
 2. **Run full test suite**: `pytest --cov=src tests/`
 3. **Code quality checks**: `black`, `isort`, `ruff`, `mypy`
 4. **Update documentation** if adding features
@@ -473,9 +477,9 @@ curl -X POST http://localhost:3105/api/documentation-plans/{id}/link-review \
 
 ## 🆘 Getting Help
 
-- **View logs**: `podman-compose logs [service]`
-- **Check health**: `./scripts/dev-test.sh`
-- **Reset environment**: `./scripts/dev-down.sh --volumes && ./scripts/dev-setup.sh`
+- **View logs**: `./quick-start.sh logs [service]`
+- **Check health**: `./quick-start.sh status`
+- **Reset environment**: `./quick-start.sh cleanup && ./quick-start.sh dev`
 - **API documentation**: http://localhost:3105/docs
 - **Mock AI agents**: http://localhost:3106/agents
 - **Database admin**: http://localhost:3108 (Adminer)

@@ -16,21 +16,34 @@ class ConfluenceClient:
     """
     Client for managing documents in Confluence.
     This client UPDATES existing pages, not creates shadow copies.
+
+    IMPORTANT (2025):
+    - Uses Confluence Cloud REST API v2 (current as of October 2025)
+    - API tokens now expire (1-365 days) - implement token refresh logic
+    - Scoped API tokens: use https://api.atlassian.com/ex/confluence/{cloudId} for scoped tokens
+    - For production: use OAuth 2.0 instead of basic auth per Atlassian security requirements
     """
 
-    def __init__(self, base_url: str, username: str, api_token: str):
+    def __init__(self, base_url: str, username: str, api_token: str, cloud_id: str = None):
         self.base_url = base_url.rstrip('/')
+        self.cloud_id = cloud_id
         self.auth = (username, api_token)
         self.headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
 
+        # Use scoped API endpoint if cloud_id provided (2025 requirement)
+        if cloud_id:
+            self.api_base = f"https://api.atlassian.com/ex/confluence/{cloud_id}"
+        else:
+            self.api_base = f"{self.base_url}/wiki"
+
     async def get_page_by_id(self, page_id: str) -> Optional[Dict]:
         """
         Get page content and metadata by page ID.
         """
-        url = f"{self.base_url}/wiki/rest/api/content/{page_id}"
+        url = f"{self.api_base}/rest/api/content/{page_id}"
         params = {
             "expand": "body.storage,version,ancestors,space"
         }
@@ -60,7 +73,7 @@ class ConfluenceClient:
         Search for pages using CQL (Confluence Query Language).
         Example CQL: 'space = "DEV" and text ~ "payment api"'
         """
-        url = f"{self.base_url}/wiki/rest/api/content/search"
+        url = f"{self.api_base}/rest/api/content/search"
         params = {
             "cql": cql,
             "limit": limit,
@@ -91,7 +104,7 @@ class ConfluenceClient:
         Update an existing Confluence page.
         This is the PRIMARY operation - we update docs where they live.
         """
-        url = f"{self.base_url}/wiki/rest/api/content/{page_id}"
+        url = f"{self.api_base}/rest/api/content/{page_id}"
 
         # Get current page info for title
         current_page = await self.get_page_by_id(page_id)
@@ -228,7 +241,7 @@ class ConfluenceClient:
         Create a new page in Confluence.
         This is SECONDARY - only when explicitly permitted and needed.
         """
-        url = f"{self.base_url}/wiki/rest/api/content"
+        url = f"{self.api_base}/rest/api/content"
 
         data = {
             "type": "page",

@@ -156,7 +156,7 @@ start_development() {
     echo "🔴 Redis Commander:       http://localhost:3109"
     echo "🔍 OpenSearch Dashboards: http://localhost:3110"
     echo ""
-    echo -e "${YELLOW}💡 Tip: Use 'docker-compose logs -f [service]' to view logs${NC}"
+    echo -e "${YELLOW}💡 Tip: Use './quick-start.sh logs [service]' to view logs${NC}"
 }
 
 start_production() {
