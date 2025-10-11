@@ -6,7 +6,7 @@ Kinexus AI combines a FastAPI service layer, asynchronous agent routines, and a 
 ```mermaid
 flowchart LR
     subgraph Client
-        FE[Frontend (optional)]
+        FE[Frontend Optional]
         Ops[Ops Tooling]
         Integrators[External Callers]
     end
