@@ -31,9 +31,10 @@ cd kinexus-ai
 ./quick-start.sh test
 
 # Access main services
-open http://localhost:3105  # API Documentation
-open http://localhost:3107  # Frontend Dashboard
-open http://localhost:3106  # Mock AI Agents
+open http://localhost:3105        # API root
+open http://localhost:3105/docs   # API documentation (Swagger UI)
+open http://localhost:3106        # Mock AI Agents
+# Note: The frontend dashboard at http://localhost:3107 is not available in this setup yet.
 ```
 
 **What you get**: Full containerized environment with PostgreSQL, Redis, OpenSearch, Mock AI services, and complete API.

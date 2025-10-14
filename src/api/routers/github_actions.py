@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from core.config import settings
 from core.services.change_intake_service import ChangeIntakeService
 from core.services.documentation_plan_service import DocumentationPlanService
-from database.database import get_db
+from database.connection import get_db_session as get_db
 
 logger = logging.getLogger(__name__)
 
