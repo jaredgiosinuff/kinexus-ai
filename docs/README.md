@@ -30,7 +30,11 @@ See: **[Deployment Guide](deployment.md)**
 
 ### Integration & Automation
 - **[Integrations Guide](integrations.md)** - External system connectors and configuration
+- **[Integration Configuration](integration-configuration.md)** - Step-by-step integration setup
+- **[Integration Troubleshooting](integration-troubleshooting.md)** - Common issues and solutions
+- **[GitHub Actions Deployment](github-actions-deployment.md)** - Automated AWS deployment via GitHub Actions
 - **[GitHub Actions](github-actions.md)** - Automated documentation workflows and CI/CD
+- **[AWS Deployment Setup](aws-deployment-setup.md)** - AWS infrastructure setup and permissions
 - **[Documentation Workflow](documentation-workflow.md)** - How documentation is managed in the system
 
 ### Project Management
