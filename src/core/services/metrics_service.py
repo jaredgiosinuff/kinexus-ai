@@ -11,10 +11,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Deque, Dict, List, Optional, Tuple, Union
 
-from prometheus_client import (
-    CollectorRegistry,
-    Counter,
-)
+from prometheus_client import CollectorRegistry, Counter
 from prometheus_client import Enum as PrometheusEnum
 from prometheus_client import (
     Gauge,
