@@ -11,8 +11,8 @@ Kinexus AI is a human-supervised documentation assistant. It ingests change even
 
 ## Getting Started
 ```bash
-./scripts/dev-setup.sh   # build containers, apply migrations, launch services
-./scripts/dev-test.sh    # verify containers and run smoke checks
+./quick-start.sh dev    # build containers, apply migrations, launch services
+./quick-start.sh test   # verify containers and run smoke checks
 ```
 
 Key endpoints once the stack is running:

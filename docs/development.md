@@ -188,8 +188,8 @@ export $(cat .env | xargs)
 # Run migrations first
 alembic upgrade head
 
-# Start API server
-uvicorn src.api.main:app --reload --port 8000
+# Start API server (use 3105 to match containerized setup)
+uvicorn src.api.main:app --reload --port 3105
 ```
 
 ### Developing Against Live Bedrock

@@ -6,10 +6,10 @@
 
 ```bash
 # One-command setup
-./scripts/dev-setup.sh
+./quick-start.sh dev
 
 # Test everything works
-./scripts/dev-test.sh
+./quick-start.sh test
 ```
 
 **Main Services:**
