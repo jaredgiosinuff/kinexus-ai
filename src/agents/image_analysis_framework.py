@@ -370,9 +370,7 @@ class VisualQualityAnalyzer:
 
     def __init__(self, model_config: ModelConfigManager):
         self.model_config = model_config
-        self.bedrock = boto3.client(
-            "bedrock-runtime", region_name=model_config.region
-        )
+        self.bedrock = boto3.client("bedrock-runtime", region_name=model_config.region)
 
     async def assess_quality(
         self, image: Image.Image, image_type: ImageType, context: Dict[str, Any] = None
@@ -546,9 +544,7 @@ class ContentValidator:
 
     def __init__(self, model_config: ModelConfigManager):
         self.model_config = model_config
-        self.bedrock = boto3.client(
-            "bedrock-runtime", region_name=model_config.region
-        )
+        self.bedrock = boto3.client("bedrock-runtime", region_name=model_config.region)
 
     async def validate_content(
         self,

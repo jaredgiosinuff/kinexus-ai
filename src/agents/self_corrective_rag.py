@@ -107,9 +107,7 @@ class QualityAssessor:
 
     def __init__(self, model_config: ModelConfigManager):
         self.model_config = model_config
-        self.bedrock = boto3.client(
-            "bedrock-runtime", region_name=model_config.region
-        )
+        self.bedrock = boto3.client("bedrock-runtime", region_name=model_config.region)
 
     async def assess_quality(
         self, query: RAGQuery, result: RAGResult
@@ -462,9 +460,7 @@ class CorrectionEngine:
     def __init__(self, rag_system: AgenticRAGSystem, model_config: ModelConfigManager):
         self.rag_system = rag_system
         self.model_config = model_config
-        self.bedrock = boto3.client(
-            "bedrock-runtime", region_name=model_config.region
-        )
+        self.bedrock = boto3.client("bedrock-runtime", region_name=model_config.region)
 
     async def apply_corrections(self, context: CorrectionContext) -> RAGResult:
         """Apply corrections based on quality assessment"""
