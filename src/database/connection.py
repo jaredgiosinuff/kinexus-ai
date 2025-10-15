@@ -10,8 +10,13 @@ import os
 from contextlib import contextmanager
 from typing import Generator, Optional
 
+<<<<<<< HEAD
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
+=======
+from sqlalchemy import create_engine, Engine, text
+from sqlalchemy.orm import sessionmaker, Session
+>>>>>>> bfd5cda (refactor: improve Docker setup with secure apt sources, optimized LocalStack persistence, and simplified Poetry config)
 from sqlalchemy.pool import QueuePool
 
 from .models import Base
