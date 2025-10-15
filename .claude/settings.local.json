@@ -77,7 +77,8 @@
       "Bash(poetry run isort:*)",
       "Bash(poetry run mypy:*)",
       "Bash(poetry run bandit:*)",
-      "Bash(/dev/null)"
+      "Bash(/dev/null)",
+      "Bash(ENVIRONMENT=test poetry run pytest:*)"
     ],
     "deny": [],
     "ask": []
