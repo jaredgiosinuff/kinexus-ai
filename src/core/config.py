@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # API Configuration
-    API_HOST: str = "0.0.0.0"
+    API_HOST: str = "0.0.0.0"  # nosec B104 - Required for Docker container networking
     API_PORT: int = 8000
     API_PREFIX: str = "/api"
 
@@ -75,7 +75,9 @@ class Settings(BaseSettings):
     # File Storage
     STORAGE_BACKEND: str = "s3"  # 's3' or 'local'
     S3_BUCKET_NAME: Optional[str] = None
-    LOCAL_STORAGE_PATH: str = "/tmp/kinexus-docs"
+    LOCAL_STORAGE_PATH: str = (
+        "/tmp/kinexus-docs"  # nosec B108 - Standard temp location for local development
+    )
 
     # Email (for notifications)
     SMTP_HOST: Optional[str] = None

@@ -30,6 +30,7 @@ class KinexusClient:
             f"{self.api_url}/webhooks/github",
             json=payload,
             headers={"x-github-event": "push", "Content-Type": "application/json"},
+            timeout=30,
         )
         return response.json()
 

@@ -536,7 +536,9 @@ class CorrectionEngine:
         seen_hashes = set()
 
         for source in combined_sources:
-            content_hash = hashlib.md5(source.get("content", "").encode()).hexdigest()
+            content_hash = hashlib.md5(
+                source.get("content", "").encode(), usedforsecurity=False
+            ).hexdigest()
             if content_hash not in seen_hashes:
                 unique_sources.append(source)
                 seen_hashes.add(content_hash)

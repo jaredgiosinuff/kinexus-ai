@@ -826,7 +826,7 @@ class ImageAnalysisEngine:
         """Perform comprehensive image analysis"""
 
         start_time = datetime.utcnow()
-        request_id = f"img-analysis-{hashlib.md5(str(request.image_data).encode()).hexdigest()[:8]}"
+        request_id = f"img-analysis-{hashlib.md5(str(request.image_data).encode(), usedforsecurity=False).hexdigest()[:8]}"
 
         try:
             # Preprocess image
@@ -1156,7 +1156,9 @@ class DocumentImageAnalyzer:
         # In real implementation, use aiohttp or similar
         import urllib.request
 
-        with urllib.request.urlopen(url) as response:
+        with urllib.request.urlopen(
+            url
+        ) as response:  # nosec B310 - Internal URL validation performed by caller
             return response.read()
 
 

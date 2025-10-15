@@ -273,7 +273,7 @@ class SpecializedRetriever:
                         "type": "documentation",
                         "timestamp": datetime.utcnow().isoformat(),
                     },
-                    "chunk_id": f"doc_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
+                    "chunk_id": f"doc_chunk_{hashlib.md5(sub_query['query'].encode(), usedforsecurity=False).hexdigest()[:8]}",
                 },
                 {
                     "content": f"Additional context for: {sub_query['query']}",
@@ -282,7 +282,7 @@ class SpecializedRetriever:
                         "type": "readme",
                         "timestamp": datetime.utcnow().isoformat(),
                     },
-                    "chunk_id": f"readme_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
+                    "chunk_id": f"readme_chunk_{hashlib.md5(sub_query['query'].encode(), usedforsecurity=False).hexdigest()[:8]}",
                 },
             ]
 
@@ -307,7 +307,7 @@ class SpecializedRetriever:
                         "language": "python",
                         "timestamp": datetime.utcnow().isoformat(),
                     },
-                    "chunk_id": f"code_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
+                    "chunk_id": f"code_chunk_{hashlib.md5(sub_query['query'].encode(), usedforsecurity=False).hexdigest()[:8]}",
                 }
             ]
 
@@ -331,7 +331,7 @@ class SpecializedRetriever:
                         "type": "specification",
                         "timestamp": datetime.utcnow().isoformat(),
                     },
-                    "chunk_id": f"tech_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
+                    "chunk_id": f"tech_chunk_{hashlib.md5(sub_query['query'].encode(), usedforsecurity=False).hexdigest()[:8]}",
                 }
             ]
 
@@ -355,7 +355,7 @@ class SpecializedRetriever:
                         "type": "general",
                         "timestamp": datetime.utcnow().isoformat(),
                     },
-                    "chunk_id": f"general_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
+                    "chunk_id": f"general_chunk_{hashlib.md5(sub_query['query'].encode(), usedforsecurity=False).hexdigest()[:8]}",
                 }
             ]
 

@@ -214,7 +214,9 @@ class SemanticMemory:
         embeddings = await self.vector_store.get_embeddings(searchable_text)
 
         # Create memory entry
-        memory_id = hashlib.md5(searchable_text.encode()).hexdigest()
+        memory_id = hashlib.md5(
+            searchable_text.encode(), usedforsecurity=False
+        ).hexdigest()
 
         entry = MemoryEntry(
             memory_id=memory_id,
