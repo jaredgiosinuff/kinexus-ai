@@ -57,7 +57,7 @@ COPY --chown=kinexus:kinexus pyproject.toml poetry.lock ./
 RUN pip install poetry==2.2.1
 
 # Install only production dependencies
-RUN poetry install --no-dev --no-interaction --no-ansi && \
+RUN poetry install --without dev --no-interaction --no-ansi && \
     rm -rf $POETRY_CACHE_DIR
 
 # Copy application code

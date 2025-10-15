@@ -10,7 +10,7 @@ import os
 from contextlib import contextmanager
 from typing import Generator, Optional
 
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import create_engine, Engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 
@@ -119,7 +119,7 @@ class DatabaseManager:
         """Check if database connection is healthy."""
         try:
             with self.get_session() as session:
-                session.execute("SELECT 1")
+                session.execute(text("SELECT 1"))
             return True
         except Exception as e:
             logger.error(f"Database health check failed: {e}")

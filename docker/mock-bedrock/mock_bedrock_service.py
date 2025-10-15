@@ -109,7 +109,7 @@ async def invoke_agent(agent_id: str, request: InvokeAgentRequest):
     """Mock Bedrock Agent invocation"""
 
     if agent_id not in MOCK_AGENTS:
-        raise HTTPException(status_code=404, f"Agent {agent_id} not found")
+        raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
 
     agent = MOCK_AGENTS[agent_id]
 
