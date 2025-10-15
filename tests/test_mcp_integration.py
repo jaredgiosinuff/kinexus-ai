@@ -2,21 +2,31 @@
 """
 Comprehensive tests for MCP integration in Kinexus AI
 """
-import pytest
 import asyncio
 import json
-import uuid
-from unittest.mock import Mock, patch, AsyncMock
-import sys
 import os
+import sys
+import uuid
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 # Add src directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src', 'integrations'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src', 'config'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "integrations"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "config"))
 
-from mcp_server import MCPServer, MCPMessage, MCPMessageType, MCPResource, MCPTool, MCPPrompt, MCPResourceType
 from mcp_client import MCPClient, MCPServerConnection, MCPTransport
 from mcp_config import MCPConfigManager, MCPServerConfig
+from mcp_server import (
+    MCPMessage,
+    MCPMessageType,
+    MCPPrompt,
+    MCPResource,
+    MCPResourceType,
+    MCPServer,
+    MCPTool,
+)
+
 
 class TestMCPServer:
     """Test MCP Server implementation"""
@@ -24,7 +34,7 @@ class TestMCPServer:
     @pytest.fixture
     def mcp_server(self):
         """Create MCP server instance for testing"""
-        with patch('boto3.resource'), patch('boto3.client'):
+        with patch("boto3.resource"), patch("boto3.client"):
             server = MCPServer("test-server", "1.0.0")
         return server
 
@@ -53,7 +63,7 @@ class TestMCPServer:
         request = MCPMessage(
             id=str(uuid.uuid4()),
             message_type=MCPMessageType.REQUEST,
-            method="tools/list"
+            method="tools/list",
         )
 
         response = await mcp_server.handle_request(request)
@@ -69,7 +79,7 @@ class TestMCPServer:
         request = MCPMessage(
             id=str(uuid.uuid4()),
             message_type=MCPMessageType.REQUEST,
-            method="resources/list"
+            method="resources/list",
         )
 
         response = await mcp_server.handle_request(request)
@@ -83,7 +93,7 @@ class TestMCPServer:
     async def test_tools_call_request(self, mcp_server):
         """Test tools/call request handling"""
         # Mock the multi-agent supervisor
-        with patch('mcp_server.MultiAgentSupervisor') as mock_supervisor:
+        with patch("mcp_server.MultiAgentSupervisor") as mock_supervisor:
             mock_supervisor.return_value.process_change_event = AsyncMock(
                 return_value={"analysis": "test result"}
             )
@@ -96,9 +106,9 @@ class TestMCPServer:
                     "name": "analyze_document_changes",
                     "arguments": {
                         "change_data": {"test": "data"},
-                        "analysis_depth": "standard"
-                    }
-                }
+                        "analysis_depth": "standard",
+                    },
+                },
             )
 
             response = await mcp_server.handle_request(request)
@@ -113,7 +123,7 @@ class TestMCPServer:
         request = MCPMessage(
             id=str(uuid.uuid4()),
             message_type=MCPMessageType.REQUEST,
-            method="invalid/method"
+            method="invalid/method",
         )
 
         response = await mcp_server.handle_request(request)
@@ -121,6 +131,7 @@ class TestMCPServer:
         assert response.message_type == MCPMessageType.RESPONSE
         assert response.error is not None
         assert response.error["code"] == -32601
+
 
 class TestMCPClient:
     """Test MCP Client implementation"""
@@ -143,10 +154,10 @@ class TestMCPClient:
         connection = MCPServerConnection(
             name="test-server",
             url="http://localhost:8000/mcp",
-            transport=MCPTransport.HTTP
+            transport=MCPTransport.HTTP,
         )
 
-        with patch('aiohttp.ClientSession') as mock_session:
+        with patch("aiohttp.ClientSession") as mock_session:
             mock_session.return_value.__aenter__ = AsyncMock()
             mock_session.return_value.__aexit__ = AsyncMock()
 
@@ -167,17 +178,20 @@ class TestMCPClient:
                     {
                         "name": "test_tool",
                         "description": "A test tool",
-                        "inputSchema": {"type": "object"}
+                        "inputSchema": {"type": "object"},
                     }
                 ]
-            }
+            },
         )
 
-        with patch.object(mcp_client, '_send_request', return_value=mock_tools_response):
+        with patch.object(
+            mcp_client, "_send_request", return_value=mock_tools_response
+        ):
             await mcp_client._discover_capabilities("test-server")
 
             assert len(mcp_client.available_tools) == 1
             assert "test-server:test_tool" in mcp_client.available_tools
+
 
 class TestMCPConfig:
     """Test MCP Configuration Manager"""
@@ -185,7 +199,7 @@ class TestMCPConfig:
     @pytest.fixture
     def config_manager(self):
         """Create config manager for testing"""
-        with patch('os.path.exists', return_value=False):
+        with patch("os.path.exists", return_value=False):
             return MCPConfigManager()
 
     def test_config_initialization(self, config_manager):
@@ -196,24 +210,25 @@ class TestMCPConfig:
 
     def test_environment_overrides(self):
         """Test environment variable overrides"""
-        with patch.dict(os.environ, {
-            'KINEXUS_MCP_TESTSERVER_URL': 'http://test.example.com',
-            'KINEXUS_MCP_TESTSERVER_ENABLED': 'true'
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "KINEXUS_MCP_TESTSERVER_URL": "http://test.example.com",
+                "KINEXUS_MCP_TESTSERVER_ENABLED": "true",
+            },
+        ):
             config_manager = MCPConfigManager()
             overrides = config_manager._load_environment_overrides()
 
-            assert 'testserver' in overrides
-            assert overrides['testserver']['url'] == 'http://test.example.com'
-            assert overrides['testserver']['enabled'] is True
+            assert "testserver" in overrides
+            assert overrides["testserver"]["url"] == "http://test.example.com"
+            assert overrides["testserver"]["enabled"] is True
 
     def test_server_config_operations(self, config_manager):
         """Test server configuration CRUD operations"""
         # Test adding server config
         new_config = MCPServerConfig(
-            name="test-server",
-            url="http://test.example.com",
-            enabled=True
+            name="test-server", url="http://test.example.com", enabled=True
         )
 
         success = config_manager.add_server_config(new_config)
@@ -236,7 +251,7 @@ class TestMCPConfig:
         invalid_config = MCPServerConfig(
             name="invalid-server",
             url="",  # Invalid empty URL
-            transport="invalid_transport"  # Invalid transport
+            transport="invalid_transport",  # Invalid transport
         )
         config_manager.server_configs["invalid-server"] = invalid_config
 
@@ -254,6 +269,7 @@ class TestMCPConfig:
         for server in enabled_servers:
             assert server.enabled
 
+
 class TestMCPIntegration:
     """Integration tests for MCP system"""
 
@@ -261,7 +277,7 @@ class TestMCPIntegration:
     async def test_end_to_end_mcp_workflow(self):
         """Test complete MCP workflow from client to server"""
         # Create server and client
-        with patch('boto3.resource'), patch('boto3.client'):
+        with patch("boto3.resource"), patch("boto3.client"):
             server = MCPServer("integration-test-server")
 
         client = MCPClient("integration-test-client")
@@ -274,7 +290,7 @@ class TestMCPIntegration:
         tools_request = MCPMessage(
             id=str(uuid.uuid4()),
             message_type=MCPMessageType.REQUEST,
-            method="tools/list"
+            method="tools/list",
         )
 
         tools_response = await server.handle_request(tools_request)
@@ -284,7 +300,7 @@ class TestMCPIntegration:
     @pytest.mark.asyncio
     async def test_mcp_error_handling(self):
         """Test MCP error handling scenarios"""
-        with patch('boto3.resource'), patch('boto3.client'):
+        with patch("boto3.resource"), patch("boto3.client"):
             server = MCPServer("error-test-server")
 
         # Test invalid tool call
@@ -292,10 +308,7 @@ class TestMCPIntegration:
             id=str(uuid.uuid4()),
             message_type=MCPMessageType.REQUEST,
             method="tools/call",
-            params={
-                "name": "nonexistent_tool",
-                "arguments": {}
-            }
+            params={"name": "nonexistent_tool", "arguments": {}},
         )
 
         response = await server.handle_request(invalid_request)
@@ -304,7 +317,7 @@ class TestMCPIntegration:
 
     def test_mcp_configuration_summary(self):
         """Test MCP configuration summary generation"""
-        with patch('os.path.exists', return_value=False):
+        with patch("os.path.exists", return_value=False):
             config_manager = MCPConfigManager()
 
         summary = config_manager.get_configuration_summary()
@@ -313,6 +326,7 @@ class TestMCPIntegration:
         assert "enabled_servers" in summary
         assert "server_summary" in summary
         assert summary["total_servers"] > 0
+
 
 def run_mcp_tests():
     """Run all MCP tests"""
@@ -323,6 +337,7 @@ def run_mcp_tests():
 
     try:
         import pytest
+
         result = pytest.main(["-v"] + test_files)
         return result == 0
     except ImportError:
@@ -331,7 +346,7 @@ def run_mcp_tests():
         # Run basic tests without pytest
         try:
             # Test MCP Server initialization
-            with patch('boto3.resource'), patch('boto3.client'):
+            with patch("boto3.resource"), patch("boto3.client"):
                 server = MCPServer("test-server")
 
             assert server.server_name == "test-server"
@@ -344,7 +359,7 @@ def run_mcp_tests():
             print("✅ MCP Client initialization test passed")
 
             # Test MCP Config initialization
-            with patch('os.path.exists', return_value=False):
+            with patch("os.path.exists", return_value=False):
                 config = MCPConfigManager()
             assert len(config.server_configs) > 0
             print("✅ MCP Config initialization test passed")
@@ -354,6 +369,7 @@ def run_mcp_tests():
         except Exception as e:
             print(f"❌ Basic MCP tests failed: {str(e)}")
             return False
+
 
 if __name__ == "__main__":
     success = run_mcp_tests()

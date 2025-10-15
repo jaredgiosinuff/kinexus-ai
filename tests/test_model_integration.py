@@ -3,21 +3,23 @@
 Comprehensive tests for model integration in Kinexus AI
 Tests Claude Sonnet 4.5, Nova Pro, and model configuration
 """
-import pytest
 import asyncio
-import json
 import base64
-from unittest.mock import Mock, patch, AsyncMock
-import sys
+import json
 import os
+import sys
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 # Add src directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src', 'agents'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src', 'config'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "agents"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "config"))
 
-from multi_agent_supervisor import MultiAgentSupervisor, BedrockAgent, AgentRole
-from nova_pro_integration import NovaProImageAnalyzer, ImageType, ImageAnalysisResult
-from model_config import ModelConfigManager, ModelCapability, ModelProvider
+from model_config import ModelCapability, ModelConfigManager, ModelProvider
+from multi_agent_supervisor import AgentRole, BedrockAgent, MultiAgentSupervisor
+from nova_pro_integration import ImageAnalysisResult, ImageType, NovaProImageAnalyzer
+
 
 class TestModelConfiguration:
     """Test model configuration and selection"""
@@ -25,12 +27,12 @@ class TestModelConfiguration:
     @pytest.fixture
     def model_config(self):
         """Create model config manager for testing"""
-        with patch('boto3.client') as mock_client:
+        with patch("boto3.client") as mock_client:
             mock_client.return_value.list_foundation_models.return_value = {
-                'modelSummaries': [
-                    {'modelId': 'anthropic.claude-sonnet-4-5-v2:0'},
-                    {'modelId': 'amazon.nova-pro-v1:0'},
-                    {'modelId': 'amazon.nova-lite-v1:0'}
+                "modelSummaries": [
+                    {"modelId": "anthropic.claude-sonnet-4-5-v2:0"},
+                    {"modelId": "amazon.nova-pro-v1:0"},
+                    {"modelId": "amazon.nova-lite-v1:0"},
                 ]
             }
             return ModelConfigManager()
@@ -54,34 +56,46 @@ class TestModelConfiguration:
         """Test best model selection for different scenarios"""
         # Test reasoning task
         reasoning_model = model_config.get_best_model_for_task(
-            [ModelCapability.REASONING, ModelCapability.HIGH_QUALITY],
-            "premium"
+            [ModelCapability.REASONING, ModelCapability.HIGH_QUALITY], "premium"
         )
         assert reasoning_model in model_config.models
-        assert ModelCapability.REASONING in model_config.models[reasoning_model].capabilities
+        assert (
+            ModelCapability.REASONING
+            in model_config.models[reasoning_model].capabilities
+        )
 
         # Test multimodal task
         multimodal_model = model_config.get_best_model_for_task(
-            [ModelCapability.IMAGE_ANALYSIS, ModelCapability.MULTIMODAL],
-            "balanced"
+            [ModelCapability.IMAGE_ANALYSIS, ModelCapability.MULTIMODAL], "balanced"
         )
         assert multimodal_model in model_config.models
-        assert ModelCapability.MULTIMODAL in model_config.models[multimodal_model].capabilities
+        assert (
+            ModelCapability.MULTIMODAL
+            in model_config.models[multimodal_model].capabilities
+        )
 
     def test_model_fallback(self, model_config):
         """Test model fallback mechanism"""
         # Test with unavailable model
-        with patch.object(model_config, 'models') as mock_models:
+        with patch.object(model_config, "models") as mock_models:
             mock_models.__getitem__.return_value.is_available = False
-            mock_models.__getitem__.return_value.fallback_model = "anthropic.claude-sonnet-4-v1:0"
+            mock_models.__getitem__.return_value.fallback_model = (
+                "anthropic.claude-sonnet-4-v1:0"
+            )
             mock_models.__contains__.return_value = True
 
             # Mock the fallback model as available
             fallback_config = Mock()
             fallback_config.is_available = True
-            mock_models.__getitem__ = lambda key: fallback_config if key == "anthropic.claude-sonnet-4-v1:0" else Mock(is_available=False)
+            mock_models.__getitem__ = lambda key: (
+                fallback_config
+                if key == "anthropic.claude-sonnet-4-v1:0"
+                else Mock(is_available=False)
+            )
 
-            result = model_config.get_model_with_fallback("anthropic.claude-sonnet-4-5-v2:0")
+            result = model_config.get_model_with_fallback(
+                "anthropic.claude-sonnet-4-5-v2:0"
+            )
             # Should not be the original model since it's unavailable
             assert result is not None
 
@@ -104,7 +118,7 @@ class TestModelConfiguration:
         """Test model configuration validation"""
         test_assignments = {
             "supervisor": "anthropic.claude-sonnet-4-5-v2:0",
-            "content_creator": "amazon.nova-pro-v1:0"
+            "content_creator": "amazon.nova-pro-v1:0",
         }
 
         validation = model_config.validate_model_configuration(test_assignments)
@@ -113,16 +127,16 @@ class TestModelConfiguration:
         assert "errors" in validation
         assert "warnings" in validation
 
+
 class TestBedrockAgent:
     """Test Bedrock agent with new models"""
 
     @pytest.fixture
     def mock_bedrock_agent(self):
         """Create mocked Bedrock agent"""
-        with patch('boto3.client'):
+        with patch("boto3.client"):
             return BedrockAgent(
-                role=AgentRole.SUPERVISOR,
-                model_id="anthropic.claude-sonnet-4-5-v2:0"
+                role=AgentRole.SUPERVISOR, model_id="anthropic.claude-sonnet-4-5-v2:0"
             )
 
     def test_agent_initialization(self, mock_bedrock_agent):
@@ -138,18 +152,23 @@ class TestBedrockAgent:
 
         # Mock the Bedrock response
         mock_response = {
-            'body': Mock(),
-            'content': [{'text': 'Test response from Claude Sonnet 4.5'}]
+            "body": Mock(),
+            "content": [{"text": "Test response from Claude Sonnet 4.5"}],
         }
-        mock_response['body'].read.return_value = json.dumps({
-            'content': [{'text': 'Test response from Claude Sonnet 4.5'}]
-        }).encode()
+        mock_response["body"].read.return_value = json.dumps(
+            {"content": [{"text": "Test response from Claude Sonnet 4.5"}]}
+        ).encode()
 
-        with patch.object(mock_bedrock_agent.bedrock_runtime, 'invoke_model', return_value=mock_response):
+        with patch.object(
+            mock_bedrock_agent.bedrock_runtime,
+            "invoke_model",
+            return_value=mock_response,
+        ):
             response = await mock_bedrock_agent._invoke_bedrock_async(test_prompt)
 
             assert response is not None
-            assert 'content' in response
+            assert "content" in response
+
 
 class TestMultiAgentSupervisor:
     """Test multi-agent supervisor with new models"""
@@ -157,10 +176,13 @@ class TestMultiAgentSupervisor:
     @pytest.fixture
     def supervisor(self):
         """Create supervisor with mocked dependencies"""
-        with patch('boto3.resource'), patch('boto3.client'), \
-             patch('multi_agent_supervisor.PersistentMemorySystem'), \
-             patch('multi_agent_supervisor.SelfImprovingPerformanceManager'), \
-             patch('multi_agent_supervisor.MCPClient'):
+        with (
+            patch("boto3.resource"),
+            patch("boto3.client"),
+            patch("multi_agent_supervisor.PersistentMemorySystem"),
+            patch("multi_agent_supervisor.SelfImprovingPerformanceManager"),
+            patch("multi_agent_supervisor.MCPClient"),
+        ):
             return MultiAgentSupervisor()
 
     def test_supervisor_initialization(self, supervisor):
@@ -184,13 +206,14 @@ class TestMultiAgentSupervisor:
         # Quality controller should use premium model
         assert "4-5" in agents[AgentRole.QUALITY_CONTROLLER].model_id
 
+
 class TestNovaProIntegration:
     """Test Nova Pro image analysis integration"""
 
     @pytest.fixture
     def nova_analyzer(self):
         """Create Nova Pro analyzer with mocked Bedrock"""
-        with patch('boto3.client'):
+        with patch("boto3.client"):
             return NovaProImageAnalyzer()
 
     def test_analyzer_initialization(self, nova_analyzer):
@@ -207,14 +230,14 @@ class TestNovaProIntegration:
         test_image_data = b"fake_image_data"
 
         # Mock Nova Pro response
-        mock_response = {
-            'body': Mock()
-        }
-        mock_response['body'].read.return_value = json.dumps({
-            'results': [{'outputText': 'diagram|0.95'}]
-        }).encode()
+        mock_response = {"body": Mock()}
+        mock_response["body"].read.return_value = json.dumps(
+            {"results": [{"outputText": "diagram|0.95"}]}
+        ).encode()
 
-        with patch.object(nova_analyzer.bedrock_runtime, 'invoke_model', return_value=mock_response):
+        with patch.object(
+            nova_analyzer.bedrock_runtime, "invoke_model", return_value=mock_response
+        ):
             image_type = await nova_analyzer._classify_image_type(test_image_data, None)
 
             assert image_type == ImageType.DIAGRAM
@@ -234,17 +257,17 @@ class TestNovaProIntegration:
             "clarity_score": 9,
             "completeness_score": 7,
             "validation_issues": ["Missing error handling flow"],
-            "recommendations": ["Add error flow documentation"]
+            "recommendations": ["Add error flow documentation"],
         }
 
-        mock_response = {
-            'body': Mock()
-        }
-        mock_response['body'].read.return_value = json.dumps({
-            'results': [{'outputText': json.dumps(analysis_response)}]
-        }).encode()
+        mock_response = {"body": Mock()}
+        mock_response["body"].read.return_value = json.dumps(
+            {"results": [{"outputText": json.dumps(analysis_response)}]}
+        ).encode()
 
-        with patch.object(nova_analyzer.bedrock_runtime, 'invoke_model', return_value=mock_response):
+        with patch.object(
+            nova_analyzer.bedrock_runtime, "invoke_model", return_value=mock_response
+        ):
             result = await nova_analyzer._analyze_technical_diagram(
                 test_image_data, ImageType.DIAGRAM, None
             )
@@ -261,7 +284,7 @@ class TestNovaProIntegration:
         test_image_data = b"fake_diagram_data"
         reference_data = {
             "expected_components": ["database", "api", "frontend"],
-            "context": "User management system architecture"
+            "context": "User management system architecture",
         }
 
         # Mock the analyze_documentation_image method
@@ -269,17 +292,19 @@ class TestNovaProIntegration:
             image_type=ImageType.DIAGRAM,
             confidence=0.85,
             description="System architecture diagram",
-            metadata={
-                "components": ["database", "api", "frontend", "cache"]
-            },
+            metadata={"components": ["database", "api", "frontend", "cache"]},
             validation_results={
                 "issues": ["Cache component not documented"],
-                "recommendations": ["Add cache documentation"]
-            }
+                "recommendations": ["Add cache documentation"],
+            },
         )
 
-        with patch.object(nova_analyzer, 'analyze_documentation_image', return_value=mock_analysis):
-            validation = await nova_analyzer.validate_diagram_accuracy(test_image_data, reference_data)
+        with patch.object(
+            nova_analyzer, "analyze_documentation_image", return_value=mock_analysis
+        ):
+            validation = await nova_analyzer.validate_diagram_accuracy(
+                test_image_data, reference_data
+            )
 
             assert validation["overall_accuracy"] == 0.85
             assert validation["validation_passed"] is True  # >= 0.7 threshold
@@ -299,10 +324,11 @@ class TestNovaProIntegration:
         """Test supported image formats"""
         formats = nova_analyzer.get_supported_formats()
 
-        assert '.jpg' in formats
-        assert '.png' in formats
-        assert '.gif' in formats
+        assert ".jpg" in formats
+        assert ".png" in formats
+        assert ".gif" in formats
         assert len(formats) > 0
+
 
 class TestIntegratedModelWorkflow:
     """Integration tests for complete model workflow"""
@@ -311,14 +337,17 @@ class TestIntegratedModelWorkflow:
     async def test_end_to_end_model_workflow(self):
         """Test complete workflow from supervisor to Nova Pro"""
         # Create supervisor with mocked dependencies
-        with patch('boto3.resource'), patch('boto3.client'), \
-             patch('multi_agent_supervisor.PersistentMemorySystem'), \
-             patch('multi_agent_supervisor.SelfImprovingPerformanceManager'), \
-             patch('multi_agent_supervisor.MCPClient'):
+        with (
+            patch("boto3.resource"),
+            patch("boto3.client"),
+            patch("multi_agent_supervisor.PersistentMemorySystem"),
+            patch("multi_agent_supervisor.SelfImprovingPerformanceManager"),
+            patch("multi_agent_supervisor.MCPClient"),
+        ):
             supervisor = MultiAgentSupervisor()
 
         # Create Nova analyzer
-        with patch('boto3.client'):
+        with patch("boto3.client"):
             nova_analyzer = NovaProImageAnalyzer()
 
         # Test that they can work together
@@ -334,11 +363,11 @@ class TestIntegratedModelWorkflow:
 
     def test_model_configuration_integration(self):
         """Test model configuration integrates with agents"""
-        with patch('boto3.client') as mock_client:
+        with patch("boto3.client") as mock_client:
             mock_client.return_value.list_foundation_models.return_value = {
-                'modelSummaries': [
-                    {'modelId': 'anthropic.claude-sonnet-4-5-v2:0'},
-                    {'modelId': 'amazon.nova-pro-v1:0'}
+                "modelSummaries": [
+                    {"modelId": "anthropic.claude-sonnet-4-5-v2:0"},
+                    {"modelId": "amazon.nova-pro-v1:0"},
                 ]
             }
             model_config = ModelConfigManager()
@@ -353,12 +382,14 @@ class TestIntegratedModelWorkflow:
         validation = model_config.validate_model_configuration(recommendations)
         assert validation["valid"] is True
 
+
 def run_model_tests():
     """Run all model integration tests"""
     print("🧪 Running Model Integration Tests...")
 
     try:
         import pytest
+
         result = pytest.main(["-v", __file__])
         return result == 0
     except ImportError:
@@ -366,9 +397,9 @@ def run_model_tests():
 
         try:
             # Test Model Config
-            with patch('boto3.client') as mock_client:
+            with patch("boto3.client") as mock_client:
                 mock_client.return_value.list_foundation_models.return_value = {
-                    'modelSummaries': [{'modelId': 'anthropic.claude-sonnet-4-5-v2:0'}]
+                    "modelSummaries": [{"modelId": "anthropic.claude-sonnet-4-5-v2:0"}]
                 }
                 config = ModelConfigManager()
 
@@ -376,17 +407,20 @@ def run_model_tests():
             print("✅ Model Config initialization test passed")
 
             # Test Nova Pro Analyzer
-            with patch('boto3.client'):
+            with patch("boto3.client"):
                 analyzer = NovaProImageAnalyzer()
 
             assert analyzer.nova_pro_model_id == "amazon.nova-pro-v1:0"
             print("✅ Nova Pro Analyzer initialization test passed")
 
             # Test Multi-Agent Supervisor with new models
-            with patch('boto3.resource'), patch('boto3.client'), \
-                 patch('multi_agent_supervisor.PersistentMemorySystem'), \
-                 patch('multi_agent_supervisor.SelfImprovingPerformanceManager'), \
-                 patch('multi_agent_supervisor.MCPClient'):
+            with (
+                patch("boto3.resource"),
+                patch("boto3.client"),
+                patch("multi_agent_supervisor.PersistentMemorySystem"),
+                patch("multi_agent_supervisor.SelfImprovingPerformanceManager"),
+                patch("multi_agent_supervisor.MCPClient"),
+            ):
                 supervisor = MultiAgentSupervisor()
 
             assert len(supervisor.agents) == 5
@@ -397,6 +431,7 @@ def run_model_tests():
         except Exception as e:
             print(f"❌ Basic model tests failed: {str(e)}")
             return False
+
 
 if __name__ == "__main__":
     success = run_model_tests()

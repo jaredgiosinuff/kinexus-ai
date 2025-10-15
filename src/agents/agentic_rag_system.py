@@ -4,25 +4,29 @@ Agentic RAG System for Kinexus AI
 Advanced Retrieval-Augmented Generation with specialized agents
 """
 import asyncio
+import hashlib
 import json
 import logging
-from typing import Dict, List, Any, Optional, Union, Tuple
 from dataclasses import dataclass
-from enum import Enum
-import boto3
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import boto3
 import numpy as np
-import hashlib
+
+from ..config.model_config import ModelCapability, ModelConfigManager
 
 # Import existing components
-from .multi_agent_supervisor import MultiAgentSupervisor, BedrockAgent, AgentRole
+from .multi_agent_supervisor import AgentRole, BedrockAgent, MultiAgentSupervisor
 from .persistent_memory_system import PersistentMemorySystem
-from ..config.model_config import ModelConfigManager, ModelCapability
 
 logger = logging.getLogger(__name__)
 
+
 class RAGTaskType(Enum):
     """Types of RAG tasks for specialized handling"""
+
     DOCUMENT_SEARCH = "document_search"
     CODE_ANALYSIS = "code_analysis"
     TECHNICAL_CONTEXT = "technical_context"
@@ -30,17 +34,21 @@ class RAGTaskType(Enum):
     SEMANTIC_SIMILARITY = "semantic_similarity"
     CONTEXTUAL_SYNTHESIS = "contextual_synthesis"
 
+
 class RetrievalStrategy(Enum):
     """Retrieval strategies for different scenarios"""
+
     DENSE_RETRIEVAL = "dense_retrieval"
     SPARSE_RETRIEVAL = "sparse_retrieval"
     HYBRID_RETRIEVAL = "hybrid_retrieval"
     SEMANTIC_ROUTING = "semantic_routing"
     MULTI_HOP_REASONING = "multi_hop_reasoning"
 
+
 @dataclass
 class RAGQuery:
     """Structured query for RAG system"""
+
     query_text: str
     task_type: RAGTaskType
     context: Dict[str, Any]
@@ -53,9 +61,11 @@ class RAGQuery:
         if self.metadata is None:
             self.metadata = {}
 
+
 @dataclass
 class RAGResult:
     """Result from RAG retrieval and generation"""
+
     query: RAGQuery
     retrieved_chunks: List[Dict[str, Any]]
     synthesized_response: str
@@ -64,17 +74,19 @@ class RAGResult:
     processing_time: float
     agent_breakdown: Dict[str, Any]
 
+
 class QueryDecomposer:
     """Decomposes complex queries into sub-queries for multi-agent processing"""
 
     def __init__(self, model_config: ModelConfigManager):
         self.model_config = model_config
-        self.bedrock_runtime = boto3.client('bedrock-runtime', region_name=model_config.region)
+        self.bedrock_runtime = boto3.client(
+            "bedrock-runtime", region_name=model_config.region
+        )
 
         # Get best model for query analysis
         self.model_id = model_config.get_best_model_for_task(
-            [ModelCapability.REASONING, ModelCapability.TEXT_GENERATION],
-            "fast"
+            [ModelCapability.REASONING, ModelCapability.TEXT_GENERATION], "fast"
         )
 
     async def decompose_query(self, query: RAGQuery) -> List[Dict[str, Any]]:
@@ -111,10 +123,10 @@ Respond with JSON format:
             # Call Bedrock model
             response = await self._invoke_bedrock_async(decomposition_prompt)
 
-            if response and 'content' in response:
+            if response and "content" in response:
                 try:
-                    result = json.loads(response['content'][0]['text'])
-                    return result.get('sub_queries', [])
+                    result = json.loads(response["content"][0]["text"])
+                    return result.get("sub_queries", [])
                 except json.JSONDecodeError:
                     logger.warning("Failed to parse query decomposition JSON")
                     return self._create_fallback_decomposition(query)
@@ -127,13 +139,15 @@ Respond with JSON format:
 
     def _create_fallback_decomposition(self, query: RAGQuery) -> List[Dict[str, Any]]:
         """Create a simple fallback decomposition"""
-        return [{
-            "id": "fallback_1",
-            "query": query.query_text,
-            "retrieval_type": query.task_type.value,
-            "priority": 1,
-            "dependencies": []
-        }]
+        return [
+            {
+                "id": "fallback_1",
+                "query": query.query_text,
+                "retrieval_type": query.task_type.value,
+                "priority": 1,
+                "dependencies": [],
+            }
+        ]
 
     async def _invoke_bedrock_async(self, prompt: str) -> Optional[Dict[str, Any]]:
         """Invoke Bedrock model asynchronously"""
@@ -141,27 +155,23 @@ Respond with JSON format:
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 2000,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                "messages": [{"role": "user", "content": prompt}],
             }
 
             response = self.bedrock_runtime.invoke_model(
                 modelId=self.model_id,
                 contentType="application/json",
                 accept="application/json",
-                body=json.dumps(body)
+                body=json.dumps(body),
             )
 
-            response_body = json.loads(response['body'].read())
+            response_body = json.loads(response["body"].read())
             return response_body
 
         except Exception as e:
             logger.error(f"Bedrock invocation failed: {str(e)}")
             return None
+
 
 class SpecializedRetriever:
     """Specialized retriever agent for different content types"""
@@ -169,10 +179,12 @@ class SpecializedRetriever:
     def __init__(self, retrieval_type: str, model_config: ModelConfigManager):
         self.retrieval_type = retrieval_type
         self.model_config = model_config
-        self.bedrock_runtime = boto3.client('bedrock-runtime', region_name=model_config.region)
+        self.bedrock_runtime = boto3.client(
+            "bedrock-runtime", region_name=model_config.region
+        )
 
         # Vector store clients (would connect to actual vector stores)
-        self.dynamodb = boto3.resource('dynamodb', region_name=model_config.region)
+        self.dynamodb = boto3.resource("dynamodb", region_name=model_config.region)
 
         # Get appropriate model for this retrieval type
         self.model_id = self._get_specialized_model()
@@ -181,38 +193,45 @@ class SpecializedRetriever:
         """Get the best model for this retrieval type"""
         if self.retrieval_type == "code_analysis":
             return self.model_config.get_best_model_for_task(
-                [ModelCapability.CODING, ModelCapability.REASONING],
-                "premium"
+                [ModelCapability.CODING, ModelCapability.REASONING], "premium"
             )
         elif self.retrieval_type == "technical_context":
             return self.model_config.get_best_model_for_task(
-                [ModelCapability.REASONING, ModelCapability.HIGH_QUALITY],
-                "premium"
+                [ModelCapability.REASONING, ModelCapability.HIGH_QUALITY], "premium"
             )
         else:
             return self.model_config.get_best_model_for_task(
-                [ModelCapability.TEXT_GENERATION, ModelCapability.REASONING],
-                "balanced"
+                [ModelCapability.TEXT_GENERATION, ModelCapability.REASONING], "balanced"
             )
 
-    async def retrieve(self, sub_query: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def retrieve(
+        self, sub_query: Dict[str, Any], context: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Retrieve relevant chunks for a sub-query"""
         try:
             # Generate embedding for the query
-            query_embedding = await self._generate_embedding(sub_query['query'])
+            query_embedding = await self._generate_embedding(sub_query["query"])
 
             # Perform retrieval based on type
             if self.retrieval_type == "document_search":
-                chunks = await self._retrieve_documents(query_embedding, sub_query, context)
+                chunks = await self._retrieve_documents(
+                    query_embedding, sub_query, context
+                )
             elif self.retrieval_type == "code_analysis":
-                chunks = await self._retrieve_code_context(query_embedding, sub_query, context)
+                chunks = await self._retrieve_code_context(
+                    query_embedding, sub_query, context
+                )
             elif self.retrieval_type == "technical_context":
-                chunks = await self._retrieve_technical_context(query_embedding, sub_query, context)
+                chunks = await self._retrieve_technical_context(
+                    query_embedding, sub_query, context
+                )
             else:
-                chunks = await self._retrieve_general(query_embedding, sub_query, context)
+                chunks = await self._retrieve_general(
+                    query_embedding, sub_query, context
+                )
 
             # Score and rank results
-            scored_chunks = await self._score_relevance(chunks, sub_query['query'])
+            scored_chunks = await self._score_relevance(chunks, sub_query["query"])
 
             return scored_chunks
 
@@ -224,25 +243,25 @@ class SpecializedRetriever:
         """Generate embedding for text using Bedrock Titan"""
         try:
             # Use Amazon Titan Embeddings
-            body = {
-                "inputText": text
-            }
+            body = {"inputText": text}
 
             response = self.bedrock_runtime.invoke_model(
                 modelId="amazon.titan-embed-text-v1",
                 contentType="application/json",
                 accept="application/json",
-                body=json.dumps(body)
+                body=json.dumps(body),
             )
 
-            response_body = json.loads(response['body'].read())
-            return response_body.get('embedding', [])
+            response_body = json.loads(response["body"].read())
+            return response_body.get("embedding", [])
 
         except Exception as e:
             logger.error(f"Embedding generation failed: {str(e)}")
             return []
 
-    async def _retrieve_documents(self, embedding: List[float], sub_query: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _retrieve_documents(
+        self, embedding: List[float], sub_query: Dict[str, Any], context: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Retrieve document chunks using vector similarity"""
         try:
             # This would query actual vector database
@@ -251,15 +270,21 @@ class SpecializedRetriever:
                 {
                     "content": f"Document content related to: {sub_query['query']}",
                     "source": "confluence://example/doc1",
-                    "metadata": {"type": "documentation", "timestamp": datetime.utcnow().isoformat()},
-                    "chunk_id": f"doc_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}"
+                    "metadata": {
+                        "type": "documentation",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                    "chunk_id": f"doc_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
                 },
                 {
                     "content": f"Additional context for: {sub_query['query']}",
                     "source": "github://repo/readme.md",
-                    "metadata": {"type": "readme", "timestamp": datetime.utcnow().isoformat()},
-                    "chunk_id": f"readme_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}"
-                }
+                    "metadata": {
+                        "type": "readme",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                    "chunk_id": f"readme_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
+                },
             ]
 
             return mock_chunks
@@ -268,7 +293,9 @@ class SpecializedRetriever:
             logger.error(f"Document retrieval failed: {str(e)}")
             return []
 
-    async def _retrieve_code_context(self, embedding: List[float], sub_query: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _retrieve_code_context(
+        self, embedding: List[float], sub_query: Dict[str, Any], context: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Retrieve code-related context"""
         try:
             # Mock code retrieval
@@ -276,8 +303,12 @@ class SpecializedRetriever:
                 {
                     "content": f"def function_related_to_{sub_query['query'].replace(' ', '_')}():\n    # Implementation details",
                     "source": "github://repo/src/module.py",
-                    "metadata": {"type": "code", "language": "python", "timestamp": datetime.utcnow().isoformat()},
-                    "chunk_id": f"code_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}"
+                    "metadata": {
+                        "type": "code",
+                        "language": "python",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                    "chunk_id": f"code_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
                 }
             ]
 
@@ -287,7 +318,9 @@ class SpecializedRetriever:
             logger.error(f"Code retrieval failed: {str(e)}")
             return []
 
-    async def _retrieve_technical_context(self, embedding: List[float], sub_query: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _retrieve_technical_context(
+        self, embedding: List[float], sub_query: Dict[str, Any], context: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Retrieve technical architecture context"""
         try:
             # Mock technical context retrieval
@@ -295,8 +328,11 @@ class SpecializedRetriever:
                 {
                     "content": f"Technical specification for {sub_query['query']}",
                     "source": "confluence://architecture/specs",
-                    "metadata": {"type": "specification", "timestamp": datetime.utcnow().isoformat()},
-                    "chunk_id": f"tech_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}"
+                    "metadata": {
+                        "type": "specification",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                    "chunk_id": f"tech_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
                 }
             ]
 
@@ -306,7 +342,9 @@ class SpecializedRetriever:
             logger.error(f"Technical context retrieval failed: {str(e)}")
             return []
 
-    async def _retrieve_general(self, embedding: List[float], sub_query: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _retrieve_general(
+        self, embedding: List[float], sub_query: Dict[str, Any], context: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """General purpose retrieval"""
         try:
             # Mock general retrieval
@@ -314,8 +352,11 @@ class SpecializedRetriever:
                 {
                     "content": f"General information about {sub_query['query']}",
                     "source": "general://knowledge_base",
-                    "metadata": {"type": "general", "timestamp": datetime.utcnow().isoformat()},
-                    "chunk_id": f"general_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}"
+                    "metadata": {
+                        "type": "general",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                    "chunk_id": f"general_chunk_{hashlib.md5(sub_query['query'].encode()).hexdigest()[:8]}",
                 }
             ]
 
@@ -325,14 +366,16 @@ class SpecializedRetriever:
             logger.error(f"General retrieval failed: {str(e)}")
             return []
 
-    async def _score_relevance(self, chunks: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
+    async def _score_relevance(
+        self, chunks: List[Dict[str, Any]], query: str
+    ) -> List[Dict[str, Any]]:
         """Score chunks by relevance to query"""
         try:
             scored_chunks = []
 
             for chunk in chunks:
                 # Simple relevance scoring (would use more sophisticated methods)
-                content = chunk.get('content', '')
+                content = chunk.get("content", "")
                 query_words = set(query.lower().split())
                 content_words = set(content.lower().split())
 
@@ -341,43 +384,56 @@ class SpecializedRetriever:
                 union = len(query_words.union(content_words))
                 similarity = intersection / union if union > 0 else 0
 
-                chunk['relevance_score'] = similarity
+                chunk["relevance_score"] = similarity
                 scored_chunks.append(chunk)
 
             # Sort by relevance score
-            return sorted(scored_chunks, key=lambda x: x['relevance_score'], reverse=True)
+            return sorted(
+                scored_chunks, key=lambda x: x["relevance_score"], reverse=True
+            )
 
         except Exception as e:
             logger.error(f"Relevance scoring failed: {str(e)}")
             return chunks
+
 
 class ResponseSynthesizer:
     """Synthesizes responses from retrieved chunks using advanced generation techniques"""
 
     def __init__(self, model_config: ModelConfigManager):
         self.model_config = model_config
-        self.bedrock_runtime = boto3.client('bedrock-runtime', region_name=model_config.region)
+        self.bedrock_runtime = boto3.client(
+            "bedrock-runtime", region_name=model_config.region
+        )
 
         # Get best model for synthesis
         self.model_id = model_config.get_best_model_for_task(
-            [ModelCapability.HIGH_QUALITY, ModelCapability.REASONING],
-            "premium"
+            [ModelCapability.HIGH_QUALITY, ModelCapability.REASONING], "premium"
         )
 
-    async def synthesize_response(self, query: RAGQuery, all_chunks: List[Dict[str, Any]], agent_results: Dict[str, Any]) -> Tuple[str, float]:
+    async def synthesize_response(
+        self,
+        query: RAGQuery,
+        all_chunks: List[Dict[str, Any]],
+        agent_results: Dict[str, Any],
+    ) -> Tuple[str, float]:
         """Synthesize a comprehensive response from all retrieved chunks"""
         try:
             # Prepare context from chunks
             context_sections = self._organize_chunks_by_source(all_chunks)
 
-            synthesis_prompt = self._build_synthesis_prompt(query, context_sections, agent_results)
+            synthesis_prompt = self._build_synthesis_prompt(
+                query, context_sections, agent_results
+            )
 
             # Generate response
             response = await self._invoke_bedrock_async(synthesis_prompt)
 
-            if response and 'content' in response:
-                synthesized_text = response['content'][0]['text']
-                confidence = self._calculate_confidence(query, all_chunks, synthesized_text)
+            if response and "content" in response:
+                synthesized_text = response["content"][0]["text"]
+                confidence = self._calculate_confidence(
+                    query, all_chunks, synthesized_text
+                )
                 return synthesized_text, confidence
 
             return "Unable to generate response from retrieved context.", 0.0
@@ -386,19 +442,26 @@ class ResponseSynthesizer:
             logger.error(f"Response synthesis failed: {str(e)}")
             return f"Error synthesizing response: {str(e)}", 0.0
 
-    def _organize_chunks_by_source(self, chunks: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    def _organize_chunks_by_source(
+        self, chunks: List[Dict[str, Any]]
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """Organize chunks by their source type"""
         organized = {}
 
         for chunk in chunks:
-            source_type = chunk.get('metadata', {}).get('type', 'unknown')
+            source_type = chunk.get("metadata", {}).get("type", "unknown")
             if source_type not in organized:
                 organized[source_type] = []
             organized[source_type].append(chunk)
 
         return organized
 
-    def _build_synthesis_prompt(self, query: RAGQuery, context_sections: Dict[str, List[Dict[str, Any]]], agent_results: Dict[str, Any]) -> str:
+    def _build_synthesis_prompt(
+        self,
+        query: RAGQuery,
+        context_sections: Dict[str, List[Dict[str, Any]]],
+        agent_results: Dict[str, Any],
+    ) -> str:
         """Build prompt for response synthesis"""
         context_text = ""
 
@@ -407,7 +470,9 @@ class ResponseSynthesizer:
             for chunk in chunks:
                 context_text += f"- {chunk['content']}\n"
                 context_text += f"  Source: {chunk['source']}\n"
-                context_text += f"  Relevance: {chunk.get('relevance_score', 0):.2f}\n\n"
+                context_text += (
+                    f"  Relevance: {chunk.get('relevance_score', 0):.2f}\n\n"
+                )
 
         agent_summary = ""
         for agent, result in agent_results.items():
@@ -439,7 +504,9 @@ RESPONSE:
 
         return prompt
 
-    def _calculate_confidence(self, query: RAGQuery, chunks: List[Dict[str, Any]], response: str) -> float:
+    def _calculate_confidence(
+        self, query: RAGQuery, chunks: List[Dict[str, Any]], response: str
+    ) -> float:
         """Calculate confidence score for the synthesized response"""
         try:
             # Factors for confidence calculation
@@ -447,7 +514,11 @@ RESPONSE:
 
             # Number and quality of chunks
             chunk_count = len(chunks)
-            avg_relevance = np.mean([chunk.get('relevance_score', 0) for chunk in chunks]) if chunks else 0
+            avg_relevance = (
+                np.mean([chunk.get("relevance_score", 0) for chunk in chunks])
+                if chunks
+                else 0
+            )
             factors.append(min(chunk_count / 5.0, 1.0) * 0.3)  # More chunks up to 5
             factors.append(avg_relevance * 0.4)  # Average relevance
 
@@ -458,7 +529,11 @@ RESPONSE:
             # Context alignment (keyword overlap)
             query_words = set(query.query_text.lower().split())
             response_words = set(response.lower().split())
-            alignment = len(query_words.intersection(response_words)) / len(query_words) if query_words else 0
+            alignment = (
+                len(query_words.intersection(response_words)) / len(query_words)
+                if query_words
+                else 0
+            )
             factors.append(alignment * 0.1)
 
             return sum(factors)
@@ -473,27 +548,23 @@ RESPONSE:
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4000,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                "messages": [{"role": "user", "content": prompt}],
             }
 
             response = self.bedrock_runtime.invoke_model(
                 modelId=self.model_id,
                 contentType="application/json",
                 accept="application/json",
-                body=json.dumps(body)
+                body=json.dumps(body),
             )
 
-            response_body = json.loads(response['body'].read())
+            response_body = json.loads(response["body"].read())
             return response_body
 
         except Exception as e:
             logger.error(f"Bedrock invocation failed: {str(e)}")
             return None
+
 
 class AgenticRAGSystem:
     """
@@ -510,9 +581,13 @@ class AgenticRAGSystem:
 
         # Initialize specialized retrievers
         self.retrievers = {
-            "document_search": SpecializedRetriever("document_search", self.model_config),
+            "document_search": SpecializedRetriever(
+                "document_search", self.model_config
+            ),
             "code_analysis": SpecializedRetriever("code_analysis", self.model_config),
-            "technical_context": SpecializedRetriever("technical_context", self.model_config)
+            "technical_context": SpecializedRetriever(
+                "technical_context", self.model_config
+            ),
         }
 
         # Initialize memory system for learning
@@ -532,18 +607,24 @@ class AgenticRAGSystem:
             # Step 2: Parallel retrieval with specialized agents
             retrieval_tasks = []
             for sub_query in sub_queries:
-                retrieval_type = sub_query.get('retrieval_type', 'document_search')
+                retrieval_type = sub_query.get("retrieval_type", "document_search")
                 if retrieval_type in self.retrievers:
-                    task = self.retrievers[retrieval_type].retrieve(sub_query, query.context)
-                    retrieval_tasks.append((sub_query['id'], task))
+                    task = self.retrievers[retrieval_type].retrieve(
+                        sub_query, query.context
+                    )
+                    retrieval_tasks.append((sub_query["id"], task))
 
             # Execute retrievals in parallel
             retrieval_results = {}
             if retrieval_tasks:
-                results = await asyncio.gather(*[task for _, task in retrieval_tasks], return_exceptions=True)
+                results = await asyncio.gather(
+                    *[task for _, task in retrieval_tasks], return_exceptions=True
+                )
                 for (sub_query_id, _), result in zip(retrieval_tasks, results):
                     if isinstance(result, Exception):
-                        logger.error(f"Retrieval failed for {sub_query_id}: {str(result)}")
+                        logger.error(
+                            f"Retrieval failed for {sub_query_id}: {str(result)}"
+                        )
                         retrieval_results[sub_query_id] = []
                     else:
                         retrieval_results[sub_query_id] = result
@@ -556,17 +637,25 @@ class AgenticRAGSystem:
                 all_chunks.extend(chunks)
                 agent_breakdown[sub_query_id] = {
                     "chunks_retrieved": len(chunks),
-                    "avg_relevance": np.mean([c.get('relevance_score', 0) for c in chunks]) if chunks else 0,
-                    "summary": f"Retrieved {len(chunks)} relevant chunks"
+                    "avg_relevance": (
+                        np.mean([c.get("relevance_score", 0) for c in chunks])
+                        if chunks
+                        else 0
+                    ),
+                    "summary": f"Retrieved {len(chunks)} relevant chunks",
                 }
 
             # Step 4: Response synthesis
-            synthesized_response, confidence = await self.response_synthesizer.synthesize_response(
-                query, all_chunks, agent_breakdown
+            synthesized_response, confidence = (
+                await self.response_synthesizer.synthesize_response(
+                    query, all_chunks, agent_breakdown
+                )
             )
 
             # Step 5: Store experience in memory
-            await self._store_experience(query, all_chunks, synthesized_response, confidence)
+            await self._store_experience(
+                query, all_chunks, synthesized_response, confidence
+            )
 
             # Calculate processing time
             processing_time = (datetime.utcnow() - start_time).total_seconds()
@@ -580,13 +669,19 @@ class AgenticRAGSystem:
                 retrieval_metadata={
                     "sub_queries": sub_queries,
                     "total_chunks": len(all_chunks),
-                    "avg_relevance": np.mean([c.get('relevance_score', 0) for c in all_chunks]) if all_chunks else 0
+                    "avg_relevance": (
+                        np.mean([c.get("relevance_score", 0) for c in all_chunks])
+                        if all_chunks
+                        else 0
+                    ),
                 },
                 processing_time=processing_time,
-                agent_breakdown=agent_breakdown
+                agent_breakdown=agent_breakdown,
             )
 
-            logger.info(f"RAG query processed in {processing_time:.2f}s with confidence {confidence:.2f}")
+            logger.info(
+                f"RAG query processed in {processing_time:.2f}s with confidence {confidence:.2f}"
+            )
             return result
 
         except Exception as e:
@@ -600,10 +695,16 @@ class AgenticRAGSystem:
                 confidence_score=0.0,
                 retrieval_metadata={"error": str(e)},
                 processing_time=processing_time,
-                agent_breakdown={}
+                agent_breakdown={},
             )
 
-    async def _store_experience(self, query: RAGQuery, chunks: List[Dict[str, Any]], response: str, confidence: float):
+    async def _store_experience(
+        self,
+        query: RAGQuery,
+        chunks: List[Dict[str, Any]],
+        response: str,
+        confidence: float,
+    ):
         """Store the RAG experience in memory for learning"""
         try:
             experience = {
@@ -613,7 +714,7 @@ class AgenticRAGSystem:
                 "chunks_count": len(chunks),
                 "confidence": confidence,
                 "response_length": len(response),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             # Store as episodic memory
@@ -621,7 +722,7 @@ class AgenticRAGSystem:
                 event_type="rag_query",
                 event_data=experience,
                 context=query.context,
-                outcome_success=confidence > query.confidence_threshold
+                outcome_success=confidence > query.confidence_threshold,
             )
 
         except Exception as e:
@@ -637,19 +738,23 @@ class AgenticRAGSystem:
                 "retrievers": list(self.retrievers.keys()),
                 "model_config": self.model_config.get_model_summary(),
                 "memory_stats": memory_stats,
-                "system_status": "active"
+                "system_status": "active",
             }
 
         except Exception as e:
             logger.error(f"Failed to get system stats: {str(e)}")
             return {"error": str(e)}
 
+
 # Convenience functions for easy integration
 async def create_rag_system(region: str = "us-east-1") -> AgenticRAGSystem:
     """Create and initialize an Agentic RAG system"""
     return AgenticRAGSystem(region)
 
-async def process_documentation_query(query_text: str, context: Dict[str, Any] = None) -> RAGResult:
+
+async def process_documentation_query(
+    query_text: str, context: Dict[str, Any] = None
+) -> RAGResult:
     """Process a documentation-related query"""
     rag_system = await create_rag_system()
 
@@ -657,13 +762,15 @@ async def process_documentation_query(query_text: str, context: Dict[str, Any] =
         query_text=query_text,
         task_type=RAGTaskType.DOCUMENT_SEARCH,
         context=context or {},
-        strategy=RetrievalStrategy.HYBRID_RETRIEVAL
+        strategy=RetrievalStrategy.HYBRID_RETRIEVAL,
     )
 
     return await rag_system.process_query(query)
 
+
 # Example usage
 if __name__ == "__main__":
+
     async def main():
         # Create RAG system
         rag_system = await create_rag_system()
@@ -673,7 +780,7 @@ if __name__ == "__main__":
             query_text="How do I configure GitHub integration for automatic documentation updates?",
             task_type=RAGTaskType.TECHNICAL_CONTEXT,
             context={"integration_type": "github", "user_role": "developer"},
-            strategy=RetrievalStrategy.HYBRID_RETRIEVAL
+            strategy=RetrievalStrategy.HYBRID_RETRIEVAL,
         )
 
         # Process query

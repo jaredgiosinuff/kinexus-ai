@@ -1,13 +1,25 @@
-from sqlalchemy import Column, String, DateTime, Float, Integer, Text, JSON, Boolean, ForeignKey
+import uuid
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
-from typing import List, Dict, Any, Optional
-from pydantic import BaseModel
-from enum import Enum
-import uuid
 
 Base = declarative_base()
+
 
 class ConversationStatus(str, Enum):
     PENDING = "pending"
@@ -16,8 +28,10 @@ class ConversationStatus(str, Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
 
+
 class ReasoningStep(BaseModel):
     """Individual step in the reasoning process."""
+
     step_number: int
     thought: str
     confidence: float
@@ -26,8 +40,10 @@ class ReasoningStep(BaseModel):
     duration_ms: float
     metadata: Dict[str, Any] = {}
 
+
 class ModelCall(BaseModel):
     """Details of a call to an AI model."""
+
     model_name: str
     provider: str
     input_tokens: int
@@ -37,8 +53,10 @@ class ModelCall(BaseModel):
     temperature: float
     response_metadata: Dict[str, Any] = {}
 
+
 class PerformanceMetrics(BaseModel):
     """Performance metrics for the conversation."""
+
     total_duration_ms: float
     reasoning_time_ms: float
     model_call_time_ms: float
@@ -49,8 +67,10 @@ class PerformanceMetrics(BaseModel):
     memory_usage_mb: float
     cpu_usage_percent: float
 
+
 class AgentConversation(Base):
     """Database model for agent conversations."""
+
     __tablename__ = "agent_conversations"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -63,7 +83,9 @@ class AgentConversation(Base):
     priority = Column(String, default="medium")
 
     # Status and timing
-    status = Column(String, nullable=False, default=ConversationStatus.PENDING, index=True)
+    status = Column(
+        String, nullable=False, default=ConversationStatus.PENDING, index=True
+    )
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
@@ -93,16 +115,18 @@ class AgentConversation(Base):
     metadata = Column(JSON, nullable=True)
 
     # Relationships
-    parent_conversation_id = Column(String, ForeignKey('agent_conversations.id'), nullable=True)
+    parent_conversation_id = Column(
+        String, ForeignKey("agent_conversations.id"), nullable=True
+    )
     parent_conversation = relationship("AgentConversation", remote_side=[id])
 
     # Indexing for common queries
-    __table_args__ = (
-        {'mysql_engine': 'InnoDB'},
-    )
+    __table_args__ = ({"mysql_engine": "InnoDB"},)
+
 
 class ConversationSummary(BaseModel):
     """Summary statistics for conversations."""
+
     total_conversations: int
     active_conversations: int
     completed_conversations: int
@@ -112,8 +136,10 @@ class ConversationSummary(BaseModel):
     total_cost: float
     total_tokens: int
 
+
 class ConversationFilter(BaseModel):
     """Filter criteria for conversation queries."""
+
     agent_type: Optional[str] = None
     status: Optional[ConversationStatus] = None
     start_date: Optional[datetime] = None
@@ -124,8 +150,10 @@ class ConversationFilter(BaseModel):
     limit: int = 100
     offset: int = 0
 
+
 class ConversationCreate(BaseModel):
     """Request model for creating a new conversation."""
+
     agent_type: str
     agent_id: str
     task_description: str
@@ -135,8 +163,10 @@ class ConversationCreate(BaseModel):
     context: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
 
+
 class ConversationUpdate(BaseModel):
     """Request model for updating a conversation."""
+
     status: Optional[ConversationStatus] = None
     reasoning_steps: Optional[List[ReasoningStep]] = None
     final_thought: Optional[str] = None
@@ -149,8 +179,10 @@ class ConversationUpdate(BaseModel):
     error_message: Optional[str] = None
     performance_metrics: Optional[PerformanceMetrics] = None
 
+
 class ConversationResponse(BaseModel):
     """Response model for conversation data."""
+
     id: str
     agent_type: str
     agent_id: str
@@ -171,8 +203,10 @@ class ConversationResponse(BaseModel):
     context: Optional[Dict[str, Any]]
     metadata: Optional[Dict[str, Any]]
 
+
 class DetailedConversationResponse(ConversationResponse):
     """Detailed response model including reasoning steps and model calls."""
+
     reasoning_steps: Optional[List[ReasoningStep]]
     model_calls: Optional[List[ModelCall]]
     result: Optional[Dict[str, Any]]
@@ -180,8 +214,10 @@ class DetailedConversationResponse(ConversationResponse):
     performance_metrics: Optional[PerformanceMetrics]
     parent_conversation_id: Optional[str]
 
+
 class ConversationAnalytics(BaseModel):
     """Analytics data for conversations."""
+
     time_period: str
     conversation_volume: List[Dict[str, Any]]
     success_rate: float
@@ -192,8 +228,10 @@ class ConversationAnalytics(BaseModel):
     reasoning_pattern_usage: Dict[str, int]
     top_errors: List[Dict[str, Any]]
 
+
 class ConversationEvent(BaseModel):
     """Event model for conversation state changes."""
+
     conversation_id: str
     event_type: str
     timestamp: datetime
@@ -201,9 +239,11 @@ class ConversationEvent(BaseModel):
     agent_type: str
     agent_id: str
 
+
 # Real-time conversation tracking models
 class LiveConversationStatus(BaseModel):
     """Real-time status of active conversations."""
+
     conversation_id: str
     agent_type: str
     current_step: str
@@ -215,8 +255,10 @@ class LiveConversationStatus(BaseModel):
     tokens_used_so_far: int
     cost_so_far: float
 
+
 class ConversationMetrics(BaseModel):
     """Metrics for conversation monitoring."""
+
     active_count: int
     queue_length: int
     avg_wait_time: float
@@ -226,9 +268,11 @@ class ConversationMetrics(BaseModel):
     top_agent_types: List[Dict[str, Any]]
     reasoning_pattern_performance: Dict[str, Dict[str, float]]
 
+
 # Search and filtering models
 class ConversationSearchRequest(BaseModel):
     """Request model for searching conversations."""
+
     query: str
     filters: ConversationFilter
     sort_by: str = "created_at"
@@ -236,8 +280,10 @@ class ConversationSearchRequest(BaseModel):
     include_reasoning: bool = False
     include_performance: bool = False
 
+
 class ConversationSearchResponse(BaseModel):
     """Response model for conversation search."""
+
     conversations: List[ConversationResponse]
     total_count: int
     page: int
@@ -245,9 +291,11 @@ class ConversationSearchResponse(BaseModel):
     has_more: bool
     search_metadata: Dict[str, Any]
 
+
 # Conversation templates for common patterns
 class ConversationTemplate(BaseModel):
     """Template for creating conversations with predefined patterns."""
+
     name: str
     description: str
     agent_type: str
@@ -258,8 +306,10 @@ class ConversationTemplate(BaseModel):
     expected_duration: float
     typical_cost: float
 
+
 class ConversationWorkflow(BaseModel):
     """Workflow definition for multi-step conversations."""
+
     id: str
     name: str
     description: str

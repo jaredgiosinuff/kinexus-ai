@@ -1,4 +1,5 @@
 """API endpoints for viewing documentation automation plans."""
+
 from __future__ import annotations
 
 from typing import List, Optional
@@ -10,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from api.dependencies import get_db, require_reviewer
 from core.services.documentation_plan_service import DocumentationPlanService
-from integrations.github_actions_integration import process_github_actions_webhook
 from database.models import DocumentationPlanStatus, User
+from integrations.github_actions_integration import process_github_actions_webhook
 
 router = APIRouter()
 
@@ -52,10 +53,12 @@ async def list_documentation_plans(
     status_filter: Optional[DocumentationPlanStatus] = Query(None, alias="status"),
     limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(require_reviewer),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     service = DocumentationPlanService(db)
-    plans = service.list_plans(repository=repository, status_filter=status_filter, limit=limit)
+    plans = service.list_plans(
+        repository=repository, status_filter=status_filter, limit=limit
+    )
     return [
         DocumentationPlanSummary(
             id=str(plan.id),
@@ -64,7 +67,7 @@ async def list_documentation_plans(
             branch=plan.branch,
             status=plan.status,
             execution_mode=plan.execution_mode,
-            created_at=plan.created_at.isoformat() if plan.created_at else None
+            created_at=plan.created_at.isoformat() if plan.created_at else None,
         )
         for plan in plans
     ]
@@ -74,7 +77,7 @@ async def list_documentation_plans(
 async def get_documentation_plan(
     plan_id: str,
     current_user: User = Depends(require_reviewer),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     service = DocumentationPlanService(db)
     try:
@@ -95,7 +98,7 @@ async def get_documentation_plan(
         execution_mode=plan.execution_mode,
         plan=plan.plan,
         created_at=plan.created_at.isoformat() if plan.created_at else None,
-        updated_at=plan.updated_at.isoformat() if plan.updated_at else None
+        updated_at=plan.updated_at.isoformat() if plan.updated_at else None,
     )
 
 
@@ -104,7 +107,7 @@ async def link_plan_to_review(
     plan_id: str,
     link_request: DocumentationPlanLinkRequest,
     current_user: User = Depends(require_reviewer),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     service = DocumentationPlanService(db)
     try:
@@ -116,7 +119,7 @@ async def link_plan_to_review(
         plan = service.link_to_review(
             plan_uuid,
             review_id=link_request.review_id,
-            status=link_request.status or DocumentationPlanStatus.IN_REVIEW
+            status=link_request.status or DocumentationPlanStatus.IN_REVIEW,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -133,7 +136,7 @@ async def link_plan_to_review(
         execution_mode=plan.execution_mode,
         plan=plan.plan,
         created_at=plan.created_at.isoformat() if plan.created_at else None,
-        updated_at=plan.updated_at.isoformat() if plan.updated_at else None
+        updated_at=plan.updated_at.isoformat() if plan.updated_at else None,
     )
 
 
@@ -142,7 +145,7 @@ async def rerun_documentation_plan(
     plan_id: str,
     rerun_request: DocumentationPlanRerunRequest,
     current_user: User = Depends(require_reviewer),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     service = DocumentationPlanService(db)
     try:
@@ -154,13 +157,16 @@ async def rerun_documentation_plan(
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
-    request_payload = plan.plan.get("request_payload") if isinstance(plan.plan, dict) else None
+    request_payload = (
+        plan.plan.get("request_payload") if isinstance(plan.plan, dict) else None
+    )
     if not request_payload:
-        raise HTTPException(status_code=400, detail="Stored plan does not include request payload")
+        raise HTTPException(
+            status_code=400, detail="Stored plan does not include request payload"
+        )
 
     new_result = await process_github_actions_webhook(
-        request_payload,
-        execute_updates=rerun_request.execute_updates
+        request_payload, execute_updates=rerun_request.execute_updates
     )
     new_result["request_payload"] = request_payload
 
@@ -168,7 +174,7 @@ async def rerun_documentation_plan(
         plan_uuid,
         plan_payload=new_result,
         execution_mode=new_result.get("execution_mode"),
-        status=DocumentationPlanStatus.PENDING
+        status=DocumentationPlanStatus.PENDING,
     )
 
     if not updated_plan:
@@ -182,6 +188,10 @@ async def rerun_documentation_plan(
         status=updated_plan.status,
         execution_mode=updated_plan.execution_mode,
         plan=updated_plan.plan,
-        created_at=updated_plan.created_at.isoformat() if updated_plan.created_at else None,
-        updated_at=updated_plan.updated_at.isoformat() if updated_plan.updated_at else None
+        created_at=(
+            updated_plan.created_at.isoformat() if updated_plan.created_at else None
+        ),
+        updated_at=(
+            updated_plan.updated_at.isoformat() if updated_plan.updated_at else None
+        ),
     )

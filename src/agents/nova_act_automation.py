@@ -3,20 +3,22 @@
 Nova Act Browser Automation - 2024-2025 Agentic AI Pattern
 Implements browser automation for complex platform interactions using Amazon Nova Act
 """
-import boto3
-import json
-import logging
 import asyncio
 import base64
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple, Union
-from dataclasses import dataclass, field
-from enum import Enum
+import json
+import logging
 import time
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import boto3
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class AutomationAction(Enum):
     NAVIGATE = "navigate"
@@ -31,6 +33,7 @@ class AutomationAction(Enum):
     EXTRACT_TEXT = "extract_text"
     SUBMIT_FORM = "submit_form"
 
+
 class PlatformType(Enum):
     CONFLUENCE = "confluence"
     SHAREPOINT = "sharepoint"
@@ -39,6 +42,7 @@ class PlatformType(Enum):
     CUSTOM_WIKI = "custom_wiki"
     HELPDESK = "helpdesk"
 
+
 class AutomationStatus(Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
@@ -46,6 +50,7 @@ class AutomationStatus(Enum):
     FAILED = "failed"
     TIMEOUT = "timeout"
     AUTH_REQUIRED = "auth_required"
+
 
 @dataclass
 class AutomationStep:
@@ -56,6 +61,7 @@ class AutomationStep:
     timeout: int = 30
     screenshot: bool = False
     metadata: Dict[str, Any] = field(default_factory=dict)
+
 
 @dataclass
 class AutomationWorkflow:
@@ -68,6 +74,7 @@ class AutomationWorkflow:
     total_timeout: int = 300  # 5 minutes
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class AutomationResult:
     workflow_id: str
@@ -79,6 +86,7 @@ class AutomationResult:
     error_message: Optional[str] = None
     retry_count: int = 0
 
+
 class NovaActAgent:
     """
     Nova Act agent for browser automation using Amazon Nova Act
@@ -86,8 +94,8 @@ class NovaActAgent:
     """
 
     def __init__(self, region: str = "us-east-1"):
-        self.bedrock = boto3.client('bedrock-runtime', region_name=region)
-        self.s3 = boto3.client('s3', region_name=region)
+        self.bedrock = boto3.client("bedrock-runtime", region_name=region)
+        self.s3 = boto3.client("s3", region_name=region)
         self.model_id = "amazon.nova-act-v1:0"
         self.screenshot_bucket = "kinexus-automation-screenshots"
 
@@ -118,13 +126,15 @@ class NovaActAgent:
 
             # Step 1: Handle authentication if required
             if workflow.authentication_steps:
-                auth_result = await self._execute_authentication(workflow.authentication_steps)
+                auth_result = await self._execute_authentication(
+                    workflow.authentication_steps
+                )
                 if not auth_result["success"]:
                     return AutomationResult(
                         workflow_id=workflow.workflow_id,
                         status=AutomationStatus.AUTH_REQUIRED,
                         executed_steps=executed_steps,
-                        error_message=auth_result.get("error", "Authentication failed")
+                        error_message=auth_result.get("error", "Authentication failed"),
                     )
 
             # Step 2: Execute main workflow steps
@@ -150,7 +160,9 @@ class NovaActAgent:
                         screenshots=screenshots,
                         extracted_data=extracted_data,
                         execution_time=execution_time,
-                        error_message=step_result.get("error", f"Step {step.step_id} failed")
+                        error_message=step_result.get(
+                            "error", f"Step {step.step_id} failed"
+                        ),
                     )
 
             execution_time = time.time() - start_time
@@ -161,7 +173,7 @@ class NovaActAgent:
                 executed_steps=executed_steps,
                 screenshots=screenshots,
                 extracted_data=extracted_data,
-                execution_time=execution_time
+                execution_time=execution_time,
             )
 
         except Exception as e:
@@ -175,10 +187,12 @@ class NovaActAgent:
                 screenshots=screenshots,
                 extracted_data=extracted_data,
                 execution_time=execution_time,
-                error_message=str(e)
+                error_message=str(e),
             )
 
-    async def _execute_authentication(self, auth_steps: List[AutomationStep]) -> Dict[str, Any]:
+    async def _execute_authentication(
+        self, auth_steps: List[AutomationStep]
+    ) -> Dict[str, Any]:
         """Execute authentication steps"""
 
         try:
@@ -189,7 +203,7 @@ class NovaActAgent:
                 if not step_result.get("success", False):
                     return {
                         "success": False,
-                        "error": f"Authentication step {step.step_id} failed: {step_result.get('error', 'Unknown error')}"
+                        "error": f"Authentication step {step.step_id} failed: {step_result.get('error', 'Unknown error')}",
                     }
 
             return {"success": True}
@@ -220,7 +234,7 @@ class NovaActAgent:
                 "step_id": step.step_id,
                 "success": False,
                 "error": str(e),
-                "execution_time": 0.0
+                "execution_time": 0.0,
             }
 
     def _build_nova_act_prompt(self, step: AutomationStep) -> str:
@@ -319,27 +333,22 @@ Take appropriate screenshots to document the action.
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4000,
                 "temperature": 0.1,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
+                "messages": [{"role": "user", "content": prompt}],
                 "nova_act_config": {
                     "browser_automation": True,
                     "screenshot_enabled": True,
                     "timeout": timeout,
-                    "retry_on_failure": True
-                }
+                    "retry_on_failure": True,
+                },
             }
 
             response = self.bedrock.invoke_model(
                 modelId=self.model_id,
                 body=json.dumps(request_body),
-                contentType='application/json'
+                contentType="application/json",
             )
 
-            response_body = json.loads(response['body'].read())
+            response_body = json.loads(response["body"].read())
             return response_body
 
         except Exception as e:
@@ -354,7 +363,7 @@ Take appropriate screenshots to document the action.
             "content": [
                 {
                     "text": "Browser automation completed successfully. Action performed as requested.",
-                    "type": "text"
+                    "type": "text",
                 }
             ],
             "automation_result": {
@@ -362,15 +371,14 @@ Take appropriate screenshots to document the action.
                 "action_performed": True,
                 "screenshot_taken": True,
                 "extracted_data": {},
-                "execution_time": 2.5
+                "execution_time": 2.5,
             },
-            "usage": {
-                "input_tokens": len(prompt.split()),
-                "output_tokens": 50
-            }
+            "usage": {"input_tokens": len(prompt.split()), "output_tokens": 50},
         }
 
-    def _process_nova_act_response(self, response: Dict[str, Any], step: AutomationStep) -> Dict[str, Any]:
+    def _process_nova_act_response(
+        self, response: Dict[str, Any], step: AutomationStep
+    ) -> Dict[str, Any]:
         """Process Nova Act response and extract relevant information"""
 
         try:
@@ -383,7 +391,7 @@ Take appropriate screenshots to document the action.
                 "success": automation_result.get("success", False),
                 "action": step.action.value,
                 "target": step.target,
-                "execution_time": automation_result.get("execution_time", 0.0)
+                "execution_time": automation_result.get("execution_time", 0.0),
             }
 
             # Extract text response
@@ -397,7 +405,9 @@ Take appropriate screenshots to document the action.
             if automation_result.get("screenshot_taken") and step.screenshot:
                 screenshot_data = automation_result.get("screenshot")
                 if screenshot_data:
-                    screenshot_url = self._store_screenshot(screenshot_data, step.step_id)
+                    screenshot_url = self._store_screenshot(
+                        screenshot_data, step.step_id
+                    )
                     result["screenshot"] = screenshot_url
 
             # Extract data if available
@@ -407,7 +417,9 @@ Take appropriate screenshots to document the action.
 
             # Handle errors
             if not result["success"]:
-                result["error"] = automation_result.get("error", "Unknown automation error")
+                result["error"] = automation_result.get(
+                    "error", "Unknown automation error"
+                )
 
             return result
 
@@ -416,7 +428,7 @@ Take appropriate screenshots to document the action.
                 "step_id": step.step_id,
                 "success": False,
                 "error": f"Response processing failed: {str(e)}",
-                "execution_time": 0.0
+                "execution_time": 0.0,
             }
 
     def _store_screenshot(self, screenshot_data: str, step_id: str) -> str:
@@ -435,7 +447,7 @@ Take appropriate screenshots to document the action.
                 Bucket=self.screenshot_bucket,
                 Key=filename,
                 Body=screenshot_bytes,
-                ContentType='image/png'
+                ContentType="image/png",
             )
 
             # Return S3 URL
@@ -445,11 +457,14 @@ Take appropriate screenshots to document the action.
             logger.error(f"Screenshot storage failed: {str(e)}")
             return None
 
+
 class PlatformAutomationTemplates:
     """Pre-built automation templates for common platforms"""
 
     @staticmethod
-    def confluence_page_update(page_url: str, content: str, page_title: str = None) -> AutomationWorkflow:
+    def confluence_page_update(
+        page_url: str, content: str, page_title: str = None
+    ) -> AutomationWorkflow:
         """Template for updating a Confluence page"""
 
         steps = [
@@ -457,20 +472,20 @@ class PlatformAutomationTemplates:
                 step_id="navigate_to_page",
                 action=AutomationAction.NAVIGATE,
                 target=page_url,
-                screenshot=True
+                screenshot=True,
             ),
             AutomationStep(
                 step_id="click_edit_button",
                 action=AutomationAction.CLICK,
                 target="button[data-test-id='edit-page'], #editPageLink, .edit-button",
-                screenshot=True
+                screenshot=True,
             ),
             AutomationStep(
                 step_id="wait_for_editor",
                 action=AutomationAction.WAIT,
                 target=".editor-content, #tinymce, .wiki-content-editor",
-                timeout=15
-            )
+                timeout=15,
+            ),
         ]
 
         # Add title update if provided
@@ -480,37 +495,39 @@ class PlatformAutomationTemplates:
                     step_id="update_title",
                     action=AutomationAction.TYPE,
                     target="input[name='title'], #content-title",
-                    value=page_title
+                    value=page_title,
                 )
             )
 
         # Add content update
-        steps.extend([
-            AutomationStep(
-                step_id="clear_content",
-                action=AutomationAction.CLICK,
-                target=".editor-content, #tinymce",
-            ),
-            AutomationStep(
-                step_id="update_content",
-                action=AutomationAction.TYPE,
-                target=".editor-content, #tinymce",
-                value=content
-            ),
-            AutomationStep(
-                step_id="save_page",
-                action=AutomationAction.CLICK,
-                target="button[data-test-id='save-page'], #rte-button-publish, .save-button",
-                screenshot=True
-            ),
-            AutomationStep(
-                step_id="confirm_save",
-                action=AutomationAction.WAIT,
-                target=".page-saved, .success-message",
-                timeout=10,
-                screenshot=True
-            )
-        ])
+        steps.extend(
+            [
+                AutomationStep(
+                    step_id="clear_content",
+                    action=AutomationAction.CLICK,
+                    target=".editor-content, #tinymce",
+                ),
+                AutomationStep(
+                    step_id="update_content",
+                    action=AutomationAction.TYPE,
+                    target=".editor-content, #tinymce",
+                    value=content,
+                ),
+                AutomationStep(
+                    step_id="save_page",
+                    action=AutomationAction.CLICK,
+                    target="button[data-test-id='save-page'], #rte-button-publish, .save-button",
+                    screenshot=True,
+                ),
+                AutomationStep(
+                    step_id="confirm_save",
+                    action=AutomationAction.WAIT,
+                    target=".page-saved, .success-message",
+                    timeout=10,
+                    screenshot=True,
+                ),
+            ]
+        )
 
         return AutomationWorkflow(
             workflow_id=f"confluence_update_{int(time.time())}",
@@ -521,13 +538,15 @@ class PlatformAutomationTemplates:
                 AutomationStep(
                     step_id="handle_auth",
                     action=AutomationAction.AUTHENTICATE,
-                    target="confluence_sso"
+                    target="confluence_sso",
                 )
-            ]
+            ],
         )
 
     @staticmethod
-    def sharepoint_document_upload(site_url: str, document_path: str, folder_path: str = None) -> AutomationWorkflow:
+    def sharepoint_document_upload(
+        site_url: str, document_path: str, folder_path: str = None
+    ) -> AutomationWorkflow:
         """Template for uploading a document to SharePoint"""
 
         steps = [
@@ -535,13 +554,13 @@ class PlatformAutomationTemplates:
                 step_id="navigate_to_site",
                 action=AutomationAction.NAVIGATE,
                 target=site_url,
-                screenshot=True
+                screenshot=True,
             ),
             AutomationStep(
                 step_id="navigate_to_documents",
                 action=AutomationAction.CLICK,
-                target="a[title='Documents'], .ms-nav-link[title='Documents']"
-            )
+                target="a[title='Documents'], .ms-nav-link[title='Documents']",
+            ),
         ]
 
         # Navigate to specific folder if provided
@@ -550,30 +569,32 @@ class PlatformAutomationTemplates:
                 AutomationStep(
                     step_id="navigate_to_folder",
                     action=AutomationAction.CLICK,
-                    target=f"a[title='{folder_path}'], .ms-List-itemName[title='{folder_path}']"
+                    target=f"a[title='{folder_path}'], .ms-List-itemName[title='{folder_path}']",
                 )
             )
 
-        steps.extend([
-            AutomationStep(
-                step_id="click_upload",
-                action=AutomationAction.CLICK,
-                target="button[data-automation-id='uploadButton'], .ms-CommandBarItem-link[title='Upload']"
-            ),
-            AutomationStep(
-                step_id="upload_file",
-                action=AutomationAction.UPLOAD,
-                target="input[type='file']",
-                value=document_path
-            ),
-            AutomationStep(
-                step_id="confirm_upload",
-                action=AutomationAction.WAIT,
-                target=".ms-MessageBanner--success, .upload-success",
-                timeout=30,
-                screenshot=True
-            )
-        ])
+        steps.extend(
+            [
+                AutomationStep(
+                    step_id="click_upload",
+                    action=AutomationAction.CLICK,
+                    target="button[data-automation-id='uploadButton'], .ms-CommandBarItem-link[title='Upload']",
+                ),
+                AutomationStep(
+                    step_id="upload_file",
+                    action=AutomationAction.UPLOAD,
+                    target="input[type='file']",
+                    value=document_path,
+                ),
+                AutomationStep(
+                    step_id="confirm_upload",
+                    action=AutomationAction.WAIT,
+                    target=".ms-MessageBanner--success, .upload-success",
+                    timeout=30,
+                    screenshot=True,
+                ),
+            ]
+        )
 
         return AutomationWorkflow(
             workflow_id=f"sharepoint_upload_{int(time.time())}",
@@ -584,13 +605,15 @@ class PlatformAutomationTemplates:
                 AutomationStep(
                     step_id="handle_auth",
                     action=AutomationAction.AUTHENTICATE,
-                    target="sharepoint_sso"
+                    target="sharepoint_sso",
                 )
-            ]
+            ],
         )
 
     @staticmethod
-    def notion_page_creation(workspace_url: str, page_title: str, content: str, parent_page: str = None) -> AutomationWorkflow:
+    def notion_page_creation(
+        workspace_url: str, page_title: str, content: str, parent_page: str = None
+    ) -> AutomationWorkflow:
         """Template for creating a new Notion page"""
 
         steps = [
@@ -598,32 +621,32 @@ class PlatformAutomationTemplates:
                 step_id="navigate_to_workspace",
                 action=AutomationAction.NAVIGATE,
                 target=workspace_url,
-                screenshot=True
+                screenshot=True,
             ),
             AutomationStep(
                 step_id="click_new_page",
                 action=AutomationAction.CLICK,
-                target="div[role='button'][aria-label='New page'], .notion-new-page"
+                target="div[role='button'][aria-label='New page'], .notion-new-page",
             ),
             AutomationStep(
                 step_id="set_page_title",
                 action=AutomationAction.TYPE,
                 target="h1[placeholder='Untitled'], .notion-page-title",
-                value=page_title
+                value=page_title,
             ),
             AutomationStep(
                 step_id="add_content",
                 action=AutomationAction.TYPE,
                 target=".notion-page-content, .notion-page-body",
-                value=content
+                value=content,
             ),
             AutomationStep(
                 step_id="save_page",
                 action=AutomationAction.WAIT,
                 target=".notion-page-saved, .auto-saved",
                 timeout=5,
-                screenshot=True
-            )
+                screenshot=True,
+            ),
         ]
 
         return AutomationWorkflow(
@@ -635,10 +658,11 @@ class PlatformAutomationTemplates:
                 AutomationStep(
                     step_id="handle_auth",
                     action=AutomationAction.AUTHENTICATE,
-                    target="notion_login"
+                    target="notion_login",
                 )
-            ]
+            ],
         )
+
 
 class NovaActIntegration:
     """
@@ -650,7 +674,9 @@ class NovaActIntegration:
         self.nova_act_agent = NovaActAgent(region)
         self.templates = PlatformAutomationTemplates()
 
-    async def execute_platform_automation(self, automation_request: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_platform_automation(
+        self, automation_request: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute platform automation based on request"""
 
         try:
@@ -665,7 +691,7 @@ class NovaActIntegration:
                     "automation_completed": False,
                     "error": f"No workflow template available for {platform.value} {operation}",
                     "supported_platforms": [p.value for p in PlatformType],
-                    "supported_operations": ["update", "create", "upload", "extract"]
+                    "supported_operations": ["update", "create", "upload", "extract"],
                 }
 
             # Execute the workflow
@@ -679,7 +705,7 @@ class NovaActIntegration:
                 "screenshots": result.screenshots,
                 "extracted_data": result.extracted_data,
                 "steps_executed": len(result.executed_steps),
-                "nova_act_version": "2024-2025-browser-automation"
+                "nova_act_version": "2024-2025-browser-automation",
             }
 
         except Exception as e:
@@ -687,10 +713,12 @@ class NovaActIntegration:
             return {
                 "automation_completed": False,
                 "error": str(e),
-                "fallback_recommendation": "Use platform-specific API integration"
+                "fallback_recommendation": "Use platform-specific API integration",
             }
 
-    def _generate_workflow(self, request: Dict[str, Any], platform: PlatformType, operation: str) -> Optional[AutomationWorkflow]:
+    def _generate_workflow(
+        self, request: Dict[str, Any], platform: PlatformType, operation: str
+    ) -> Optional[AutomationWorkflow]:
         """Generate appropriate workflow based on request"""
 
         try:
@@ -698,14 +726,14 @@ class NovaActIntegration:
                 return self.templates.confluence_page_update(
                     page_url=request.get("page_url", ""),
                     content=request.get("content", ""),
-                    page_title=request.get("page_title")
+                    page_title=request.get("page_title"),
                 )
 
             elif platform == PlatformType.SHAREPOINT and operation == "upload":
                 return self.templates.sharepoint_document_upload(
                     site_url=request.get("site_url", ""),
                     document_path=request.get("document_path", ""),
-                    folder_path=request.get("folder_path")
+                    folder_path=request.get("folder_path"),
                 )
 
             elif platform == PlatformType.NOTION and operation == "create":
@@ -713,7 +741,7 @@ class NovaActIntegration:
                     workspace_url=request.get("workspace_url", ""),
                     page_title=request.get("page_title", ""),
                     content=request.get("content", ""),
-                    parent_page=request.get("parent_page")
+                    parent_page=request.get("parent_page"),
                 )
 
             else:
@@ -723,8 +751,11 @@ class NovaActIntegration:
             logger.error(f"Workflow generation failed: {str(e)}")
             return None
 
+
 # Integration function for the multi-agent supervisor
-async def execute_nova_act_automation(automation_request: Dict[str, Any]) -> Dict[str, Any]:
+async def execute_nova_act_automation(
+    automation_request: Dict[str, Any],
+) -> Dict[str, Any]:
     """
     Main function for Nova Act browser automation
     Called by the multi-agent supervisor's platform updater agent
@@ -737,7 +768,7 @@ async def execute_nova_act_automation(automation_request: Dict[str, Any]) -> Dic
             "nova_act_automation_completed": True,
             "automation_method": "amazon_nova_act_browser_automation",
             "automation_quality": "enterprise_grade_browser_interaction",
-            **result
+            **result,
         }
 
     except Exception as e:
@@ -745,8 +776,9 @@ async def execute_nova_act_automation(automation_request: Dict[str, Any]) -> Dic
         return {
             "nova_act_automation_completed": False,
             "error": str(e),
-            "fallback_recommendation": "Use platform-specific API or manual intervention"
+            "fallback_recommendation": "Use platform-specific API or manual intervention",
         }
+
 
 if __name__ == "__main__":
     # Test the Nova Act automation
@@ -758,7 +790,7 @@ if __name__ == "__main__":
             "operation": "update",
             "page_url": "https://example.atlassian.net/wiki/spaces/DOCS/pages/123456/API+Documentation",
             "content": "Updated API documentation content with latest changes.",
-            "page_title": "API Documentation v2.0"
+            "page_title": "API Documentation v2.0",
         }
 
         result = await execute_nova_act_automation(test_request)

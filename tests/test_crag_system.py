@@ -2,21 +2,34 @@
 """
 Test suite for Self-Corrective RAG (CRAG) system
 """
-import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from src.agents.agentic_rag_system import (
+    RAGQuery,
+    RAGResult,
+    RAGTaskType,
+    RetrievalStrategy,
+)
+from src.agents.crag_integration import CRAGConfiguration, CRAGDocumentProcessor
 
 # Import CRAG components
 from src.agents.self_corrective_rag import (
-    SelfCorrectiveRAG, QualityAssessor, CorrectionEngine,
-    QualityMetric, CorrectionAction, QualityAssessment,
-    CorrectionContext, CRAGResult
+    CorrectionAction,
+    CorrectionContext,
+    CorrectionEngine,
+    CRAGResult,
+    QualityAssessment,
+    QualityAssessor,
+    QualityMetric,
+    SelfCorrectiveRAG,
 )
-from src.agents.agentic_rag_system import RAGQuery, RAGResult, RAGTaskType, RetrievalStrategy
-from src.agents.crag_integration import CRAGDocumentProcessor, CRAGConfiguration
 from src.config.model_config import ModelConfigManager
+
 
 class TestQualityAssessor:
     """Test cases for quality assessment functionality"""
@@ -39,7 +52,7 @@ class TestQualityAssessor:
             query_text="How do I implement error handling in Python?",
             task_type=RAGTaskType.CODE_ANALYSIS,
             context={"language": "python"},
-            max_results=5
+            max_results=5,
         )
 
     @pytest.fixture
@@ -50,11 +63,11 @@ class TestQualityAssessor:
             answer="Use try-except blocks to handle errors in Python.",
             sources=[
                 {"title": "Python Error Handling", "content": "Try-except blocks..."},
-                {"title": "Exception Guide", "content": "Python exceptions..."}
+                {"title": "Exception Guide", "content": "Python exceptions..."},
             ],
             confidence=0.7,
             processing_time=2.5,
-            metadata={}
+            metadata={},
         )
 
     @pytest.mark.asyncio
@@ -62,10 +75,12 @@ class TestQualityAssessor:
         """Test basic quality assessment"""
 
         # Mock Bedrock responses
-        with patch.object(quality_assessor, '_call_bedrock') as mock_bedrock:
+        with patch.object(quality_assessor, "_call_bedrock") as mock_bedrock:
             mock_bedrock.return_value = "0.8"  # Mock assessment score
 
-            assessment = await quality_assessor.assess_quality(sample_query, sample_result)
+            assessment = await quality_assessor.assess_quality(
+                sample_query, sample_result
+            )
 
             assert isinstance(assessment, QualityAssessment)
             assert assessment.query_id == sample_result.query_id
@@ -74,25 +89,33 @@ class TestQualityAssessor:
             assert QualityMetric.ACCURACY in assessment.scores
 
     @pytest.mark.asyncio
-    async def test_relevance_assessment(self, quality_assessor, sample_query, sample_result):
+    async def test_relevance_assessment(
+        self, quality_assessor, sample_query, sample_result
+    ):
         """Test relevance assessment specifically"""
 
-        with patch.object(quality_assessor, '_call_bedrock') as mock_bedrock:
+        with patch.object(quality_assessor, "_call_bedrock") as mock_bedrock:
             mock_bedrock.return_value = "0.9"
 
-            score = await quality_assessor._assess_relevance(sample_query, sample_result)
+            score = await quality_assessor._assess_relevance(
+                sample_query, sample_result
+            )
 
             assert 0.0 <= score <= 1.0
             assert score == 0.9
 
     @pytest.mark.asyncio
-    async def test_assessment_with_low_scores(self, quality_assessor, sample_query, sample_result):
+    async def test_assessment_with_low_scores(
+        self, quality_assessor, sample_query, sample_result
+    ):
         """Test assessment when quality scores are low"""
 
-        with patch.object(quality_assessor, '_call_bedrock') as mock_bedrock:
+        with patch.object(quality_assessor, "_call_bedrock") as mock_bedrock:
             mock_bedrock.return_value = "0.5"  # Low score
 
-            assessment = await quality_assessor.assess_quality(sample_query, sample_result)
+            assessment = await quality_assessor.assess_quality(
+                sample_query, sample_result
+            )
 
             assert assessment.needs_correction(threshold=0.7)
             assert len(assessment.suggested_corrections) > 0
@@ -106,15 +129,18 @@ class TestQualityAssessor:
             answer="Test answer",
             sources=[
                 {"title": "Official Documentation", "path": "/docs/official.md"},
-                {"title": "API Guide", "path": "/guides/api.md"}
+                {"title": "API Guide", "path": "/guides/api.md"},
             ],
             confidence=0.8,
             processing_time=1.0,
-            metadata={}
+            metadata={},
         )
 
-        score = asyncio.run(quality_assessor._assess_source_reliability(reliable_result))
+        score = asyncio.run(
+            quality_assessor._assess_source_reliability(reliable_result)
+        )
         assert score > 0.5  # Should be higher for reliable sources
+
 
 class TestCorrectionEngine:
     """Test cases for correction engine functionality"""
@@ -147,29 +173,34 @@ class TestCorrectionEngine:
             confidence=0.7,
             issues_identified=["Low relevance"],
             suggested_corrections=[CorrectionAction.RETRIEVE_MORE],
-            reasoning="Test assessment"
+            reasoning="Test assessment",
         )
 
         return CorrectionContext(
             original_query=sample_query,
             original_result=sample_result,
-            assessment=assessment
+            assessment=assessment,
         )
 
     @pytest.mark.asyncio
     async def test_apply_corrections(self, correction_engine, correction_context):
         """Test applying corrections"""
 
-        with patch.object(correction_engine, '_call_bedrock') as mock_bedrock:
+        with patch.object(correction_engine, "_call_bedrock") as mock_bedrock:
             mock_bedrock.return_value = "Improved answer"
 
-            with patch.object(correction_engine, '_retrieve_more_sources') as mock_retrieve:
+            with patch.object(
+                correction_engine, "_retrieve_more_sources"
+            ) as mock_retrieve:
                 mock_retrieve.return_value = correction_context.original_result
 
                 result = await correction_engine.apply_corrections(correction_context)
 
                 assert isinstance(result, RAGResult)
-                assert CorrectionAction.RETRIEVE_MORE in correction_context.correction_history
+                assert (
+                    CorrectionAction.RETRIEVE_MORE
+                    in correction_context.correction_history
+                )
 
     @pytest.mark.asyncio
     async def test_retrieve_more_sources(self, correction_engine, correction_context):
@@ -182,20 +213,25 @@ class TestCorrectionEngine:
             sources=[{"title": "Extra Source", "content": "Extra content"}],
             confidence=0.8,
             processing_time=1.0,
-            metadata={}
+            metadata={},
         )
 
         correction_engine.rag_system.process_query.return_value = additional_result
 
-        with patch.object(correction_engine, '_synthesize_with_sources') as mock_synthesize:
+        with patch.object(
+            correction_engine, "_synthesize_with_sources"
+        ) as mock_synthesize:
             mock_synthesize.return_value = "Combined answer"
 
             result = await correction_engine._retrieve_more_sources(
                 correction_context, correction_context.original_result
             )
 
-            assert len(result.sources) >= len(correction_context.original_result.sources)
-            assert result.metadata.get('correction') == 'retrieve_more'
+            assert len(result.sources) >= len(
+                correction_context.original_result.sources
+            )
+            assert result.metadata.get("correction") == "retrieve_more"
+
 
 class TestSelfCorrectiveRAG:
     """Test cases for the main CRAG system"""
@@ -224,7 +260,7 @@ class TestSelfCorrectiveRAG:
             query_text="Test query",
             task_type=RAGTaskType.DOCUMENT_SEARCH,
             context={},
-            max_results=5
+            max_results=5,
         )
 
     @pytest.mark.asyncio
@@ -238,13 +274,15 @@ class TestSelfCorrectiveRAG:
             sources=[{"title": "Good Source", "content": "Relevant content"}],
             confidence=0.9,
             processing_time=1.0,
-            metadata={}
+            metadata={},
         )
 
         crag_system.rag_system.process_query.return_value = high_quality_result
 
         # Mock high-quality assessment
-        with patch.object(crag_system.quality_assessor, 'assess_quality') as mock_assess:
+        with patch.object(
+            crag_system.quality_assessor, "assess_quality"
+        ) as mock_assess:
             mock_assess.return_value = QualityAssessment(
                 query_id="test",
                 timestamp=datetime.utcnow(),
@@ -253,7 +291,7 @@ class TestSelfCorrectiveRAG:
                 confidence=0.9,
                 issues_identified=[],
                 suggested_corrections=[],
-                reasoning="High quality response"
+                reasoning="High quality response",
             )
 
             result = await crag_system.process_query(sample_query)
@@ -274,7 +312,7 @@ class TestSelfCorrectiveRAG:
             sources=[{"title": "Weak Source", "content": "Irrelevant content"}],
             confidence=0.5,
             processing_time=1.0,
-            metadata={}
+            metadata={},
         )
 
         # Mock improved result after correction
@@ -284,7 +322,7 @@ class TestSelfCorrectiveRAG:
             sources=[{"title": "Better Source", "content": "More relevant content"}],
             confidence=0.8,
             processing_time=1.5,
-            metadata={"correction": "applied"}
+            metadata={"correction": "applied"},
         )
 
         crag_system.rag_system.process_query.return_value = low_quality_result
@@ -298,7 +336,7 @@ class TestSelfCorrectiveRAG:
             confidence=0.5,
             issues_identified=["Low quality"],
             suggested_corrections=[CorrectionAction.RETRIEVE_MORE],
-            reasoning="Poor quality response"
+            reasoning="Poor quality response",
         )
 
         improved_assessment = QualityAssessment(
@@ -309,13 +347,17 @@ class TestSelfCorrectiveRAG:
             confidence=0.8,
             issues_identified=[],
             suggested_corrections=[],
-            reasoning="Improved response"
+            reasoning="Improved response",
         )
 
-        with patch.object(crag_system.quality_assessor, 'assess_quality') as mock_assess:
+        with patch.object(
+            crag_system.quality_assessor, "assess_quality"
+        ) as mock_assess:
             mock_assess.side_effect = [initial_assessment, improved_assessment]
 
-            with patch.object(crag_system.correction_engine, 'apply_corrections') as mock_correct:
+            with patch.object(
+                crag_system.correction_engine, "apply_corrections"
+            ) as mock_correct:
                 mock_correct.return_value = improved_result
 
                 result = await crag_system.process_query(sample_query)
@@ -330,12 +372,16 @@ class TestSelfCorrectiveRAG:
         """Test batch processing of multiple queries"""
 
         queries = [
-            RAGQuery(query_text=f"Query {i}", task_type=RAGTaskType.DOCUMENT_SEARCH, context={})
+            RAGQuery(
+                query_text=f"Query {i}",
+                task_type=RAGTaskType.DOCUMENT_SEARCH,
+                context={},
+            )
             for i in range(3)
         ]
 
         # Mock single query processing
-        with patch.object(crag_system, 'process_query') as mock_process:
+        with patch.object(crag_system, "process_query") as mock_process:
             mock_process.return_value = CRAGResult(
                 final_result=RAGResult("test", "answer", [], 0.8, 1.0, {}),
                 quality_assessment=Mock(),
@@ -343,7 +389,7 @@ class TestSelfCorrectiveRAG:
                 corrections_applied=[],
                 improvement_score=0.1,
                 total_processing_time=2.0,
-                confidence_evolution=[0.7, 0.8]
+                confidence_evolution=[0.7, 0.8],
             )
 
             results = await crag_system.batch_process(queries)
@@ -362,18 +408,19 @@ class TestSelfCorrectiveRAG:
                 corrections_applied=[CorrectionAction.RETRIEVE_MORE],
                 improvement_score=0.1 * i,
                 total_processing_time=2.0 + i,
-                confidence_evolution=[0.7, 0.8]
+                confidence_evolution=[0.7, 0.8],
             )
             for i in range(1, 4)
         ]
 
         metrics = crag_system.get_performance_metrics(mock_results)
 
-        assert 'total_queries' in metrics
-        assert 'average_improvement_score' in metrics
-        assert 'average_iterations' in metrics
-        assert 'correction_frequency' in metrics
-        assert metrics['total_queries'] == 3
+        assert "total_queries" in metrics
+        assert "average_improvement_score" in metrics
+        assert "average_iterations" in metrics
+        assert "correction_frequency" in metrics
+        assert metrics["total_queries"] == 3
+
 
 class TestCRAGIntegration:
     """Test cases for CRAG integration components"""
@@ -401,7 +448,9 @@ class TestCRAGIntegration:
         return service
 
     @pytest.fixture
-    def crag_processor(self, mock_crag_system, mock_document_service, mock_metrics_service):
+    def crag_processor(
+        self, mock_crag_system, mock_document_service, mock_metrics_service
+    ):
         """Create CRAG document processor"""
         config = CRAGConfiguration()
         return CRAGDocumentProcessor(
@@ -419,7 +468,7 @@ class TestCRAGIntegration:
             corrections_applied=[],
             improvement_score=0.1,
             total_processing_time=2.0,
-            confidence_evolution=[0.7, 0.8]
+            confidence_evolution=[0.7, 0.8],
         )
 
         crag_processor.crag_system.process_query.return_value = mock_result
@@ -437,11 +486,11 @@ class TestCRAGIntegration:
 
         # Mock document
         mock_document = {
-            'id': 'doc-123',
-            'title': 'Test Document',
-            'content': 'Document content',
-            'type': 'guide',
-            'updated_at': datetime.utcnow()
+            "id": "doc-123",
+            "title": "Test Document",
+            "content": "Document content",
+            "type": "guide",
+            "updated_at": datetime.utcnow(),
         }
 
         crag_processor.document_service.get_document.return_value = mock_document
@@ -453,15 +502,16 @@ class TestCRAGIntegration:
             corrections_applied=[],
             improvement_score=0.0,
             total_processing_time=1.0,
-            confidence_evolution=[0.8]
+            confidence_evolution=[0.8],
         )
 
         crag_processor.crag_system.process_query.return_value = mock_result
 
-        result = await crag_processor.validate_document_accuracy('doc-123')
+        result = await crag_processor.validate_document_accuracy("doc-123")
 
         assert isinstance(result, CRAGResult)
-        crag_processor.document_service.get_document.assert_called_once_with('doc-123')
+        crag_processor.document_service.get_document.assert_called_once_with("doc-123")
+
 
 # Performance benchmarks
 class TestCRAGPerformance:
@@ -482,7 +532,7 @@ class TestCRAGPerformance:
         crag = SelfCorrectiveRAG(mock_rag, mock_config)
 
         # Mock high-quality assessment to avoid corrections
-        with patch.object(crag.quality_assessor, 'assess_quality') as mock_assess:
+        with patch.object(crag.quality_assessor, "assess_quality") as mock_assess:
             mock_assess.return_value = QualityAssessment(
                 query_id="test",
                 timestamp=datetime.utcnow(),
@@ -491,7 +541,7 @@ class TestCRAGPerformance:
                 confidence=0.9,
                 issues_identified=[],
                 suggested_corrections=[],
-                reasoning="High quality"
+                reasoning="High quality",
             )
 
             start_time = datetime.utcnow()
@@ -499,7 +549,7 @@ class TestCRAGPerformance:
             query = RAGQuery(
                 query_text="Benchmark query",
                 task_type=RAGTaskType.DOCUMENT_SEARCH,
-                context={}
+                context={},
             )
 
             result = await crag.process_query(query)
@@ -510,6 +560,7 @@ class TestCRAGPerformance:
             # Should process quickly without corrections
             assert processing_time < 1.0
             assert isinstance(result, CRAGResult)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

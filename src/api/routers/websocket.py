@@ -8,16 +8,23 @@ review queue changes, assignments, and system events.
 import asyncio
 import json
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
-from database.models import User
 from core.config import settings
-from core.websocket_manager import websocket_manager, notification_service
+from core.websocket_manager import notification_service, websocket_manager
+from database.models import User
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -39,13 +46,16 @@ async def get_user_from_token(token: str, db: Session) -> User:
     """
     try:
         # Decode JWT token
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
         # Get user from database
         from uuid import UUID
+
         user = db.query(User).filter(User.id == UUID(user_id)).first()
         if user is None or not user.is_active:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
@@ -58,9 +68,7 @@ async def get_user_from_token(token: str, db: Session) -> User:
 
 @router.websocket("/notifications")
 async def websocket_notifications(
-    websocket: WebSocket,
-    token: str,
-    db: Session = Depends(get_db)
+    websocket: WebSocket, token: str, db: Session = Depends(get_db)
 ):
     """
     WebSocket endpoint for real-time notifications.
@@ -92,7 +100,7 @@ async def websocket_notifications(
             websocket=websocket,
             user_id=str(user.id),
             user_email=user.email,
-            user_role=user.role.value
+            user_role=user.role.value,
         )
 
         if not connected:
@@ -120,16 +128,21 @@ async def websocket_notifications(
                     elif message_type == "unsubscribe":
                         room = message.get("room")
                         if room:
-                            await websocket_manager.unsubscribe_from_room(websocket, room)
+                            await websocket_manager.unsubscribe_from_room(
+                                websocket, room
+                            )
 
                     elif message_type == "get_stats":
                         # Send connection statistics
                         stats = await websocket_manager.get_connection_stats()
-                        await websocket_manager.send_personal_message(websocket, {
-                            "type": "connection_stats",
-                            "data": stats,
-                            "timestamp": message.get("timestamp", "")
-                        })
+                        await websocket_manager.send_personal_message(
+                            websocket,
+                            {
+                                "type": "connection_stats",
+                                "data": stats,
+                                "timestamp": message.get("timestamp", ""),
+                            },
+                        )
 
                     else:
                         logger.warning(f"Unknown message type: {message_type}")
@@ -167,7 +180,7 @@ async def get_websocket_stats():
 @router.post("/broadcast")
 async def broadcast_message(
     message_data: Dict[str, Any],
-    current_user: User = Depends(lambda: None)  # TODO: Add admin dependency
+    current_user: User = Depends(lambda: None),  # TODO: Add admin dependency
 ):
     """
     Broadcast a message to all connected users (admin only).
@@ -180,7 +193,7 @@ async def broadcast_message(
     message = {
         "type": "admin_broadcast",
         "data": message_data,
-        "timestamp": "2025-09-27T12:00:00Z"
+        "timestamp": "2025-09-27T12:00:00Z",
     }
 
     # await websocket_manager.broadcast_to_all(message)
@@ -189,10 +202,7 @@ async def broadcast_message(
 
 
 @router.post("/test-notification")
-async def test_notification(
-    notification_type: str,
-    user_id: str = None
-):
+async def test_notification(notification_type: str, user_id: str = None):
     """
     Test endpoint for triggering notifications during development.
 
@@ -201,7 +211,7 @@ async def test_notification(
     test_data = {
         "id": "test-123",
         "title": "Test Notification",
-        "message": f"This is a test {notification_type} notification"
+        "message": f"This is a test {notification_type} notification",
     }
 
     if notification_type == "review_created":
@@ -213,15 +223,12 @@ async def test_notification(
     elif notification_type == "system_alert":
         await notification_service.notify_system_alert(test_data)
     elif notification_type == "queue_update":
-        await notification_service.notify_queue_update({
-            "pending": 5,
-            "in_review": 3,
-            "completed_today": 12
-        })
+        await notification_service.notify_queue_update(
+            {"pending": 5, "in_review": 3, "completed_today": 12}
+        )
     else:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid notification type"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid notification type"
         )
 
     return {"status": "sent", "type": notification_type, "data": test_data}

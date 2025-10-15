@@ -23,7 +23,7 @@ async def test_metrics_service_window_calculations():
         thoughts_count=3,
         models_used=1,
         success=True,
-        reasoning_pattern="chain_of_thought"
+        reasoning_pattern="chain_of_thought",
     )
     await service.record_model_usage(
         agent_type="supervisor",
@@ -31,7 +31,7 @@ async def test_metrics_service_window_calculations():
         model_type="claude",
         input_tokens=100,
         output_tokens=50,
-        cost=0.02
+        cost=0.02,
     )
 
     end_time = datetime.utcnow()

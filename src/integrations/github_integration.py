@@ -1,10 +1,11 @@
 import asyncio
 from datetime import datetime
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
 
 from .base_integration import BaseIntegration, SyncResult, TestResult
+
 
 class GitHubIntegration(BaseIntegration):
     """GitHub integration for repository data and changes."""
@@ -24,7 +25,7 @@ class GitHubIntegration(BaseIntegration):
                 async with session.get(
                     f"{self.api_base_url}/user",
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
 
                     if response.status == 200:
@@ -32,19 +33,15 @@ class GitHubIntegration(BaseIntegration):
                         return TestResult(
                             success=True,
                             message="Connection successful",
-                            details={"user": data.get("login")}
+                            details={"user": data.get("login")},
                         )
                     else:
                         return TestResult(
-                            success=False,
-                            message=f"HTTP {response.status}"
+                            success=False, message=f"HTTP {response.status}"
                         )
 
         except Exception as e:
-            return TestResult(
-                success=False,
-                message=f"Connection failed: {str(e)}"
-            )
+            return TestResult(success=False, message=f"Connection failed: {str(e)}")
 
     async def sync(self) -> SyncResult:
         """Sync data from GitHub repositories."""
@@ -67,24 +64,35 @@ class GitHubIntegration(BaseIntegration):
         errors: List[str] = []
 
         try:
-            async with aiohttp.ClientSession(headers=headers, timeout=self.request_timeout) as session:
+            async with aiohttp.ClientSession(
+                headers=headers, timeout=self.request_timeout
+            ) as session:
                 for repo in repositories:
                     try:
-                        commits, latest_sha = await self._fetch_recent_commits(session, repo)
+                        commits, latest_sha = await self._fetch_recent_commits(
+                            session, repo
+                        )
                         commits_total += commits
-                        repo_metadata.append({
-                            "repository": repo["name"],
-                            "branch": repo.get("branch"),
-                            "commits": commits,
-                            "latest_sha": latest_sha
-                        })
+                        repo_metadata.append(
+                            {
+                                "repository": repo["name"],
+                                "branch": repo.get("branch"),
+                                "commits": commits,
+                                "latest_sha": latest_sha,
+                            }
+                        )
                     except Exception as exc:  # pragma: no cover - network failures
                         error_message = f"{repo['name']}: {exc}"
-                        self.logger.error("Repository sync failed", {"repository": repo["name"], "error": str(exc)})
+                        self.logger.error(
+                            "Repository sync failed",
+                            {"repository": repo["name"], "error": str(exc)},
+                        )
                         errors.append(error_message)
 
         except Exception as exc:  # pragma: no cover
-            self.logger.error("GitHub sync encountered an unexpected error", {"error": str(exc)})
+            self.logger.error(
+                "GitHub sync encountered an unexpected error", {"error": str(exc)}
+            )
             errors.append(str(exc))
 
         duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
@@ -99,8 +107,12 @@ class GitHubIntegration(BaseIntegration):
             metadata={
                 "repositories": repo_metadata,
                 "errors": errors,
-                "since": self.integration.last_sync.isoformat() if self.integration.last_sync else None
-            }
+                "since": (
+                    self.integration.last_sync.isoformat()
+                    if self.integration.last_sync
+                    else None
+                ),
+            },
         )
 
         self.log_sync_complete(result, duration_ms)
@@ -115,7 +127,9 @@ class GitHubIntegration(BaseIntegration):
 
         return True
 
-    def _normalize_repositories(self, repositories: List[Any]) -> List[Dict[str, Optional[str]]]:
+    def _normalize_repositories(
+        self, repositories: List[Any]
+    ) -> List[Dict[str, Optional[str]]]:
         normalized: List[Dict[str, Optional[str]]] = []
         for item in repositories:
             if isinstance(item, str):
@@ -125,9 +139,7 @@ class GitHubIntegration(BaseIntegration):
         return normalized
 
     async def _fetch_recent_commits(
-        self,
-        session: aiohttp.ClientSession,
-        repo: Dict[str, Optional[str]]
+        self, session: aiohttp.ClientSession, repo: Dict[str, Optional[str]]
     ) -> Tuple[int, Optional[str]]:
         repo_name = repo["name"]
         params = {"per_page": 50}

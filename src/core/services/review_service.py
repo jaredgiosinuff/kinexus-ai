@@ -12,17 +12,24 @@ This service manages the complete review lifecycle:
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, or_, func, desc
+from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from database.models import (
-    Review, ReviewStatus, Document, User, UserRole,
-    ApprovalRule, ApprovalAction, AuditLog, SystemMetric
-)
 from core.config import settings
+from database.models import (
+    ApprovalAction,
+    ApprovalRule,
+    AuditLog,
+    Document,
+    Review,
+    ReviewStatus,
+    SystemMetric,
+    User,
+    UserRole,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +74,7 @@ class ReviewService:
         ai_confidence: int = None,
         ai_model: str = None,
         change_context: Dict[str, Any] = None,
-        priority: int = None
+        priority: int = None,
     ) -> Review:
         """
         Create a new review for a document change.
@@ -95,13 +102,17 @@ class ReviewService:
             raise ValueError(f"Document {document_id} not found")
 
         # Check for duplicate reviews
-        existing_review = self.db.query(Review).filter(
-            and_(
-                Review.document_id == document_id,
-                Review.change_id == change_id,
-                Review.status.in_([ReviewStatus.PENDING, ReviewStatus.IN_REVIEW])
+        existing_review = (
+            self.db.query(Review)
+            .filter(
+                and_(
+                    Review.document_id == document_id,
+                    Review.change_id == change_id,
+                    Review.status.in_([ReviewStatus.PENDING, ReviewStatus.IN_REVIEW]),
+                )
             )
-        ).first()
+            .first()
+        )
 
         if existing_review:
             logger.warning(f"Review already exists for change {change_id}")
@@ -123,7 +134,7 @@ class ReviewService:
             ai_reasoning=ai_reasoning,
             ai_confidence=ai_confidence,
             ai_model=ai_model,
-            change_context=change_context or {}
+            change_context=change_context or {},
         )
 
         self.db.add(review)
@@ -140,7 +151,9 @@ class ReviewService:
             auto_approval_rule.times_applied += 1
             auto_approval_rule.last_applied = datetime.utcnow()
 
-            logger.info(f"Review {review.id} auto-approved by rule: {auto_approval_rule.name}")
+            logger.info(
+                f"Review {review.id} auto-approved by rule: {auto_approval_rule.name}"
+            )
         else:
             # Assign to reviewer if auto-assignment is enabled
             if settings.AUTO_ASSIGN_REVIEWS:
@@ -149,11 +162,15 @@ class ReviewService:
         self.db.commit()
 
         # Record metrics
-        self._record_review_metric("reviews_created", 1, {
-            "document_type": document.document_type,
-            "impact_score": impact_score,
-            "status": review.status.value
-        })
+        self._record_review_metric(
+            "reviews_created",
+            1,
+            {
+                "document_type": document.document_type,
+                "impact_score": impact_score,
+                "status": review.status.value,
+            },
+        )
 
         # Send real-time notification
         self._send_notification(
@@ -168,9 +185,9 @@ class ReviewService:
                 "document": {
                     "title": document.title,
                     "type": document.document_type,
-                    "path": document.path
-                }
-            }
+                    "path": document.path,
+                },
+            },
         )
 
         logger.info(f"Created review {review.id} for document {document_id}")
@@ -183,7 +200,7 @@ class ReviewService:
         priority_min: int = None,
         document_type: str = None,
         limit: int = 50,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[Review]:
         """
         Get reviews from the queue with filtering and pagination.
@@ -200,8 +217,7 @@ class ReviewService:
             List[Review]: Filtered and sorted reviews
         """
         query = self.db.query(Review).options(
-            joinedload(Review.document),
-            joinedload(Review.reviewer)
+            joinedload(Review.document), joinedload(Review.reviewer)
         )
 
         # Apply filters
@@ -260,10 +276,11 @@ class ReviewService:
         self.db.commit()
 
         # Record metrics
-        self._record_review_metric("reviews_assigned", 1, {
-            "reviewer_role": reviewer.role.value,
-            "impact_score": review.impact_score
-        })
+        self._record_review_metric(
+            "reviews_assigned",
+            1,
+            {"reviewer_role": reviewer.role.value, "impact_score": review.impact_score},
+        )
 
         # Send real-time notification
         self._send_notification(
@@ -271,16 +288,18 @@ class ReviewService:
             {
                 "id": str(review.id),
                 "change_id": review.change_id,
-                "document_title": review.document.title if hasattr(review, 'document') else "Unknown",
+                "document_title": (
+                    review.document.title if hasattr(review, "document") else "Unknown"
+                ),
                 "priority": review.priority,
                 "assigned_by": "System",  # TODO: Track who assigned
                 "reviewer": {
                     "id": str(reviewer.id),
                     "email": reviewer.email,
-                    "name": reviewer.full_name
-                }
+                    "name": reviewer.full_name,
+                },
             },
-            str(reviewer_id)
+            str(reviewer_id),
         )
 
         logger.info(f"Assigned review {review_id} to {reviewer.email}")
@@ -291,7 +310,7 @@ class ReviewService:
         review_id: UUID,
         reviewer_id: UUID,
         feedback: str = None,
-        modifications: Dict[str, Any] = None
+        modifications: Dict[str, Any] = None,
     ) -> Review:
         """
         Approve a review with optional modifications.
@@ -325,11 +344,15 @@ class ReviewService:
         self.db.commit()
 
         # Record metrics
-        self._record_review_metric("reviews_approved", 1, {
-            "with_changes": bool(modifications),
-            "impact_score": review.impact_score,
-            "review_time_minutes": review.review_time_minutes
-        })
+        self._record_review_metric(
+            "reviews_approved",
+            1,
+            {
+                "with_changes": bool(modifications),
+                "impact_score": review.impact_score,
+                "review_time_minutes": review.review_time_minutes,
+            },
+        )
 
         # Send real-time notification
         self._send_notification(
@@ -342,20 +365,19 @@ class ReviewService:
                 "has_modifications": bool(modifications),
                 "reviewer": {
                     "email": review.reviewer.email,
-                    "name": review.reviewer.full_name
+                    "name": review.reviewer.full_name,
                 },
-                "document_title": review.document.title if hasattr(review, 'document') else "Unknown"
-            }
+                "document_title": (
+                    review.document.title if hasattr(review, "document") else "Unknown"
+                ),
+            },
         )
 
         logger.info(f"Approved review {review_id} by {review.reviewer.email}")
         return review
 
     def reject_review(
-        self,
-        review_id: UUID,
-        reviewer_id: UUID,
-        feedback: str
+        self, review_id: UUID, reviewer_id: UUID, feedback: str
     ) -> Review:
         """
         Reject a review with required feedback.
@@ -384,10 +406,14 @@ class ReviewService:
         self.db.commit()
 
         # Record metrics
-        self._record_review_metric("reviews_rejected", 1, {
-            "impact_score": review.impact_score,
-            "review_time_minutes": review.review_time_minutes
-        })
+        self._record_review_metric(
+            "reviews_rejected",
+            1,
+            {
+                "impact_score": review.impact_score,
+                "review_time_minutes": review.review_time_minutes,
+            },
+        )
 
         # Send real-time notification
         self._send_notification(
@@ -400,10 +426,12 @@ class ReviewService:
                 "feedback": feedback,
                 "reviewer": {
                     "email": review.reviewer.email,
-                    "name": review.reviewer.full_name
+                    "name": review.reviewer.full_name,
                 },
-                "document_title": review.document.title if hasattr(review, 'document') else "Unknown"
-            }
+                "document_title": (
+                    review.document.title if hasattr(review, "document") else "Unknown"
+                ),
+            },
         )
 
         logger.info(f"Rejected review {review_id} by {review.reviewer.email}")
@@ -423,40 +451,76 @@ class ReviewService:
 
         # Basic counts
         total_reviews = self.db.query(Review).filter(Review.created_at >= since).count()
-        pending_reviews = self.db.query(Review).filter(
-            and_(Review.status == ReviewStatus.PENDING, Review.created_at >= since)
-        ).count()
-        approved_reviews = self.db.query(Review).filter(
-            and_(Review.status.in_([ReviewStatus.APPROVED, ReviewStatus.APPROVED_WITH_CHANGES]),
-                 Review.reviewed_at >= since)
-        ).count()
-        rejected_reviews = self.db.query(Review).filter(
-            and_(Review.status == ReviewStatus.REJECTED, Review.reviewed_at >= since)
-        ).count()
-        auto_approved_reviews = self.db.query(Review).filter(
-            and_(Review.status == ReviewStatus.AUTO_APPROVED, Review.reviewed_at >= since)
-        ).count()
+        pending_reviews = (
+            self.db.query(Review)
+            .filter(
+                and_(Review.status == ReviewStatus.PENDING, Review.created_at >= since)
+            )
+            .count()
+        )
+        approved_reviews = (
+            self.db.query(Review)
+            .filter(
+                and_(
+                    Review.status.in_(
+                        [ReviewStatus.APPROVED, ReviewStatus.APPROVED_WITH_CHANGES]
+                    ),
+                    Review.reviewed_at >= since,
+                )
+            )
+            .count()
+        )
+        rejected_reviews = (
+            self.db.query(Review)
+            .filter(
+                and_(
+                    Review.status == ReviewStatus.REJECTED, Review.reviewed_at >= since
+                )
+            )
+            .count()
+        )
+        auto_approved_reviews = (
+            self.db.query(Review)
+            .filter(
+                and_(
+                    Review.status == ReviewStatus.AUTO_APPROVED,
+                    Review.reviewed_at >= since,
+                )
+            )
+            .count()
+        )
 
         # Average review time
-        review_times = self.db.query(
-            func.extract('epoch', Review.reviewed_at - Review.assigned_at) / 60
-        ).filter(
-            and_(
-                Review.reviewed_at >= since,
-                Review.assigned_at.isnot(None),
-                Review.reviewed_at.isnot(None)
+        review_times = (
+            self.db.query(
+                func.extract("epoch", Review.reviewed_at - Review.assigned_at) / 60
             )
-        ).all()
+            .filter(
+                and_(
+                    Review.reviewed_at >= since,
+                    Review.assigned_at.isnot(None),
+                    Review.reviewed_at.isnot(None),
+                )
+            )
+            .all()
+        )
 
-        avg_review_time = sum(time[0] for time in review_times if time[0]) / len(review_times) if review_times else 0
+        avg_review_time = (
+            sum(time[0] for time in review_times if time[0]) / len(review_times)
+            if review_times
+            else 0
+        )
 
         # Top reviewers
-        top_reviewers = self.db.query(
-            User.email,
-            func.count(Review.id).label('review_count')
-        ).join(Review).filter(
-            Review.reviewed_at >= since
-        ).group_by(User.id, User.email).order_by(desc('review_count')).limit(5).all()
+        top_reviewers = (
+            self.db.query(User.email, func.count(Review.id).label("review_count"))
+            .join(Review)
+            .filter(Review.reviewed_at >= since)
+            .group_by(User.id, User.email)
+            .order_by(desc("review_count"))
+            .limit(5)
+            .all()
+        )
 
         return {
             "period_days": days,
@@ -465,9 +529,15 @@ class ReviewService:
             "approved_reviews": approved_reviews,
             "rejected_reviews": rejected_reviews,
             "auto_approved_reviews": auto_approved_reviews,
-            "approval_rate": (approved_reviews + auto_approved_reviews) / total_reviews if total_reviews > 0 else 0,
+            "approval_rate": (
+                (approved_reviews + auto_approved_reviews) / total_reviews
+                if total_reviews > 0
+                else 0
+            ),
             "avg_review_time_minutes": round(avg_review_time, 2),
-            "top_reviewers": [{"email": email, "count": count} for email, count in top_reviewers]
+            "top_reviewers": [
+                {"email": email, "count": count} for email, count in top_reviewers
+            ],
         }
 
     def _calculate_priority(self, impact_score: int, document_type: str) -> int:
@@ -492,12 +562,18 @@ class ReviewService:
             ApprovalRule: Matching rule if auto-approval applies, None otherwise
         """
         # Get active rules ordered by priority
-        rules = self.db.query(ApprovalRule).filter(
-            ApprovalRule.is_active == True
-        ).order_by(desc(ApprovalRule.priority)).all()
+        rules = (
+            self.db.query(ApprovalRule)
+            .filter(ApprovalRule.is_active == True)
+            .order_by(desc(ApprovalRule.priority))
+            .all()
+        )
 
         for rule in rules:
-            if rule.matches_review(review) and rule.action == ApprovalAction.AUTO_APPROVE:
+            if (
+                rule.matches_review(review)
+                and rule.action == ApprovalAction.AUTO_APPROVE
+            ):
                 return rule
 
         return None
@@ -518,17 +594,20 @@ class ReviewService:
             eligible_roles = [UserRole.REVIEWER, UserRole.LEAD_REVIEWER, UserRole.ADMIN]
 
         # Find reviewer with least current assignments
-        reviewer = self.db.query(User).filter(
-            and_(
-                User.role.in_(eligible_roles),
-                User.is_active == True
+        reviewer = (
+            self.db.query(User)
+            .filter(and_(User.role.in_(eligible_roles), User.is_active == True))
+            .outerjoin(
+                Review,
+                and_(
+                    Review.reviewer_id == User.id,
+                    Review.status.in_([ReviewStatus.PENDING, ReviewStatus.IN_REVIEW]),
+                ),
             )
-        ).outerjoin(
-            Review, and_(
-                Review.reviewer_id == User.id,
-                Review.status.in_([ReviewStatus.PENDING, ReviewStatus.IN_REVIEW])
-            )
-        ).group_by(User.id).order_by(func.count(Review.id)).first()
+            .group_by(User.id)
+            .order_by(func.count(Review.id))
+            .first()
+        )
 
         if reviewer:
             review.reviewer_id = reviewer.id
@@ -549,10 +628,12 @@ class ReviewService:
         Raises:
             ValueError: If validation fails
         """
-        review = self.db.query(Review).options(
-            joinedload(Review.reviewer),
-            joinedload(Review.document)
-        ).filter(Review.id == review_id).first()
+        review = (
+            self.db.query(Review)
+            .options(joinedload(Review.reviewer), joinedload(Review.document))
+            .filter(Review.id == review_id)
+            .first()
+        )
 
         if not review:
             raise ValueError(f"Review {review_id} not found")
@@ -565,7 +646,9 @@ class ReviewService:
 
         return review
 
-    def _record_review_metric(self, metric_name: str, value: int, dimensions: Dict[str, Any] = None):
+    def _record_review_metric(
+        self, metric_name: str, value: int, dimensions: Dict[str, Any] = None
+    ):
         """
         Record a review metric for analytics.
 
@@ -579,7 +662,7 @@ class ReviewService:
                 id=uuid4(),
                 metric_name=metric_name,
                 metric_value=value,
-                dimensions=dimensions or {}
+                dimensions=dimensions or {},
             )
             self.db.add(metric)
             # Don't commit here - let the caller handle transaction
@@ -592,6 +675,7 @@ def get_review_service(db: Session) -> ReviewService:
     try:
         # Import here to avoid circular imports
         from core.websocket_manager import notification_service
+
         return ReviewService(db, notification_service)
     except ImportError:
         # Fall back to service without notifications if WebSocket not available

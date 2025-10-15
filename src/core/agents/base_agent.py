@@ -9,22 +9,23 @@ import logging
 import time
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union, AsyncIterator
-from dataclasses import dataclass, field
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 import structlog
 from pydantic import BaseModel, Field
 
-from ..models.ai_models import AIModelType, ModelProvider, ModelCapability
-from ..services.metrics_service import MetricsService
-from ..services.logging_service import StructuredLogger
 from ..config import get_settings
+from ..models.ai_models import AIModelType, ModelCapability, ModelProvider
+from ..services.logging_service import StructuredLogger
+from ..services.metrics_service import MetricsService
 
 
 class ReasoningPattern(Enum):
     """Different reasoning patterns for agent thinking"""
+
     LINEAR = "linear"
     TREE_OF_THOUGHT = "tree_of_thought"
     CHAIN_OF_THOUGHT = "chain_of_thought"
@@ -35,6 +36,7 @@ class ReasoningPattern(Enum):
 
 class ThoughtType(Enum):
     """Types of thoughts in the reasoning chain"""
+
     OBSERVATION = "observation"
     HYPOTHESIS = "hypothesis"
     ANALYSIS = "analysis"
@@ -47,6 +49,7 @@ class ThoughtType(Enum):
 @dataclass
 class Thought:
     """Represents a single thought in the reasoning chain"""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     type: ThoughtType = ThoughtType.OBSERVATION
     content: str = ""
@@ -62,6 +65,7 @@ class Thought:
 @dataclass
 class ReasoningChain:
     """Complete reasoning chain for a task"""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     agent_id: str = ""
     task_id: str = ""
@@ -77,6 +81,7 @@ class ReasoningChain:
 
 class ModelConfig(BaseModel):
     """Configuration for AI model usage"""
+
     model_type: AIModelType
     provider: ModelProvider
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
@@ -90,6 +95,7 @@ class ModelConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     """Configuration for agent behavior"""
+
     name: str
     description: str
     reasoning_pattern: ReasoningPattern = ReasoningPattern.CHAIN_OF_THOUGHT
@@ -112,7 +118,7 @@ class BaseAgent(ABC):
         self,
         config: AgentConfig,
         metrics_service: Optional[MetricsService] = None,
-        logger: Optional[StructuredLogger] = None
+        logger: Optional[StructuredLogger] = None,
     ):
         self.config = config
         self.agent_id = str(uuid.uuid4())
@@ -135,14 +141,12 @@ class BaseAgent(ABC):
             "Agent initialized",
             agent_id=self.agent_id,
             agent_type=self.__class__.__name__,
-            config=config.dict()
+            config=config.dict(),
         )
 
     @abstractmethod
     async def process_task(
-        self,
-        task: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None
+        self, task: Dict[str, Any], context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Process a task using the agent's reasoning capabilities
@@ -157,9 +161,7 @@ class BaseAgent(ABC):
         pass
 
     async def reason_about_task(
-        self,
-        task: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None
+        self, task: Dict[str, Any], context: Optional[Dict[str, Any]] = None
     ) -> ReasoningChain:
         """
         Execute the reasoning process for a given task
@@ -169,8 +171,8 @@ class BaseAgent(ABC):
         # Create reasoning chain
         reasoning_chain = ReasoningChain(
             agent_id=self.agent_id,
-            task_id=task.get('id', str(uuid.uuid4())),
-            pattern=self.config.reasoning_pattern
+            task_id=task.get("id", str(uuid.uuid4())),
+            pattern=self.config.reasoning_pattern,
         )
 
         self.current_reasoning_chain = reasoning_chain
@@ -185,14 +187,18 @@ class BaseAgent(ABC):
             elif self.config.reasoning_pattern == ReasoningPattern.MULTI_PERSPECTIVE:
                 await self._multi_perspective_reasoning(task, context, reasoning_chain)
             elif self.config.reasoning_pattern == ReasoningPattern.CRITIQUE_AND_REFINE:
-                await self._critique_and_refine_reasoning(task, context, reasoning_chain)
+                await self._critique_and_refine_reasoning(
+                    task, context, reasoning_chain
+                )
             elif self.config.reasoning_pattern == ReasoningPattern.ENSEMBLE:
                 await self._ensemble_reasoning(task, context, reasoning_chain)
             else:
                 await self._linear_reasoning(task, context, reasoning_chain)
 
             # Final confidence calculation
-            reasoning_chain.confidence_score = self._calculate_confidence(reasoning_chain)
+            reasoning_chain.confidence_score = self._calculate_confidence(
+                reasoning_chain
+            )
             reasoning_chain.completed_at = datetime.now(timezone.utc)
             reasoning_chain.total_reasoning_time = time.time() - start_time
 
@@ -203,7 +209,7 @@ class BaseAgent(ABC):
                 pattern=reasoning_chain.pattern.value,
                 confidence=reasoning_chain.confidence_score,
                 duration=reasoning_chain.total_reasoning_time,
-                thoughts_count=len(reasoning_chain.thoughts)
+                thoughts_count=len(reasoning_chain.thoughts),
             )
 
             # Update metrics
@@ -216,7 +222,7 @@ class BaseAgent(ABC):
                 "Reasoning failed",
                 reasoning_chain_id=reasoning_chain.id,
                 error=str(e),
-                duration=time.time() - start_time
+                duration=time.time() - start_time,
             )
             raise
         finally:
@@ -229,7 +235,7 @@ class BaseAgent(ABC):
         self,
         task: Dict[str, Any],
         context: Optional[Dict[str, Any]],
-        reasoning_chain: ReasoningChain
+        reasoning_chain: ReasoningChain,
     ):
         """Implement chain-of-thought reasoning"""
         # Initial observation
@@ -238,7 +244,7 @@ class BaseAgent(ABC):
             f"Analyzing task: {task.get('description', 'No description')}",
             task,
             context,
-            self.config.primary_model
+            self.config.primary_model,
         )
         reasoning_chain.thoughts.append(observation)
 
@@ -249,7 +255,7 @@ class BaseAgent(ABC):
             task,
             context,
             self.config.primary_model,
-            parent_thought=observation
+            parent_thought=observation,
         )
         reasoning_chain.thoughts.append(hypothesis)
 
@@ -260,7 +266,7 @@ class BaseAgent(ABC):
             task,
             context,
             self.config.primary_model,
-            parent_thought=hypothesis
+            parent_thought=hypothesis,
         )
         reasoning_chain.thoughts.append(analysis)
 
@@ -272,7 +278,7 @@ class BaseAgent(ABC):
                 task,
                 context,
                 self._get_critique_model(),
-                parent_thought=analysis
+                parent_thought=analysis,
             )
             reasoning_chain.thoughts.append(critique)
 
@@ -283,7 +289,7 @@ class BaseAgent(ABC):
             task,
             context,
             self.config.primary_model,
-            parent_thought=reasoning_chain.thoughts[-1]
+            parent_thought=reasoning_chain.thoughts[-1],
         )
         reasoning_chain.thoughts.append(synthesis)
         reasoning_chain.final_decision = synthesis.content
@@ -292,7 +298,7 @@ class BaseAgent(ABC):
         self,
         task: Dict[str, Any],
         context: Optional[Dict[str, Any]],
-        reasoning_chain: ReasoningChain
+        reasoning_chain: ReasoningChain,
     ):
         """Implement tree-of-thought reasoning with multiple branches"""
         # Initial observation
@@ -301,7 +307,7 @@ class BaseAgent(ABC):
             f"Root analysis of task: {task.get('description', 'No description')}",
             task,
             context,
-            self.config.primary_model
+            self.config.primary_model,
         )
         reasoning_chain.thoughts.append(root_observation)
 
@@ -314,7 +320,7 @@ class BaseAgent(ABC):
                 task,
                 context,
                 self.config.primary_model,
-                parent_thought=root_observation
+                parent_thought=root_observation,
             )
             reasoning_chain.thoughts.append(hypothesis)
             hypotheses.append(hypothesis)
@@ -328,7 +334,7 @@ class BaseAgent(ABC):
                 task,
                 context,
                 self.config.primary_model,
-                parent_thought=hypothesis
+                parent_thought=hypothesis,
             )
             reasoning_chain.thoughts.append(analysis)
             analyses.append(analysis)
@@ -343,7 +349,7 @@ class BaseAgent(ABC):
             task,
             context,
             self.config.primary_model,
-            parent_thought=best_analysis
+            parent_thought=best_analysis,
         )
         reasoning_chain.thoughts.append(synthesis)
         reasoning_chain.final_decision = synthesis.content
@@ -352,7 +358,7 @@ class BaseAgent(ABC):
         self,
         task: Dict[str, Any],
         context: Optional[Dict[str, Any]],
-        reasoning_chain: ReasoningChain
+        reasoning_chain: ReasoningChain,
     ):
         """Implement multi-perspective reasoning using different models"""
         perspectives = []
@@ -366,7 +372,7 @@ class BaseAgent(ABC):
                 f"Perspective {i+1}: {model.model_type.value} analysis",
                 task,
                 context,
-                model
+                model,
             )
             reasoning_chain.thoughts.append(perspective)
             perspectives.append(perspective)
@@ -378,7 +384,7 @@ class BaseAgent(ABC):
             synthesis_prompt,
             task,
             context,
-            self.config.primary_model
+            self.config.primary_model,
         )
         reasoning_chain.thoughts.append(synthesis)
         reasoning_chain.final_decision = synthesis.content
@@ -387,7 +393,7 @@ class BaseAgent(ABC):
         self,
         task: Dict[str, Any],
         context: Optional[Dict[str, Any]],
-        reasoning_chain: ReasoningChain
+        reasoning_chain: ReasoningChain,
     ):
         """Implement critique and refine reasoning pattern"""
         # Initial analysis
@@ -396,7 +402,7 @@ class BaseAgent(ABC):
             "Initial analysis of the task",
             task,
             context,
-            self.config.primary_model
+            self.config.primary_model,
         )
         reasoning_chain.thoughts.append(initial_analysis)
 
@@ -411,7 +417,7 @@ class BaseAgent(ABC):
                 task,
                 context,
                 self._get_critique_model(),
-                parent_thought=current_analysis
+                parent_thought=current_analysis,
             )
             reasoning_chain.thoughts.append(critique)
 
@@ -422,7 +428,7 @@ class BaseAgent(ABC):
                 task,
                 context,
                 self.config.primary_model,
-                parent_thought=critique
+                parent_thought=critique,
             )
             reasoning_chain.thoughts.append(refined_analysis)
             current_analysis = refined_analysis
@@ -437,7 +443,7 @@ class BaseAgent(ABC):
         self,
         task: Dict[str, Any],
         context: Optional[Dict[str, Any]],
-        reasoning_chain: ReasoningChain
+        reasoning_chain: ReasoningChain,
     ):
         """Implement ensemble reasoning combining multiple models and patterns"""
         ensemble_results = []
@@ -445,7 +451,7 @@ class BaseAgent(ABC):
         # Run different reasoning patterns in parallel
         patterns = [
             ReasoningPattern.CHAIN_OF_THOUGHT,
-            ReasoningPattern.MULTI_PERSPECTIVE
+            ReasoningPattern.MULTI_PERSPECTIVE,
         ]
 
         tasks_to_run = []
@@ -454,13 +460,17 @@ class BaseAgent(ABC):
             sub_chain = ReasoningChain(
                 agent_id=self.agent_id,
                 task_id=f"{reasoning_chain.task_id}_sub_{pattern.value}",
-                pattern=pattern
+                pattern=pattern,
             )
 
             if pattern == ReasoningPattern.CHAIN_OF_THOUGHT:
-                tasks_to_run.append(self._chain_of_thought_reasoning(task, context, sub_chain))
+                tasks_to_run.append(
+                    self._chain_of_thought_reasoning(task, context, sub_chain)
+                )
             elif pattern == ReasoningPattern.MULTI_PERSPECTIVE:
-                tasks_to_run.append(self._multi_perspective_reasoning(task, context, sub_chain))
+                tasks_to_run.append(
+                    self._multi_perspective_reasoning(task, context, sub_chain)
+                )
 
         # Execute in parallel
         await asyncio.gather(*tasks_to_run)
@@ -471,7 +481,7 @@ class BaseAgent(ABC):
             "Ensemble synthesis combining multiple reasoning approaches",
             task,
             context,
-            self.config.primary_model
+            self.config.primary_model,
         )
         reasoning_chain.thoughts.append(ensemble_synthesis)
         reasoning_chain.final_decision = ensemble_synthesis.content
@@ -480,7 +490,7 @@ class BaseAgent(ABC):
         self,
         task: Dict[str, Any],
         context: Optional[Dict[str, Any]],
-        reasoning_chain: ReasoningChain
+        reasoning_chain: ReasoningChain,
     ):
         """Simple linear reasoning for basic tasks"""
         analysis = await self._generate_thought(
@@ -488,7 +498,7 @@ class BaseAgent(ABC):
             f"Direct analysis of task: {task.get('description', 'No description')}",
             task,
             context,
-            self.config.primary_model
+            self.config.primary_model,
         )
         reasoning_chain.thoughts.append(analysis)
         reasoning_chain.final_decision = analysis.content
@@ -500,7 +510,7 @@ class BaseAgent(ABC):
         task: Dict[str, Any],
         context: Optional[Dict[str, Any]],
         model_config: ModelConfig,
-        parent_thought: Optional[Thought] = None
+        parent_thought: Optional[Thought] = None,
     ) -> Thought:
         """Generate a single thought using the specified model"""
         try:
@@ -509,7 +519,7 @@ class BaseAgent(ABC):
                 "task": task,
                 "context": context or {},
                 "prompt": prompt,
-                "thought_type": thought_type.value
+                "thought_type": thought_type.value,
             }
 
             if parent_thought:
@@ -524,15 +534,15 @@ class BaseAgent(ABC):
             # Create thought
             thought = Thought(
                 type=thought_type,
-                content=response.get('content', ''),
+                content=response.get("content", ""),
                 confidence=confidence,
-                reasoning=response.get('reasoning', ''),
+                reasoning=response.get("reasoning", ""),
                 model_used=f"{model_config.provider.value}:{model_config.model_type.value}",
                 metadata={
                     "model_config": model_config.dict(),
-                    "response_metadata": response.get('metadata', {})
+                    "response_metadata": response.get("metadata", {}),
                 },
-                parent_thought_id=parent_thought.id if parent_thought else None
+                parent_thought_id=parent_thought.id if parent_thought else None,
             )
 
             # Update parent-child relationships
@@ -544,7 +554,7 @@ class BaseAgent(ABC):
                 thought_id=thought.id,
                 thought_type=thought_type.value,
                 confidence=confidence,
-                model=thought.model_used
+                model=thought.model_used,
             )
 
             return thought
@@ -554,7 +564,7 @@ class BaseAgent(ABC):
                 "Failed to generate thought",
                 thought_type=thought_type.value,
                 model=f"{model_config.provider.value}:{model_config.model_type.value}",
-                error=str(e)
+                error=str(e),
             )
 
             # Return error thought
@@ -563,13 +573,11 @@ class BaseAgent(ABC):
                 content=f"Error generating thought: {str(e)}",
                 confidence=0.0,
                 model_used=f"{model_config.provider.value}:{model_config.model_type.value}",
-                metadata={"error": str(e)}
+                metadata={"error": str(e)},
             )
 
     async def _call_ai_model(
-        self,
-        model_config: ModelConfig,
-        context: Dict[str, Any]
+        self, model_config: ModelConfig, context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Call the AI model with the given configuration and context"""
         # This will be implemented by connecting to actual AI services
@@ -592,11 +600,7 @@ class BaseAgent(ABC):
             "content": content,
             "reasoning": f"Reasoning process for {model_name}",
             "confidence": confidence,
-            "metadata": {
-                "model": model_name,
-                "tokens_used": 150,
-                "response_time": 1.2
-            }
+            "metadata": {"model": model_name, "tokens_used": 150, "response_time": 1.2},
         }
 
     def _get_critique_model(self) -> ModelConfig:
@@ -608,7 +612,7 @@ class BaseAgent(ABC):
 
     def _extract_confidence(self, response: Dict[str, Any]) -> float:
         """Extract confidence score from model response"""
-        return response.get('confidence', 0.5)
+        return response.get("confidence", 0.5)
 
     def _calculate_confidence(self, reasoning_chain: ReasoningChain) -> float:
         """Calculate overall confidence for the reasoning chain"""
@@ -632,16 +636,16 @@ class BaseAgent(ABC):
 
         # Update average reasoning time
         self.average_reasoning_time = (
-            (self.average_reasoning_time * (self.total_tasks_processed - 1) +
-             reasoning_chain.total_reasoning_time) / self.total_tasks_processed
-        )
+            self.average_reasoning_time * (self.total_tasks_processed - 1)
+            + reasoning_chain.total_reasoning_time
+        ) / self.total_tasks_processed
 
         # Update success rate (based on confidence)
         success = reasoning_chain.confidence_score > self.config.confidence_threshold
         self.success_rate = (
-            (self.success_rate * (self.total_tasks_processed - 1) +
-             (1.0 if success else 0.0)) / self.total_tasks_processed
-        )
+            self.success_rate * (self.total_tasks_processed - 1)
+            + (1.0 if success else 0.0)
+        ) / self.total_tasks_processed
 
         # Send metrics to service
         await self.metrics.record_agent_performance(
@@ -650,7 +654,7 @@ class BaseAgent(ABC):
             confidence_score=reasoning_chain.confidence_score,
             thoughts_count=len(reasoning_chain.thoughts),
             models_used=len(set(t.model_used for t in reasoning_chain.thoughts)),
-            success=success
+            success=success,
         )
 
     def get_performance_stats(self) -> Dict[str, Any]:
@@ -661,5 +665,5 @@ class BaseAgent(ABC):
             "average_reasoning_time": self.average_reasoning_time,
             "success_rate": self.success_rate,
             "active_tasks": len(self.active_tasks),
-            "config": self.config.dict()
+            "config": self.config.dict(),
         }

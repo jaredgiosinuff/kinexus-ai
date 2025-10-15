@@ -1,4 +1,5 @@
 """Change intake orchestration tying webhooks to review + AI pipeline."""
+
 from __future__ import annotations
 
 import json
@@ -42,11 +43,13 @@ class ChangeIntakeService:
             "after": payload.get("after"),
             "pusher": payload.get("pusher", {}),
             "commits": payload.get("commits", []),
-            "files": list(commit_files)
+            "files": list(commit_files),
         }
 
         system_user = self._get_system_user()
-        document, proposed_version = self._get_or_create_document(repository, commit_files, system_user)
+        document, proposed_version = self._get_or_create_document(
+            repository, commit_files, system_user
+        )
         impact_score = self._estimate_impact(commit_files)
 
         review = self.review_service.create_review(
@@ -54,25 +57,29 @@ class ChangeIntakeService:
             change_id=change_id,
             proposed_version=proposed_version,
             impact_score=impact_score,
-            change_context=change_context
+            change_context=change_context,
         )
 
         ai_result = await self._generate_ai_output(change_context)
         self._update_review_with_ai(review, ai_result, change_context)
-        self._create_or_update_document_version(document, proposed_version, system_user, review, ai_result)
+        self._create_or_update_document_version(
+            document, proposed_version, system_user, review, ai_result
+        )
 
         document.current_version = proposed_version
         self.db.add_all([document, review])
         self.db.commit()
 
-        metrics_service.changes_detected.labels(source="github", change_type="push").inc()
+        metrics_service.changes_detected.labels(
+            source="github", change_type="push"
+        ).inc()
 
         return {
             "status": "processed",
             "change_id": change_id,
             "review_id": str(review.id),
             "document_id": str(document.id),
-            "ai_automation": bool(ai_result) and not ai_result.get("disabled")
+            "ai_automation": bool(ai_result) and not ai_result.get("disabled"),
         }
 
     def _extract_files(self, commits: Iterable[Dict[str, Any]]) -> Iterable[str]:
@@ -93,17 +100,16 @@ class ChangeIntakeService:
         return user
 
     def _get_or_create_document(
-        self,
-        repository: str,
-        files: Iterable[str],
-        system_user: User
+        self, repository: str, files: Iterable[str], system_user: User
     ) -> Tuple[Document, int]:
         primary_path = next(iter(files), "repository")
         external_id = f"{repository}:{primary_path}"
 
         document = (
             self.db.query(Document)
-            .filter(Document.source_system == "github", Document.external_id == external_id)
+            .filter(
+                Document.source_system == "github", Document.external_id == external_id
+            )
             .first()
         )
 
@@ -116,7 +122,7 @@ class ChangeIntakeService:
                 document_type="code_change",
                 doc_metadata={"repository": repository, "primary_path": primary_path},
                 created_by=system_user.id,
-                status=DocumentStatus.ACTIVE
+                status=DocumentStatus.ACTIVE,
             )
             self.db.add(document)
             self.db.flush()
@@ -128,9 +134,14 @@ class ChangeIntakeService:
         count = len(list(files)) if files else 1
         return max(1, min(count, 10))
 
-    async def _generate_ai_output(self, change_context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _generate_ai_output(
+        self, change_context: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         if not settings.ENABLE_MULTI_AGENT_AUTOMATION:
-            return {"disabled": True, "reason": "ENABLE_MULTI_AGENT_AUTOMATION is false"}
+            return {
+                "disabled": True,
+                "reason": "ENABLE_MULTI_AGENT_AUTOMATION is false",
+            }
 
         supervisor = await self._get_supervisor()
         if not supervisor:
@@ -158,7 +169,7 @@ class ChangeIntakeService:
         self,
         review: Review,
         ai_result: Optional[Dict[str, Any]],
-        change_context: Dict[str, Any]
+        change_context: Dict[str, Any],
     ) -> None:
         review.change_context = change_context
         if not ai_result:
@@ -169,7 +180,9 @@ class ChangeIntakeService:
 
         confidence = 0
         try:
-            confidence = ai_result.get("multi_agent_processing", {}).get("average_confidence", 0)
+            confidence = ai_result.get("multi_agent_processing", {}).get(
+                "average_confidence", 0
+            )
         except AttributeError:
             confidence = 0
         review.ai_confidence = int(confidence * 100)
@@ -180,7 +193,7 @@ class ChangeIntakeService:
         version: int,
         system_user: User,
         review: Review,
-        ai_result: Optional[Dict[str, Any]]
+        ai_result: Optional[Dict[str, Any]],
     ) -> None:
         if not ai_result or ai_result.get("disabled"):
             return
@@ -193,7 +206,10 @@ class ChangeIntakeService:
             if analysis:
                 content_parts.append(f"## Analysis\n\n{analysis}")
             if recommendations:
-                content_parts.append("## Recommendations\n\n" + "\n".join(f"- {item}" for item in recommendations))
+                content_parts.append(
+                    "## Recommendations\n\n"
+                    + "\n".join(f"- {item}" for item in recommendations)
+                )
             if not content_parts:
                 content_parts.append(json.dumps(synthesis, indent=2, default=str))
             content = "\n\n".join(content_parts)
@@ -202,11 +218,16 @@ class ChangeIntakeService:
 
         doc_version = (
             self.db.query(DocumentVersion)
-            .filter(DocumentVersion.document_id == document.id, DocumentVersion.version == version)
+            .filter(
+                DocumentVersion.document_id == document.id,
+                DocumentVersion.version == version,
+            )
             .first()
         )
 
-        confidence_value = review.ai_confidence if isinstance(review.ai_confidence, int) else 0
+        confidence_value = (
+            review.ai_confidence if isinstance(review.ai_confidence, int) else 0
+        )
 
         if not doc_version:
             doc_version = DocumentVersion(
@@ -216,7 +237,7 @@ class ChangeIntakeService:
                 ai_generated=True,
                 ai_model="multi-agent-supervisor",
                 ai_confidence=min(100, max(confidence_value, 0)),
-                created_by=system_user.id
+                created_by=system_user.id,
             )
         else:
             doc_version.content = content

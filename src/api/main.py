@@ -16,24 +16,33 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from time import perf_counter
 
+import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-import uvicorn
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database.connection import init_database, close_database, db_manager
-from api.routers import auth, reviews, documents, webhooks, admin, websocket, documentation_plans, github_actions
+from api.routers import (
+    admin,
+    auth,
+    documentation_plans,
+    documents,
+    github_actions,
+    reviews,
+    webhooks,
+    websocket,
+)
 from core.config import settings
 from core.services.metrics_service import metrics_service
+from database.connection import close_database, db_manager, init_database
 
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper()),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 metrics_logger = logging.getLogger("kinexus.metrics")
@@ -80,15 +89,12 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
     redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add security middleware
 if settings.ENVIRONMENT == "production":
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=settings.ALLOWED_HOSTS
-    )
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
 
 # Add CORS middleware
 app.add_middleware(
@@ -118,7 +124,9 @@ async def record_request_metrics(request: Request, call_next):
         status_code = exc.status_code
         severity = "error" if status_code < 500 else "critical"
         try:
-            await metrics_service.record_error("api", exc.__class__.__name__, severity=severity)
+            await metrics_service.record_error(
+                "api", exc.__class__.__name__, severity=severity
+            )
             error_logged = True
         except Exception:
             metrics_logger.exception("Failed to record HTTPException metrics")
@@ -126,7 +134,9 @@ async def record_request_metrics(request: Request, call_next):
     except Exception as exc:
         status_code = 500
         try:
-            await metrics_service.record_error("api", exc.__class__.__name__, severity="critical")
+            await metrics_service.record_error(
+                "api", exc.__class__.__name__, severity="critical"
+            )
             error_logged = True
         except Exception:
             metrics_logger.exception("Failed to record exception metrics")
@@ -135,9 +145,13 @@ async def record_request_metrics(request: Request, call_next):
         duration = perf_counter() - start_time
         endpoint = request.url.path
         try:
-            await metrics_service.record_request(request.method, endpoint, status_code, duration)
+            await metrics_service.record_request(
+                request.method, endpoint, status_code, duration
+            )
             if status_code >= 500 and not error_logged:
-                await metrics_service.record_error("api", f"status_{status_code}", severity="error")
+                await metrics_service.record_error(
+                    "api", f"status_{status_code}", severity="error"
+                )
         except Exception:
             metrics_logger.exception("Failed to record request metrics")
 
@@ -147,10 +161,7 @@ async def record_request_metrics(request: Request, call_next):
 async def global_exception_handler(request, exc):
     """Handle unexpected exceptions."""
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"}
-    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 # Health check endpoint
@@ -164,7 +175,7 @@ async def health_check():
         return {
             "status": "healthy" if db_healthy else "unhealthy",
             "database": "connected" if db_healthy else "disconnected",
-            "version": app.version
+            "version": app.version,
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -179,7 +190,7 @@ async def root():
         "name": "Kinexus AI API",
         "version": app.version,
         "description": "Human-supervised AI documentation management system",
-        "docs_url": "/docs" if settings.ENVIRONMENT != "production" else None
+        "docs_url": "/docs" if settings.ENVIRONMENT != "production" else None,
     }
 
 
@@ -191,7 +202,10 @@ async def metrics_endpoint():
 
     try:
         metrics_payload = metrics_service.get_metrics()
-        return Response(content=metrics_payload, media_type="text/plain; version=0.0.4; charset=utf-8")
+        return Response(
+            content=metrics_payload,
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
     except Exception as exc:
         logger.error("Failed to collect metrics: %s", exc)
         raise HTTPException(status_code=503, detail="Metrics unavailable")
@@ -204,7 +218,11 @@ app.include_router(documents.router, prefix="/api/documents", tags=["Documents"]
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Webhooks"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Administration"])
 app.include_router(websocket.router, prefix="/api/ws", tags=["WebSocket"])
-app.include_router(documentation_plans.router, prefix="/api/documentation-plans", tags=["Documentation Plans"])
+app.include_router(
+    documentation_plans.router,
+    prefix="/api/documentation-plans",
+    tags=["Documentation Plans"],
+)
 app.include_router(github_actions.router, tags=["GitHub Actions"])
 
 
@@ -216,5 +234,5 @@ if __name__ == "__main__":
         port=8000,
         reload=True,
         reload_dirs=["src"],
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )

@@ -1,9 +1,11 @@
 """
 Test GitHub webhook locally
 """
+
 import json
-import requests
 from datetime import datetime
+
+import requests
 
 
 def test_github_push_event():
@@ -14,42 +16,33 @@ def test_github_push_event():
         "ref": "refs/heads/main",
         "repository": {
             "full_name": "test-org/test-repo",
-            "html_url": "https://github.com/test-org/test-repo"
+            "html_url": "https://github.com/test-org/test-repo",
         },
-        "pusher": {
-            "name": "test-user"
-        },
+        "pusher": {"name": "test-user"},
         "commits": [
             {
                 "id": "abc123",
                 "message": "Update API documentation and add new endpoints",
                 "timestamp": datetime.utcnow().isoformat(),
-                "author": {
-                    "name": "Test User"
-                },
+                "author": {"name": "Test User"},
                 "added": ["src/api/new_endpoint.py"],
                 "modified": ["README.md", "docs/API.md"],
-                "removed": []
+                "removed": [],
             }
-        ]
+        ],
     }
 
     # Test locally with the Lambda handler
     from src.lambdas.github_webhook_handler import lambda_handler
 
-    event = {
-        "body": json.dumps(github_payload),
-        "headers": {
-            "x-github-event": "push"
-        }
-    }
+    event = {"body": json.dumps(github_payload), "headers": {"x-github-event": "push"}}
 
     response = lambda_handler(event, None)
     print(f"Response: {json.dumps(response, indent=2)}")
 
-    assert response['statusCode'] == 200
-    body = json.loads(response['body'])
-    assert 'change_id' in body
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    assert "change_id" in body
 
 
 def test_document_orchestrator():
@@ -64,14 +57,14 @@ def test_document_orchestrator():
             "change_id": "test_change_123",
             "repository": "test-org/test-repo",
             "files_changed": ["README.md", "src/api.py"],
-            "event_type": "push"
-        }
+            "event_type": "push",
+        },
     }
 
     response = lambda_handler(event, None)
     print(f"Orchestrator Response: {json.dumps(response, indent=2)}")
 
-    assert response['statusCode'] == 200
+    assert response["statusCode"] == 200
 
 
 if __name__ == "__main__":

@@ -1,16 +1,28 @@
-from sqlalchemy import Column, String, DateTime, Boolean, Text, JSON, Integer, ForeignKey
+import uuid
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field
-from enum import Enum
-import uuid
 
 Base = declarative_base()
 
+
 class IntegrationType(str, Enum):
     """Types of integrations available."""
+
     # Source integrations (read data from)
     GITHUB = "github"
     GITLAB = "gitlab"
@@ -43,30 +55,38 @@ class IntegrationType(str, Enum):
     WEBHOOK = "webhook"
     ZAPIER = "zapier"
 
+
 class IntegrationStatus(str, Enum):
     """Status of an integration."""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     ERROR = "error"
     CONFIGURING = "configuring"
     TESTING = "testing"
 
+
 class SyncDirection(str, Enum):
     """Direction of data synchronization."""
+
     READ_ONLY = "read_only"
     WRITE_ONLY = "write_only"
     BIDIRECTIONAL = "bidirectional"
 
+
 class AuthType(str, Enum):
     """Authentication types for integrations."""
+
     OAUTH2 = "oauth2"
     API_KEY = "api_key"
     BASIC_AUTH = "basic_auth"
     TOKEN = "token"
     CUSTOM = "custom"
 
+
 class Integration(Base):
     """Database model for integrations."""
+
     __tablename__ = "integrations"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -101,18 +121,26 @@ class Integration(Base):
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = Column(String, ForeignKey('users.id'), nullable=True)
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
 
     # Relationships
-    sync_logs = relationship("IntegrationSyncLog", back_populates="integration", cascade="all, delete-orphan")
-    webhook_deliveries = relationship("WebhookDelivery", back_populates="integration", cascade="all, delete-orphan")
+    sync_logs = relationship(
+        "IntegrationSyncLog", back_populates="integration", cascade="all, delete-orphan"
+    )
+    webhook_deliveries = relationship(
+        "WebhookDelivery", back_populates="integration", cascade="all, delete-orphan"
+    )
+
 
 class IntegrationSyncLog(Base):
     """Database model for integration sync logs."""
+
     __tablename__ = "integration_sync_logs"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    integration_id = Column(String, ForeignKey('integrations.id'), nullable=False, index=True)
+    integration_id = Column(
+        String, ForeignKey("integrations.id"), nullable=False, index=True
+    )
 
     # Sync details
     sync_type = Column(String(50), nullable=False)  # full, incremental, webhook
@@ -139,12 +167,16 @@ class IntegrationSyncLog(Base):
     # Relationships
     integration = relationship("Integration", back_populates="sync_logs")
 
+
 class WebhookDelivery(Base):
     """Database model for webhook deliveries."""
+
     __tablename__ = "webhook_deliveries"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    integration_id = Column(String, ForeignKey('integrations.id'), nullable=False, index=True)
+    integration_id = Column(
+        String, ForeignKey("integrations.id"), nullable=False, index=True
+    )
 
     # Webhook details
     event_type = Column(String(100), nullable=False)
@@ -171,60 +203,101 @@ class WebhookDelivery(Base):
     # Relationships
     integration = relationship("Integration", back_populates="webhook_deliveries")
 
+
 # Pydantic models for API
+
 
 class IntegrationConfig(BaseModel):
     """Base configuration for integrations."""
+
     pass
+
 
 class GitHubConfig(IntegrationConfig):
     """GitHub integration configuration."""
+
     repositories: List[str] = Field(..., description="List of repositories to monitor")
-    events: List[str] = Field(default=["push", "pull_request", "issues"], description="Events to listen for")
+    events: List[str] = Field(
+        default=["push", "pull_request", "issues"], description="Events to listen for"
+    )
     branch_filter: Optional[str] = Field(None, description="Branch pattern to filter")
-    include_private: bool = Field(default=False, description="Include private repositories")
+    include_private: bool = Field(
+        default=False, description="Include private repositories"
+    )
+
 
 class JiraConfig(IntegrationConfig):
     """Jira integration configuration."""
+
     server_url: str = Field(..., description="Jira server URL")
     projects: List[str] = Field(..., description="Jira projects to monitor")
-    issue_types: List[str] = Field(default=["Story", "Bug", "Task"], description="Issue types to include")
-    custom_fields: Dict[str, str] = Field(default={}, description="Custom field mappings")
-    webhook_events: List[str] = Field(default=["jira:issue_created", "jira:issue_updated"], description="Webhook events")
+    issue_types: List[str] = Field(
+        default=["Story", "Bug", "Task"], description="Issue types to include"
+    )
+    custom_fields: Dict[str, str] = Field(
+        default={}, description="Custom field mappings"
+    )
+    webhook_events: List[str] = Field(
+        default=["jira:issue_created", "jira:issue_updated"],
+        description="Webhook events",
+    )
+
 
 class SharePointConfig(IntegrationConfig):
     """SharePoint integration configuration."""
+
     site_url: str = Field(..., description="SharePoint site URL")
     libraries: List[str] = Field(..., description="Document libraries to monitor")
-    file_types: List[str] = Field(default=["docx", "pdf", "pptx"], description="File types to include")
+    file_types: List[str] = Field(
+        default=["docx", "pdf", "pptx"], description="File types to include"
+    )
     folders: List[str] = Field(default=["/"], description="Folders to monitor")
+
 
 class MondayConfig(IntegrationConfig):
     """Monday.com integration configuration."""
+
     boards: List[int] = Field(..., description="Board IDs to monitor")
     columns: List[str] = Field(default=[], description="Specific columns to sync")
-    webhook_events: List[str] = Field(default=["create_item", "change_column_value"], description="Webhook events")
+    webhook_events: List[str] = Field(
+        default=["create_item", "change_column_value"], description="Webhook events"
+    )
+
 
 class ServiceNowConfig(IntegrationConfig):
     """ServiceNow integration configuration."""
+
     instance_url: str = Field(..., description="ServiceNow instance URL")
-    tables: List[str] = Field(default=["incident", "change_request", "problem"], description="Tables to monitor")
+    tables: List[str] = Field(
+        default=["incident", "change_request", "problem"],
+        description="Tables to monitor",
+    )
     filters: Dict[str, str] = Field(default={}, description="Table-specific filters")
-    webhook_events: List[str] = Field(default=["insert", "update"], description="Webhook events")
+    webhook_events: List[str] = Field(
+        default=["insert", "update"], description="Webhook events"
+    )
+
 
 class SlackConfig(IntegrationConfig):
     """Slack integration configuration."""
+
     channels: List[str] = Field(..., description="Channels to monitor")
-    message_types: List[str] = Field(default=["message"], description="Message types to include")
+    message_types: List[str] = Field(
+        default=["message"], description="Message types to include"
+    )
     bot_mentions: bool = Field(default=True, description="Include bot mentions")
     keywords: List[str] = Field(default=[], description="Keywords to filter messages")
 
+
 class AuthConfig(BaseModel):
     """Authentication configuration for integrations."""
+
     pass
+
 
 class OAuth2Config(AuthConfig):
     """OAuth2 authentication configuration."""
+
     client_id: str
     client_secret: str
     scope: List[str] = []
@@ -232,26 +305,35 @@ class OAuth2Config(AuthConfig):
     authorization_url: Optional[str] = None
     token_url: Optional[str] = None
 
+
 class APIKeyConfig(AuthConfig):
     """API key authentication configuration."""
+
     api_key: str
     header_name: str = "Authorization"
     prefix: str = "Bearer"
 
+
 class BasicAuthConfig(AuthConfig):
     """Basic authentication configuration."""
+
     username: str
     password: str
 
+
 class TokenConfig(AuthConfig):
     """Token-based authentication configuration."""
+
     token: str
     token_type: str = "Bearer"
 
+
 # Request/Response models
+
 
 class IntegrationCreateRequest(BaseModel):
     """Request model for creating integrations."""
+
     name: str
     description: Optional[str] = None
     integration_type: IntegrationType
@@ -262,8 +344,10 @@ class IntegrationCreateRequest(BaseModel):
     sync_frequency: int = 3600
     webhook_url: Optional[str] = None
 
+
 class IntegrationUpdateRequest(BaseModel):
     """Request model for updating integrations."""
+
     name: Optional[str] = None
     description: Optional[str] = None
     auth_config: Optional[Dict[str, Any]] = None
@@ -273,8 +357,10 @@ class IntegrationUpdateRequest(BaseModel):
     sync_enabled: Optional[bool] = None
     webhook_url: Optional[str] = None
 
+
 class IntegrationResponse(BaseModel):
     """Response model for integration data."""
+
     id: str
     name: str
     description: Optional[str]
@@ -291,40 +377,52 @@ class IntegrationResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
 class DetailedIntegrationResponse(IntegrationResponse):
     """Detailed response model including configuration."""
+
     config: Dict[str, Any]
     webhook_url: Optional[str]
     recent_sync_logs: List[Dict[str, Any]] = []
     stats: Dict[str, Any] = {}
 
+
 class IntegrationTestRequest(BaseModel):
     """Request model for testing integrations."""
+
     test_type: str = "connection"
     parameters: Dict[str, Any] = {}
 
+
 class IntegrationTestResponse(BaseModel):
     """Response model for integration tests."""
+
     success: bool
     message: str
     details: Dict[str, Any] = {}
     test_results: List[Dict[str, Any]] = []
 
+
 class SyncRequest(BaseModel):
     """Request model for manual sync triggers."""
+
     sync_type: str = "incremental"  # full, incremental
     direction: Optional[SyncDirection] = None
     parameters: Dict[str, Any] = {}
 
+
 class SyncResponse(BaseModel):
     """Response model for sync operations."""
+
     sync_id: str
     status: str
     message: str
     estimated_duration: Optional[int] = None
 
+
 class SyncLogResponse(BaseModel):
     """Response model for sync log data."""
+
     id: str
     sync_type: str
     direction: str
@@ -339,8 +437,10 @@ class SyncLogResponse(BaseModel):
     records_failed: int
     error_message: Optional[str]
 
+
 class IntegrationStats(BaseModel):
     """Statistics for integrations."""
+
     total_integrations: int
     active_integrations: int
     failed_integrations: int
@@ -350,8 +450,10 @@ class IntegrationStats(BaseModel):
     avg_sync_duration: float
     data_processed_today: int
 
+
 class WebhookConfig(BaseModel):
     """Webhook configuration."""
+
     url: str
     secret: Optional[str] = None
     events: List[str] = []
@@ -359,11 +461,13 @@ class WebhookConfig(BaseModel):
     retry_policy: Dict[str, Any] = {
         "max_attempts": 3,
         "backoff_factor": 2,
-        "initial_delay": 60
+        "initial_delay": 60,
     }
+
 
 class IntegrationTemplate(BaseModel):
     """Template for common integration configurations."""
+
     name: str
     integration_type: IntegrationType
     description: str
@@ -374,6 +478,7 @@ class IntegrationTemplate(BaseModel):
     setup_instructions: str
     documentation_url: Optional[str] = None
 
+
 # Common configuration schemas for validation
 INTEGRATION_SCHEMAS = {
     IntegrationType.GITHUB: {
@@ -382,9 +487,9 @@ INTEGRATION_SCHEMAS = {
             "repositories": {"type": "array", "items": {"type": "string"}},
             "events": {"type": "array", "items": {"type": "string"}},
             "branch_filter": {"type": "string"},
-            "include_private": {"type": "boolean"}
+            "include_private": {"type": "boolean"},
         },
-        "required": ["repositories"]
+        "required": ["repositories"],
     },
     IntegrationType.JIRA: {
         "type": "object",
@@ -393,9 +498,9 @@ INTEGRATION_SCHEMAS = {
             "projects": {"type": "array", "items": {"type": "string"}},
             "issue_types": {"type": "array", "items": {"type": "string"}},
             "custom_fields": {"type": "object"},
-            "webhook_events": {"type": "array", "items": {"type": "string"}}
+            "webhook_events": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["server_url", "projects"]
+        "required": ["server_url", "projects"],
     },
     IntegrationType.SHAREPOINT: {
         "type": "object",
@@ -403,18 +508,18 @@ INTEGRATION_SCHEMAS = {
             "site_url": {"type": "string", "format": "uri"},
             "libraries": {"type": "array", "items": {"type": "string"}},
             "file_types": {"type": "array", "items": {"type": "string"}},
-            "folders": {"type": "array", "items": {"type": "string"}}
+            "folders": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["site_url", "libraries"]
+        "required": ["site_url", "libraries"],
     },
     IntegrationType.MONDAY: {
         "type": "object",
         "properties": {
             "boards": {"type": "array", "items": {"type": "integer"}},
             "columns": {"type": "array", "items": {"type": "string"}},
-            "webhook_events": {"type": "array", "items": {"type": "string"}}
+            "webhook_events": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["boards"]
+        "required": ["boards"],
     },
     IntegrationType.SERVICENOW: {
         "type": "object",
@@ -422,10 +527,10 @@ INTEGRATION_SCHEMAS = {
             "instance_url": {"type": "string", "format": "uri"},
             "tables": {"type": "array", "items": {"type": "string"}},
             "filters": {"type": "object"},
-            "webhook_events": {"type": "array", "items": {"type": "string"}}
+            "webhook_events": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["instance_url", "tables"]
-    }
+        "required": ["instance_url", "tables"],
+    },
 }
 
 # Integration capabilities matrix
@@ -435,34 +540,34 @@ INTEGRATION_CAPABILITIES = {
         "supports_polling": True,
         "supports_write": False,
         "rate_limit": 5000,  # requests per hour
-        "batch_size": 100
+        "batch_size": 100,
     },
     IntegrationType.JIRA: {
         "supports_webhooks": True,
         "supports_polling": True,
         "supports_write": True,
         "rate_limit": 1000,
-        "batch_size": 50
+        "batch_size": 50,
     },
     IntegrationType.SHAREPOINT: {
         "supports_webhooks": True,
         "supports_polling": True,
         "supports_write": True,
         "rate_limit": 2000,
-        "batch_size": 25
+        "batch_size": 25,
     },
     IntegrationType.MONDAY: {
         "supports_webhooks": True,
         "supports_polling": True,
         "supports_write": True,
         "rate_limit": 1000,
-        "batch_size": 50
+        "batch_size": 50,
     },
     IntegrationType.SERVICENOW: {
         "supports_webhooks": True,
         "supports_polling": True,
         "supports_write": True,
         "rate_limit": 5000,
-        "batch_size": 100
-    }
+        "batch_size": 100,
+    },
 }

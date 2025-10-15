@@ -12,11 +12,11 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 from uuid import uuid4
 
 import structlog
-from prometheus_client import Counter, Histogram, Gauge, Summary, CollectorRegistry
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, Summary
 from pythonjsonlogger import jsonlogger
 
 from ..config import get_settings
@@ -24,6 +24,7 @@ from ..config import get_settings
 
 class LogLevel(Enum):
     """Log levels with numeric values"""
+
     DEBUG = 10
     INFO = 20
     WARNING = 30
@@ -33,6 +34,7 @@ class LogLevel(Enum):
 
 class LogCategory(Enum):
     """Categories for log organization"""
+
     AGENT = "agent"
     API = "api"
     AUTH = "auth"
@@ -47,6 +49,7 @@ class LogCategory(Enum):
 
 class MetricType(Enum):
     """Types of metrics to collect"""
+
     COUNTER = "counter"
     HISTOGRAM = "histogram"
     GAUGE = "gauge"
@@ -60,7 +63,7 @@ class StructuredLogger:
         self,
         name: str,
         category: LogCategory = LogCategory.SYSTEM,
-        extra_context: Optional[Dict[str, Any]] = None
+        extra_context: Optional[Dict[str, Any]] = None,
     ):
         self.name = name
         self.category = category
@@ -75,7 +78,7 @@ class StructuredLogger:
             "category": category.value,
             "environment": self.settings.ENVIRONMENT,
             "service": "kinexus-ai",
-            **(extra_context or {})
+            **(extra_context or {}),
         }
 
         # Metrics registry
@@ -88,31 +91,31 @@ class StructuredLogger:
     def _setup_metrics(self):
         """Setup Prometheus metrics for logging"""
         self.log_counter = Counter(
-            'kinexus_log_entries_total',
-            'Total number of log entries',
-            ['level', 'category', 'logger_name'],
-            registry=self.metrics_registry
+            "kinexus_log_entries_total",
+            "Total number of log entries",
+            ["level", "category", "logger_name"],
+            registry=self.metrics_registry,
         )
 
         self.error_counter = Counter(
-            'kinexus_errors_total',
-            'Total number of errors',
-            ['category', 'error_type', 'logger_name'],
-            registry=self.metrics_registry
+            "kinexus_errors_total",
+            "Total number of errors",
+            ["category", "error_type", "logger_name"],
+            registry=self.metrics_registry,
         )
 
         self.operation_duration = Histogram(
-            'kinexus_operation_duration_seconds',
-            'Duration of operations',
-            ['operation', 'category', 'status'],
-            registry=self.metrics_registry
+            "kinexus_operation_duration_seconds",
+            "Duration of operations",
+            ["operation", "category", "status"],
+            registry=self.metrics_registry,
         )
 
         self.active_operations = Gauge(
-            'kinexus_active_operations',
-            'Number of active operations',
-            ['operation', 'category'],
-            registry=self.metrics_registry
+            "kinexus_active_operations",
+            "Number of active operations",
+            ["operation", "category"],
+            registry=self.metrics_registry,
         )
 
     def debug(self, message: str, **kwargs):
@@ -130,15 +133,17 @@ class StructuredLogger:
     def error(self, message: str, error: Optional[Exception] = None, **kwargs):
         """Log error message with optional exception details"""
         if error:
-            kwargs.update({
-                "error_type": type(error).__name__,
-                "error_message": str(error),
-                "traceback": traceback.format_exc()
-            })
+            kwargs.update(
+                {
+                    "error_type": type(error).__name__,
+                    "error_message": str(error),
+                    "traceback": traceback.format_exc(),
+                }
+            )
             self.error_counter.labels(
                 category=self.category.value,
                 error_type=type(error).__name__,
-                logger_name=self.name
+                logger_name=self.name,
             ).inc()
 
         self._log(LogLevel.ERROR, message, **kwargs)
@@ -156,14 +161,12 @@ class StructuredLogger:
             **kwargs,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "log_level": level.name,
-            "message": message
+            "message": message,
         }
 
         # Update metrics
         self.log_counter.labels(
-            level=level.name,
-            category=self.category.value,
-            logger_name=self.name
+            level=level.name, category=self.category.value, logger_name=self.name
         ).inc()
 
         # Log using structlog
@@ -178,8 +181,7 @@ class StructuredLogger:
 
         # Update active operations gauge
         self.active_operations.labels(
-            operation=operation_name,
-            category=self.category.value
+            operation=operation_name, category=self.category.value
         ).inc()
 
         try:
@@ -187,16 +189,14 @@ class StructuredLogger:
                 f"Operation started: {operation_name}",
                 operation_id=operation_id,
                 operation=operation_name,
-                **extra_context
+                **extra_context,
             )
 
             yield operation_id
 
             duration = time.time() - start_time
             self.operation_duration.labels(
-                operation=operation_name,
-                category=self.category.value,
-                status="success"
+                operation=operation_name, category=self.category.value, status="success"
             ).observe(duration)
 
             self.info(
@@ -205,15 +205,13 @@ class StructuredLogger:
                 operation=operation_name,
                 duration_seconds=duration,
                 status="success",
-                **extra_context
+                **extra_context,
             )
 
         except Exception as e:
             duration = time.time() - start_time
             self.operation_duration.labels(
-                operation=operation_name,
-                category=self.category.value,
-                status="error"
+                operation=operation_name, category=self.category.value, status="error"
             ).observe(duration)
 
             self.error(
@@ -223,27 +221,26 @@ class StructuredLogger:
                 operation=operation_name,
                 duration_seconds=duration,
                 status="error",
-                **extra_context
+                **extra_context,
             )
             raise
 
         finally:
             # Decrement active operations gauge
             self.active_operations.labels(
-                operation=operation_name,
-                category=self.category.value
+                operation=operation_name, category=self.category.value
             ).dec()
 
     @contextmanager
-    def request_context(self, request_id: str, user_id: Optional[str] = None, **extra_context):
+    def request_context(
+        self, request_id: str, user_id: Optional[str] = None, **extra_context
+    ):
         """Context manager for request-scoped logging"""
         previous_context = self._request_context.copy()
 
-        self._request_context.update({
-            "request_id": request_id,
-            "user_id": user_id,
-            **extra_context
-        })
+        self._request_context.update(
+            {"request_id": request_id, "user_id": user_id, **extra_context}
+        )
 
         try:
             yield
@@ -273,10 +270,7 @@ class AgentConversationLogger:
         self.logger = StructuredLogger(
             name=f"agent-{agent_type}",
             category=LogCategory.AGENT,
-            extra_context={
-                "agent_id": agent_id,
-                "agent_type": agent_type
-            }
+            extra_context={"agent_id": agent_id, "agent_type": agent_type},
         )
         self.conversation_history: List[Dict[str, Any]] = []
 
@@ -287,14 +281,11 @@ class AgentConversationLogger:
             "task_id": task.get("id"),
             "task_description": task.get("description"),
             "reasoning_pattern": reasoning_pattern,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         self.conversation_history.append(entry)
-        self.logger.info(
-            f"Agent reasoning started: {reasoning_pattern}",
-            **entry
-        )
+        self.logger.info(f"Agent reasoning started: {reasoning_pattern}", **entry)
 
     def log_thought(
         self,
@@ -304,7 +295,7 @@ class AgentConversationLogger:
         model_used: str,
         confidence: float,
         reasoning_chain_id: str,
-        parent_thought_id: Optional[str] = None
+        parent_thought_id: Optional[str] = None,
     ):
         """Log a single thought in the reasoning chain"""
         entry = {
@@ -316,14 +307,11 @@ class AgentConversationLogger:
             "confidence": confidence,
             "reasoning_chain_id": reasoning_chain_id,
             "parent_thought_id": parent_thought_id,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         self.conversation_history.append(entry)
-        self.logger.debug(
-            f"Thought generated: {thought_type}",
-            **entry
-        )
+        self.logger.debug(f"Thought generated: {thought_type}", **entry)
 
     def log_model_interaction(
         self,
@@ -332,7 +320,7 @@ class AgentConversationLogger:
         response: str,
         tokens_used: int,
         response_time: float,
-        cost: float = 0.0
+        cost: float = 0.0,
     ):
         """Log interaction with AI models"""
         entry = {
@@ -343,14 +331,11 @@ class AgentConversationLogger:
             "tokens_used": tokens_used,
             "response_time": response_time,
             "cost": cost,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         self.conversation_history.append(entry)
-        self.logger.info(
-            f"Model interaction: {model_name}",
-            **entry
-        )
+        self.logger.info(f"Model interaction: {model_name}", **entry)
 
     def log_reasoning_complete(
         self,
@@ -359,7 +344,7 @@ class AgentConversationLogger:
         confidence_score: float,
         total_duration: float,
         thoughts_count: int,
-        models_used: List[str]
+        models_used: List[str],
     ):
         """Log completion of reasoning process"""
         entry = {
@@ -370,14 +355,11 @@ class AgentConversationLogger:
             "total_duration": total_duration,
             "thoughts_count": thoughts_count,
             "models_used": models_used,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         self.conversation_history.append(entry)
-        self.logger.info(
-            f"Agent reasoning completed",
-            **entry
-        )
+        self.logger.info(f"Agent reasoning completed", **entry)
 
     def log_error(self, error: Exception, context: Dict[str, Any]):
         """Log agent errors with full context"""
@@ -386,15 +368,11 @@ class AgentConversationLogger:
             "error_type": type(error).__name__,
             "error_message": str(error),
             "context": context,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         self.conversation_history.append(entry)
-        self.logger.error(
-            f"Agent error occurred",
-            error=error,
-            **entry
-        )
+        self.logger.error(f"Agent error occurred", error=error, **entry)
 
     def get_conversation_summary(self) -> Dict[str, Any]:
         """Get summary of the agent's conversation"""
@@ -422,14 +400,22 @@ class AgentConversationLogger:
         return {
             "agent_id": self.agent_id,
             "agent_type": self.agent_type,
-            "conversation_start": self.conversation_history[0]["timestamp"] if self.conversation_history else None,
-            "conversation_end": self.conversation_history[-1]["timestamp"] if self.conversation_history else None,
+            "conversation_start": (
+                self.conversation_history[0]["timestamp"]
+                if self.conversation_history
+                else None
+            ),
+            "conversation_end": (
+                self.conversation_history[-1]["timestamp"]
+                if self.conversation_history
+                else None
+            ),
             "total_events": len(self.conversation_history),
             "event_counts": event_counts,
             "total_thoughts": total_thoughts,
             "total_model_interactions": total_model_interactions,
             "total_cost": total_cost,
-            "models_used": list(models_used)
+            "models_used": list(models_used),
         }
 
     def export_conversation(self) -> List[Dict[str, Any]]:
@@ -442,8 +428,7 @@ class PerformanceLogger:
 
     def __init__(self):
         self.logger = StructuredLogger(
-            name="performance",
-            category=LogCategory.PERFORMANCE
+            name="performance", category=LogCategory.PERFORMANCE
         )
 
     def log_api_request(
@@ -454,7 +439,7 @@ class PerformanceLogger:
         duration: float,
         user_id: Optional[str] = None,
         request_size: int = 0,
-        response_size: int = 0
+        response_size: int = 0,
     ):
         """Log API request performance"""
         self.logger.info(
@@ -465,7 +450,7 @@ class PerformanceLogger:
             duration_seconds=duration,
             user_id=user_id,
             request_size_bytes=request_size,
-            response_size_bytes=response_size
+            response_size_bytes=response_size,
         )
 
     def log_database_query(
@@ -474,7 +459,7 @@ class PerformanceLogger:
         table: str,
         duration: float,
         rows_affected: int = 0,
-        query_hash: Optional[str] = None
+        query_hash: Optional[str] = None,
     ):
         """Log database query performance"""
         self.logger.info(
@@ -483,7 +468,7 @@ class PerformanceLogger:
             table=table,
             duration_seconds=duration,
             rows_affected=rows_affected,
-            query_hash=query_hash
+            query_hash=query_hash,
         )
 
     def log_model_inference(
@@ -492,7 +477,7 @@ class PerformanceLogger:
         tokens_input: int,
         tokens_output: int,
         duration: float,
-        cost: float = 0.0
+        cost: float = 0.0,
     ):
         """Log AI model inference performance"""
         self.logger.info(
@@ -502,7 +487,7 @@ class PerformanceLogger:
             tokens_output=tokens_output,
             duration_seconds=duration,
             cost_dollars=cost,
-            tokens_per_second=tokens_output / duration if duration > 0 else 0
+            tokens_per_second=tokens_output / duration if duration > 0 else 0,
         )
 
 
@@ -510,10 +495,7 @@ class SecurityLogger:
     """Specialized logger for security events"""
 
     def __init__(self):
-        self.logger = StructuredLogger(
-            name="security",
-            category=LogCategory.SECURITY
-        )
+        self.logger = StructuredLogger(name="security", category=LogCategory.SECURITY)
 
     def log_authentication_attempt(
         self,
@@ -521,7 +503,7 @@ class SecurityLogger:
         success: bool,
         method: str,
         ip_address: str,
-        user_agent: str
+        user_agent: str,
     ):
         """Log authentication attempts"""
         self.logger.info(
@@ -530,7 +512,7 @@ class SecurityLogger:
             success=success,
             auth_method=method,
             ip_address=ip_address,
-            user_agent=user_agent
+            user_agent=user_agent,
         )
 
     def log_authorization_check(
@@ -539,7 +521,7 @@ class SecurityLogger:
         resource: str,
         action: str,
         allowed: bool,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
     ):
         """Log authorization checks"""
         self.logger.info(
@@ -548,7 +530,7 @@ class SecurityLogger:
             resource=resource,
             action=action,
             allowed=allowed,
-            reason=reason
+            reason=reason,
         )
 
     def log_security_violation(
@@ -557,7 +539,7 @@ class SecurityLogger:
         description: str,
         user_id: Optional[str] = None,
         ip_address: Optional[str] = None,
-        severity: str = "medium"
+        severity: str = "medium",
     ):
         """Log security violations"""
         self.logger.warning(
@@ -566,7 +548,7 @@ class SecurityLogger:
             description=description,
             user_id=user_id,
             ip_address=ip_address,
-            severity=severity
+            severity=severity,
         )
 
 
@@ -604,11 +586,15 @@ class LoggingConfiguration:
         # Configure standard library logging
         logging.basicConfig(
             level=getattr(logging, log_level.upper()),
-            format='%(message)s' if log_format == "json" else '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            format=(
+                "%(message)s"
+                if log_format == "json"
+                else "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            ),
         )
 
         # Configure file logging if specified
-        if hasattr(settings, 'LOG_FILE_PATH') and settings.LOG_FILE_PATH:
+        if hasattr(settings, "LOG_FILE_PATH") and settings.LOG_FILE_PATH:
             log_file = Path(settings.LOG_FILE_PATH)
             log_file.parent.mkdir(parents=True, exist_ok=True)
 
