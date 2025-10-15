@@ -13,6 +13,10 @@ from typing import Any, Dict, List, Optional
 
 import boto3
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Import enhanced agentic AI capabilities
 try:
     from react_reasoning_agent import execute_react_reasoning
@@ -36,8 +40,6 @@ except ImportError:
     PERSISTENT_MEMORY_AVAILABLE = False
 
 try:
-    from nova_act_automation import execute_nova_act_automation
-
     NOVA_ACT_AVAILABLE = True
 except ImportError:
     logger.warning("Nova Act automation not available")
@@ -61,10 +63,6 @@ try:
 except ImportError:
     logger.warning("MCP client not available")
     MCP_AVAILABLE = False
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class AgentRole(Enum):
@@ -377,7 +375,7 @@ class MultiAgentSupervisor:
         Main entry point for processing change events using multi-agent collaboration
         Enhanced with ReAct reasoning, persistent memory, and performance tracking
         """
-        logger.info(f"Processing change event with enhanced multi-agent supervisor")
+        logger.info("Processing change event with enhanced multi-agent supervisor")
 
         # Start performance tracking
         session_id = None

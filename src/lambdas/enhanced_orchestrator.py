@@ -105,7 +105,7 @@ class PlatformOrchestrator:
         try:
             response = ssm.get_parameter(Name=f"/kinexus/{key}", WithDecryption=True)
             return response["Parameter"]["Value"]
-        except:
+        except Exception:
             return os.environ.get(key.upper())
 
     async def process_change(self, change_id: str) -> Dict[str, Any]:
@@ -121,7 +121,7 @@ class PlatformOrchestrator:
         change_data = change["Item"]
 
         logger.info(
-            f"Processing change",
+            "Processing change",
             change_id=change_id,
             source=change_data.get("source"),
             repo=change_data.get("change_data", {}).get("repository_name"),
@@ -327,7 +327,7 @@ class PlatformOrchestrator:
                             "type": "markdown",
                         }
                     )
-            except:
+            except Exception:
                 pass
 
         return docs
@@ -523,7 +523,7 @@ Please review these changes and update any dependent systems.
             repo=doc["repo"],
             path=doc["path"],
             content=updated,
-            message=f"AI: Update documentation - automated by Kinexus",
+            message="AI: Update documentation - automated by Kinexus",
             sha=doc["sha"],
         )
 

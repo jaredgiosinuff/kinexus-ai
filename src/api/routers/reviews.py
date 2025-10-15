@@ -12,14 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from api.dependencies import (
-    create_audit_logger,
-    get_current_active_user,
-    get_db,
-    require_reviewer,
-)
+from api.dependencies import create_audit_logger, get_db, require_reviewer
 from core.services.review_service import get_review_service
-from database.models import Document, Review, ReviewStatus, User
+from database.models import Review, ReviewStatus, User
 
 router = APIRouter()
 

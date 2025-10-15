@@ -2,15 +2,14 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, asc, desc, func, or_
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import and_, desc, func, or_
+from sqlalchemy.orm import Session
 
 from ..database import get_database_session
 from ..models.integrations import (
     Integration,
     IntegrationStatus,
     IntegrationSyncLog,
-    IntegrationType,
     WebhookDelivery,
 )
 from ..services.logging_service import StructuredLogger

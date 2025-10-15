@@ -10,7 +10,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
 import numpy as np
@@ -18,7 +18,6 @@ import numpy as np
 from ..config.model_config import ModelCapability, ModelConfigManager
 
 # Import existing components
-from .multi_agent_supervisor import AgentRole, BedrockAgent, MultiAgentSupervisor
 from .persistent_memory_system import PersistentMemorySystem
 
 logger = logging.getLogger(__name__)

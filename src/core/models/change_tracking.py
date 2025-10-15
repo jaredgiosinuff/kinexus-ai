@@ -3,16 +3,15 @@ Change Tracking System with Multiple Sources and Review Workflows
 Supports internal reviews, Jira ticket workflows, and ServiceNow integration
 """
 
-import asyncio
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+import httpx
 
 from ..services.logging_service import StructuredLogger
 
@@ -282,7 +281,7 @@ class ServiceNowChangeDetector(ChangeDetector):
                     auth=(self.username, self.password),
                 )
                 return response.status_code == 200
-        except:
+        except Exception:
             return False
 
     def get_supported_change_types(self) -> List[ChangeType]:
@@ -511,7 +510,7 @@ class JiraChangeDetector(ChangeDetector):
                     auth=(self.username, self.api_token),
                 )
                 return response.status_code == 200
-        except:
+        except Exception:
             return False
 
     def get_supported_change_types(self) -> List[ChangeType]:
@@ -596,7 +595,7 @@ class JiraChangeDetector(ChangeDetector):
             )
 
         if change_event.recommended_actions:
-            description_parts.append(f"*Recommended Actions:*")
+            description_parts.append("*Recommended Actions:*")
             for action in change_event.recommended_actions:
                 description_parts.append(f"- {action}")
 

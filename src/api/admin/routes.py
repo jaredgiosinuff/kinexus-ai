@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -6,9 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from ...core.models.auth import AuthConfig, AuthProvider, User
-from ...core.models.conversations import AgentConversation
-from ...core.models.integrations import Integration, IntegrationConfig
+from ...core.models.auth import User
 from ...core.repositories.conversation_repository import ConversationRepository
 from ...core.services.auth_service import AuthService
 from ...core.services.integration_service import IntegrationService

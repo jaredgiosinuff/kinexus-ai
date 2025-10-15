@@ -3,9 +3,8 @@ SharePoint Client for Document Management
 Manages documents that live in SharePoint document libraries
 """
 
-import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import httpx
 import msal
@@ -226,7 +225,7 @@ class SharePointClient:
             )
 
         # Update the document
-        result = await self.update_document(
+        _result = await self.update_document(
             library_name=library_name,
             file_path=file_path,
             content=updated_content,

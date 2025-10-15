@@ -15,14 +15,13 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, desc, func, or_
+from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import Session, joinedload
 
 from core.config import settings
 from database.models import (
     ApprovalAction,
     ApprovalRule,
-    AuditLog,
     Document,
     Review,
     ReviewStatus,
@@ -564,7 +563,7 @@ class ReviewService:
         # Get active rules ordered by priority
         rules = (
             self.db.query(ApprovalRule)
-            .filter(ApprovalRule.is_active == True)
+            .filter(ApprovalRule.is_active is True)
             .order_by(desc(ApprovalRule.priority))
             .all()
         )
@@ -596,7 +595,7 @@ class ReviewService:
         # Find reviewer with least current assignments
         reviewer = (
             self.db.query(User)
-            .filter(and_(User.role.in_(eligible_roles), User.is_active == True))
+            .filter(and_(User.role.in_(eligible_roles), User.is_active is True))
             .outerjoin(
                 Review,
                 and_(

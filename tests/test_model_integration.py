@@ -3,22 +3,28 @@
 Comprehensive tests for model integration in Kinexus AI
 Tests Claude Sonnet 4.5, Nova Pro, and model configuration
 """
-import asyncio
-import base64
 import json
 import os
 import sys
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
-# Add src directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "agents"))
+# Add src directories to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "config"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "agents"))
 
-from model_config import ModelCapability, ModelConfigManager, ModelProvider
-from multi_agent_supervisor import AgentRole, BedrockAgent, MultiAgentSupervisor
-from nova_pro_integration import ImageAnalysisResult, ImageType, NovaProImageAnalyzer
+from model_config import ModelCapability, ModelConfigManager  # noqa: E402
+from multi_agent_supervisor import (  # noqa: E402
+    AgentRole,
+    BedrockAgent,
+    MultiAgentSupervisor,
+)
+from nova_pro_integration import (  # noqa: E402
+    ImageAnalysisResult,
+    ImageType,
+    NovaProImageAnalyzer,
+)
 
 
 class TestModelConfiguration:

@@ -1,5 +1,3 @@
-import json
-import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -12,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_database_session
-from ..models.auth import AuthConfig, AuthProvider, User, UserRole
+from ..models.auth import AuthConfig, User
 from ..repositories.user_repository import UserRepository
 from ..services.logging_service import StructuredLogger
 
@@ -226,7 +224,7 @@ class AuthService:
     ) -> Dict[str, Any]:
         """Authenticate using local credentials."""
         try:
-            local_config = LocalAuthConfig(**config)
+            _local_config = LocalAuthConfig(**config)
 
             # Find user in database
             user = await self.user_repo.get_by_email(email)

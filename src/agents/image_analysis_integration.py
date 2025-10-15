@@ -4,24 +4,21 @@ Image Analysis Integration for Kinexus AI
 Integrates image analysis with document management, CRAG, and webhook processing
 """
 import asyncio
-import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import boto3
 
 from ..config.model_config import ModelConfigManager
 from ..core.services.document_service import DocumentService
 from ..core.services.metrics_service import MetricsService
-from .agentic_rag_system import AgenticRAGSystem
 
 # Import image analysis components
 from .image_analysis_framework import (
     AnalysisTask,
-    DocumentImageAnalyzer,
     ImageAnalysisEngine,
     ImageAnalysisRequest,
     ImageAnalysisResult,
@@ -29,7 +26,7 @@ from .image_analysis_framework import (
 )
 
 # Import existing systems
-from .self_corrective_rag import RAGQuery, RAGTaskType, SelfCorrectiveRAG
+from .self_corrective_rag import RAGQuery, SelfCorrectiveRAG
 
 logger = logging.getLogger(__name__)
 
@@ -353,7 +350,7 @@ class DocumentationImageValidator:
         """Classify image type from alt text and context"""
 
         alt_lower = alt_text.lower()
-        context_lower = context.lower()
+        _context_lower = context.lower()
 
         if any(word in alt_lower for word in ["screenshot", "screen shot", "capture"]):
             return "screenshot"
@@ -397,7 +394,7 @@ class DocumentationImageValidator:
         expected_content = {}
 
         # Extract from alt text and context
-        alt_text = img_ref.get("alt_text", "")
+        _alt_text = img_ref.get("alt_text", "")
         context = img_ref.get("context", "")
 
         # Look for specific terms that indicate expected content
@@ -445,7 +442,7 @@ class DocumentationImageValidator:
                 async with session.get(image_url) as response:
                     return await response.read()
 
-        elif image_url.startswith("/") or not "://" in image_url:
+        elif image_url.startswith("/") or "://" not in image_url:
             # Local file path
             try:
                 with open(image_url, "rb") as f:
@@ -827,7 +824,7 @@ class ImageAnalysisIntegrationManager:
 
         import io
 
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw
 
         # Create simple test image
         img = Image.new("RGB", (200, 100), color="white")
@@ -863,7 +860,7 @@ async def main():
         report = await integration_manager.image_validator.validate_document_images(
             "doc-123"
         )
-        print(f"Validation Report:")
+        print("Validation Report:")
         print(f"- Total Images: {report.total_images_analyzed}")
         print(f"- Quality Score: {report.overall_quality_score:.3f}")
         print(f"- Issues Found: {len(report.issues_found)}")

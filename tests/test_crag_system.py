@@ -4,17 +4,11 @@ Test suite for Self-Corrective RAG (CRAG) system
 """
 import asyncio
 from datetime import datetime
-from typing import Any, Dict, List
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.agents.agentic_rag_system import (
-    RAGQuery,
-    RAGResult,
-    RAGTaskType,
-    RetrievalStrategy,
-)
+from src.agents.agentic_rag_system import RAGQuery, RAGResult, RAGTaskType
 from src.agents.crag_integration import CRAGConfiguration, CRAGDocumentProcessor
 
 # Import CRAG components

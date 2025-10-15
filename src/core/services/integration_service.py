@@ -1,6 +1,4 @@
 import asyncio
-import json
-import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Type
 
@@ -16,16 +14,12 @@ from ..integrations.sharepoint_integration import SharePointIntegration
 from ..models.integrations import (
     INTEGRATION_CAPABILITIES,
     INTEGRATION_SCHEMAS,
-    AuthType,
     Integration,
-    IntegrationCreateRequest,
     IntegrationStatus,
     IntegrationSyncLog,
     IntegrationTestResponse,
     IntegrationType,
     IntegrationUpdateRequest,
-    SyncDirection,
-    WebhookDelivery,
 )
 from ..repositories.integration_repository import IntegrationRepository
 from ..services.logging_service import StructuredLogger
@@ -465,7 +459,7 @@ class IntegrationService:
     ):
         """Process a webhook delivery."""
         try:
-            start_time = datetime.utcnow()
+            _start_time = datetime.utcnow()
 
             # Process the webhook
             result = await integration_instance.process_webhook(event_type, payload)

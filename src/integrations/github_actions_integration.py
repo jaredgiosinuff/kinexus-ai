@@ -4,14 +4,11 @@ GitHub Actions Integration - 2024-2025 Agentic AI Pattern
 Implements PR-based documentation workflows with tiered update strategies
 """
 import asyncio
-import base64
 import json
 import logging
-import os
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import boto3
 import yaml

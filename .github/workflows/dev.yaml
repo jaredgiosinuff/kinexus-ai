@@ -162,14 +162,11 @@ jobs:
         run: |
           poetry run black --check src/ tests/
           poetry run isort --check-only src/ tests/
-          # TODO: Fix ruff violations and re-enable
-          # poetry run ruff src/ tests/
+          poetry run ruff check src/ tests/
 
       - name: Run type checking
         run: |
-          # TODO: Fix mypy errors and re-enable
-          # poetry run mypy src/
-          echo "⚠️ Type checking temporarily disabled"
+          poetry run mypy src/
 
       - name: Run security scan
         run: |

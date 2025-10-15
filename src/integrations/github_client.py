@@ -4,8 +4,7 @@ Manages documents that live in GitHub repositories
 """
 
 import base64
-import json
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import httpx
 import structlog
@@ -155,7 +154,7 @@ class GitHubClient:
                 if response.status_code == 200:
                     return response.json()
                 return []
-            except:
+            except Exception:
                 return []
 
 

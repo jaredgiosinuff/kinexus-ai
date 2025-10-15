@@ -9,9 +9,8 @@ This module defines the core database schema supporting:
 - Complete audit trails
 """
 
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import JSON, Boolean, Column, DateTime

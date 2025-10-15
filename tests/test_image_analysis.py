@@ -2,11 +2,10 @@
 """
 Test suite for Image Analysis Framework
 """
-import asyncio
 import base64
 import io
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest

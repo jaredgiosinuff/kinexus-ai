@@ -3,10 +3,8 @@ Confluence Client for Document Management
 Manages documents that live in Confluence spaces
 """
 
-import base64
-import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import httpx
 import structlog

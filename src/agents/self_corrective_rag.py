@@ -11,12 +11,11 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List
 
 import boto3
-import numpy as np
 
-from ..config.model_config import ModelCapability, ModelConfigManager
+from ..config.model_config import ModelConfigManager
 
 # Import existing components
 from .agentic_rag_system import (
@@ -26,8 +25,6 @@ from .agentic_rag_system import (
     RAGTaskType,
     RetrievalStrategy,
 )
-from .multi_agent_supervisor import AgentRole, BedrockAgent, MultiAgentSupervisor
-from .persistent_memory_system import PersistentMemorySystem
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +193,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5  # Default fallback
 
     async def _assess_accuracy(self, query: RAGQuery, result: RAGResult) -> float:
@@ -221,7 +218,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5
 
     async def _assess_completeness(self, query: RAGQuery, result: RAGResult) -> float:
@@ -245,7 +242,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5
 
     async def _assess_coherence(self, result: RAGResult) -> float:
@@ -268,7 +265,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5
 
     async def _assess_factual_consistency(self, result: RAGResult) -> float:
@@ -298,7 +295,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5
 
     async def _assess_source_reliability(self, result: RAGResult) -> float:
@@ -1009,7 +1006,7 @@ async def main():
     # Process with CRAG
     result = await crag.process_query(test_query)
 
-    print(f"CRAG Result:")
+    print("CRAG Result:")
     print(f"- Final confidence: {result.final_result.confidence:.3f}")
     print(f"- Iterations: {result.correction_iterations}")
     print(f"- Corrections applied: {[c.value for c in result.corrections_applied]}")

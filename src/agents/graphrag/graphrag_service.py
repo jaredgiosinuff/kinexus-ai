@@ -3,25 +3,19 @@
 GraphRAG Service for Kinexus AI
 Implements Microsoft GraphRAG for relationship-aware document retrieval
 """
-import asyncio
 import json
 import logging
 import os
-
-# Import our existing components
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import boto3
-import networkx as nx
 import numpy as np
 import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from graphrag.query.indexer_adapters import read_indexer_entities, read_indexer_reports
-from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 from graphrag.query.structured_search.global_search.community_context import (
     GlobalCommunityContext,
 )
@@ -33,7 +27,7 @@ from graphrag.query.structured_search.local_search.search import LocalSearch
 from pydantic import BaseModel
 
 sys.path.append("/app")
-from src.config.model_config import ModelCapability, ModelConfigManager
+from src.config.model_config import ModelCapability, ModelConfigManager  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

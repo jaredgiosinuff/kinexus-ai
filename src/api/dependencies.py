@@ -5,7 +5,7 @@ These dependencies are used across multiple router modules to ensure
 consistent authentication, database access, and user authorization.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Generator, Optional
 from uuid import UUID
 

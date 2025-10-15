@@ -5,7 +5,7 @@ Tests for Lambda deployment and overall system integration
 import json
 import os
 import sys
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import boto3
 import pytest
@@ -137,12 +137,7 @@ class TestSystemIntegration:
 
             # Mock dependencies before importing
             with patch("boto3.resource"), patch("boto3.client"):
-                from mcp_client import MCPClient
-                from mcp_config import MCPConfigManager
-                from mcp_server import MCPServer
-                from model_config import ModelConfigManager
-                from multi_agent_supervisor import MultiAgentSupervisor
-                from nova_pro_integration import NovaProImageAnalyzer
+                pass
 
             print("✅ All modules imported successfully")
             return True

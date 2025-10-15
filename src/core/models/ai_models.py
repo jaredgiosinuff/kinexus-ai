@@ -3,16 +3,14 @@ AI Models and Provider System for Kinexus AI
 Supports multiple providers and model types with optimized configurations
 """
 
-import asyncio
 import json
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, AsyncIterator, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 import boto3
-import httpx
 from pydantic import BaseModel, Field
 
 from ..config import get_settings

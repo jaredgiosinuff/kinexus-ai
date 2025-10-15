@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import aiohttp
@@ -348,7 +348,7 @@ class MondayIntegration(BaseIntegration):
                 )
 
             # Create document data structure
-            document_data = {
+            _document_data = {
                 "source": "monday.com",
                 "source_id": f"monday_{board_id}_{item_id}",
                 "title": item_name,
@@ -471,7 +471,7 @@ class MondayIntegration(BaseIntegration):
             event = payload.get("event", {})
             pulse_id = event.get("pulseId")
             board_id = event.get("boardId")
-            user_id = event.get("userId")
+            _user_id = event.get("userId")
 
             # Check if this board is in our configuration
             configured_boards = self.integration.config.get("boards", [])

@@ -2,30 +2,20 @@
 """
 Comprehensive tests for MCP integration in Kinexus AI
 """
-import asyncio
-import json
 import os
 import sys
 import uuid
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-# Add src directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "integrations"))
+# Add src directories to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "config"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src", "integrations"))
 
-from mcp_client import MCPClient, MCPServerConnection, MCPTransport
-from mcp_config import MCPConfigManager, MCPServerConfig
-from mcp_server import (
-    MCPMessage,
-    MCPMessageType,
-    MCPPrompt,
-    MCPResource,
-    MCPResourceType,
-    MCPServer,
-    MCPTool,
-)
+from mcp_client import MCPClient, MCPServerConnection, MCPTransport  # noqa: E402
+from mcp_config import MCPConfigManager, MCPServerConfig  # noqa: E402
+from mcp_server import MCPMessage, MCPMessageType, MCPServer  # noqa: E402
 
 
 class TestMCPServer:
@@ -280,7 +270,7 @@ class TestMCPIntegration:
         with patch("boto3.resource"), patch("boto3.client"):
             server = MCPServer("integration-test-server")
 
-        client = MCPClient("integration-test-client")
+        _client = MCPClient("integration-test-client")
 
         # Test server info
         server_info = server.get_server_info()

@@ -71,7 +71,7 @@ async def slack_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Handle Slack webhook events.
     """
-    payload = await request.json()
+    _payload = await request.json()
 
     # TODO: Process Slack events
 

@@ -5,7 +5,6 @@ Handles WebSocket connections for real-time notifications about
 review queue changes, assignments, and system events.
 """
 
-import asyncio
 import json
 import logging
 from typing import Any, Dict

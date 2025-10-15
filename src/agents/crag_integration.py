@@ -4,11 +4,10 @@ CRAG Integration Layer for Kinexus AI
 Integrates Self-Corrective RAG with existing document management and agent systems
 """
 import asyncio
-import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import boto3
 
@@ -21,10 +20,10 @@ from .agentic_rag_system import (
     RAGTaskType,
     RetrievalStrategy,
 )
-from .multi_agent_supervisor import AgentRole, MultiAgentSupervisor
+from .multi_agent_supervisor import MultiAgentSupervisor
 
 # Import CRAG system and existing components
-from .self_corrective_rag import CRAGResult, QualityMetric, SelfCorrectiveRAG
+from .self_corrective_rag import CRAGResult, SelfCorrectiveRAG
 
 logger = logging.getLogger(__name__)
 
@@ -579,7 +578,7 @@ async def example_integration():
         {"document_type": "api_docs", "section": "authentication"},
     )
 
-    print(f"CRAG Processing Results:")
+    print("CRAG Processing Results:")
     print(f"- Quality Score: {result.quality_assessment.overall_score:.3f}")
     print(f"- Corrections Applied: {[c.value for c in result.corrections_applied]}")
     print(f"- Final Answer: {result.final_result.answer[:200]}...")

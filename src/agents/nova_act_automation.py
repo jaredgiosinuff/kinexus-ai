@@ -9,9 +9,9 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 import boto3
 
@@ -106,7 +106,7 @@ class NovaActAgent:
         """Ensure S3 bucket exists for storing screenshots"""
         try:
             self.s3.head_bucket(Bucket=self.screenshot_bucket)
-        except:
+        except Exception:
             try:
                 self.s3.create_bucket(Bucket=self.screenshot_bucket)
                 logger.info(f"Created screenshot bucket: {self.screenshot_bucket}")

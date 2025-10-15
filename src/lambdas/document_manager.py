@@ -13,7 +13,7 @@ import base64
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import boto3
 import structlog
@@ -293,7 +293,7 @@ class DocumentManager:
         This is the PRIMARY operation of the system.
         """
 
-        source_type = doc_metadata["source_type"]
+        _source_type = doc_metadata["source_type"]
 
         # Step 1: Fetch current content
         current_content = await self.fetch_document_content(doc_metadata)

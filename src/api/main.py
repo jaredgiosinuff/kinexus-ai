@@ -10,7 +10,6 @@ This is the central API server that handles:
 """
 
 import logging
-import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -25,7 +24,7 @@ from fastapi.responses import JSONResponse
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.routers import (
+from api.routers import (  # noqa: E402
     admin,
     auth,
     documentation_plans,
@@ -35,9 +34,9 @@ from api.routers import (
     webhooks,
     websocket,
 )
-from core.config import settings
-from core.services.metrics_service import metrics_service
-from database.connection import close_database, db_manager, init_database
+from core.config import settings  # noqa: E402
+from core.services.metrics_service import metrics_service  # noqa: E402
+from database.connection import close_database, db_manager, init_database  # noqa: E402
 
 # Configure logging
 logging.basicConfig(

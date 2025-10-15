@@ -3,8 +3,6 @@ Comprehensive Logging Service for Kinexus AI
 Supports structured logging, metrics, and monitoring integration
 """
 
-import asyncio
-import json
 import logging
 import time
 import traceback
@@ -12,11 +10,11 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import structlog
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, Summary
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
 from pythonjsonlogger import jsonlogger
 
 from ..config import get_settings
@@ -359,7 +357,7 @@ class AgentConversationLogger:
         }
 
         self.conversation_history.append(entry)
-        self.logger.info(f"Agent reasoning completed", **entry)
+        self.logger.info("Agent reasoning completed", **entry)
 
     def log_error(self, error: Exception, context: Dict[str, Any]):
         """Log agent errors with full context"""
@@ -372,7 +370,7 @@ class AgentConversationLogger:
         }
 
         self.conversation_history.append(entry)
-        self.logger.error(f"Agent error occurred", error=error, **entry)
+        self.logger.error("Agent error occurred", error=error, **entry)
 
     def get_conversation_summary(self) -> Dict[str, Any]:
         """Get summary of the agent's conversation"""

@@ -2,21 +2,11 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, asc, desc, func, or_
-from sqlalchemy.orm import Session, joinedload, sessionmaker
+from sqlalchemy import and_, desc, or_
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_database_session
-from ..models.auth import (
-    AuthConfig,
-    AuthProvider,
-    Permission,
-    Role,
-    User,
-    UserSession,
-    UserStatus,
-    role_permissions,
-    user_roles,
-)
+from ..models.auth import Permission, Role, User, UserSession, UserStatus
 from ..services.logging_service import StructuredLogger
 
 logger = StructuredLogger("repository.user")
@@ -389,7 +379,7 @@ class UserRepository:
                 .filter(
                     and_(
                         UserSession.token_hash == token_hash,
-                        UserSession.is_active == True,
+                        UserSession.is_active is True,
                         UserSession.expires_at > datetime.utcnow(),
                     )
                 )
@@ -437,7 +427,7 @@ class UserRepository:
         """Revoke all sessions for a user."""
         try:
             query = self.db.query(UserSession).filter(
-                and_(UserSession.user_id == user_id, UserSession.is_active == True)
+                and_(UserSession.user_id == user_id, UserSession.is_active is True)
             )
 
             if except_session_id:
@@ -476,7 +466,7 @@ class UserRepository:
                     or_(
                         UserSession.expires_at <= datetime.utcnow(),
                         and_(
-                            UserSession.is_active == True,
+                            UserSession.is_active is True,
                             UserSession.last_accessed
                             <= datetime.utcnow() - timedelta(days=30),
                         ),
@@ -513,7 +503,7 @@ class UserRepository:
             if active_only:
                 query = query.filter(
                     and_(
-                        UserSession.is_active == True,
+                        UserSession.is_active is True,
                         UserSession.expires_at > datetime.utcnow(),
                     )
                 )

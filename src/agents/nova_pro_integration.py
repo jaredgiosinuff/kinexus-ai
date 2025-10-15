@@ -5,7 +5,6 @@ Provides image analysis capabilities for documentation validation
 """
 import asyncio
 import base64
-import io
 import json
 import logging
 import os
@@ -14,7 +13,6 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 import boto3
-from PIL import Image
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -164,7 +162,7 @@ Format: category_name|confidence_score
             if "|" in response:
                 category, confidence_str = response.strip().split("|", 1)
                 try:
-                    confidence = float(confidence_str)
+                    _confidence = float(confidence_str)
                     return ImageType(category.lower())
                 except (ValueError, KeyError):
                     logger.warning(f"Invalid classification response: {response}")

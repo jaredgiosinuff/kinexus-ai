@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any, Dict, List
 
@@ -10,7 +9,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from core.config import settings
 from core.services.change_intake_service import ChangeIntakeService
 from core.services.documentation_plan_service import DocumentationPlanService
 from database.connection import get_db_session as get_db
@@ -111,7 +109,7 @@ async def analyze_changes(
         }
 
         # Process through existing change intake system
-        result = await change_service.process_github_push(github_payload)
+        _result = await change_service.process_github_push(github_payload)
 
         # Calculate impact and recommendations based on scope
         impact_score = min(10, len(request.changed_files) * 2)
@@ -173,7 +171,7 @@ async def update_documentation(
     Called by GitHub Actions to perform the actual documentation updates.
     """
     try:
-        doc_plan_service = DocumentationPlanService(db)
+        _doc_plan_service = DocumentationPlanService(db)
 
         targets_updated = []
         changes_made = []

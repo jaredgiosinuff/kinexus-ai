@@ -8,7 +8,6 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -427,10 +426,10 @@ async def test_mcp_integration():
     logger.info("Testing MCP Integration")
 
     # Initialize MCP client
-    client = MCPClient()
+    _client = MCPClient()
 
     # Test connecting to our own MCP server (for self-integration testing)
-    local_connection = MCPServerConnection(
+    _local_connection = MCPServerConnection(
         name="kinexus-local",
         url="http://localhost:8000/mcp",  # Hypothetical local MCP endpoint
         transport=MCPTransport.HTTP,

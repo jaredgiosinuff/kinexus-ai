@@ -10,12 +10,10 @@ JIRA BEST PRACTICES FOR DOCUMENTATION:
 5. Check linked tickets and epics for context
 """
 
-import hashlib
-import hmac
 import json
 import os
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict
 
 import boto3
 import structlog
@@ -76,10 +74,10 @@ def should_process_ticket(
 
     fields = issue_data.get("fields", {})
     issue_type = fields.get("issuetype", {}).get("name", "")
-    status = fields.get("status", {}).get("name", "")
+    _status = fields.get("status", {}).get("name", "")
     labels = fields.get("labels", [])
     created = fields.get("created", "")
-    updated = fields.get("updated", "")
+    _updated = fields.get("updated", "")
     resolution = fields.get("resolution", {})
 
     # Check if this is a transition TO a done state
@@ -128,7 +126,7 @@ def should_process_ticket(
                     label in labels for label in JIRA_CONFIG["documentation_labels"]
                 ):
                     return False, f"Ticket is {age_days} days old (likely cleanup)"
-        except:
+        except Exception:
             pass  # If we can't parse date, continue
 
     # Rule 6: Check issue type
@@ -152,7 +150,7 @@ def should_process_ticket(
         try:
             if float(story_points) < JIRA_CONFIG["min_story_points"]:
                 return False, f"Only {story_points} story points (too small)"
-        except:
+        except Exception:
             pass
 
     # Rule 9: Default - process if it's a documentation type
@@ -249,14 +247,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         changelog = body.get("changelog", {})
 
         logger.info(
-            f"Received Jira event", event_type=webhook_event, issue_key=issue.get("key")
+            "Received Jira event", event_type=webhook_event, issue_key=issue.get("key")
         )
 
         # Check if we should process this ticket
         should_process, reason = should_process_ticket(issue, changelog)
 
         if not should_process:
-            logger.info(f"Skipping ticket", issue_key=issue.get("key"), reason=reason)
+            logger.info("Skipping ticket", issue_key=issue.get("key"), reason=reason)
             return {
                 "statusCode": 200,
                 "body": json.dumps(
@@ -310,7 +308,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
 
         logger.info(
-            f"Jira change recorded",
+            "Jira change recorded",
             change_id=change_id,
             documentation_type=doc_context["documentation_type"],
         )

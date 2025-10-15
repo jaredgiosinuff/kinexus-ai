@@ -5,7 +5,6 @@ Handles user login, token generation, and user management endpoints.
 """
 
 from datetime import datetime, timedelta
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm

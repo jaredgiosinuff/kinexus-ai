@@ -3,7 +3,6 @@ Kinexus AI API Client
 Simple client for interacting with the deployed API
 """
 
-import json
 import time
 from typing import Any, Dict, Optional
 
@@ -120,7 +119,7 @@ def demo_flow():
 
     client = KinexusClient(api_url=api_url)
 
-    print(f"🚀 Kinexus AI Demo")
+    print("🚀 Kinexus AI Demo")
     print(f"📡 API URL: {api_url}")
     print("-" * 50)
 
@@ -133,10 +132,10 @@ def demo_flow():
     # Wait for processing
     print("\n2️⃣ Waiting for AI to process change...")
     try:
-        change = client.wait_for_processing(change_id)
-        print(f"   ✅ Processing completed!")
+        _change = client.wait_for_processing(change_id)
+        print("   ✅ Processing completed!")
     except TimeoutError:
-        print(f"   ⏱️ Processing taking longer than expected...")
+        print("   ⏱️ Processing taking longer than expected...")
         return
 
     # Get generated documentation
@@ -150,13 +149,13 @@ def demo_flow():
         doc = docs["Items"][0]
         print(f"   📄 Document ID: {doc['document_id']}")
         print(f"   📝 Title: {doc.get('title', 'N/A')}")
-        print(f"\n   Preview:")
+        print("\n   Preview:")
         print("   " + "-" * 40)
         print(f"   {doc.get('content_preview', 'No preview available')[:200]}...")
 
         # Get full content from S3
         if "s3_key" in doc:
-            content = client.get_document_content(doc["s3_key"])
+            _content = client.get_document_content(doc["s3_key"])
             print(f"\n   Full document saved to S3: {doc['s3_key']}")
     else:
         print("   ⚠️ No documentation generated yet")

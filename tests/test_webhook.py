@@ -5,8 +5,6 @@ Test GitHub webhook locally
 import json
 from datetime import datetime
 
-import requests
-
 
 def test_github_push_event():
     """Simulate a GitHub push event"""

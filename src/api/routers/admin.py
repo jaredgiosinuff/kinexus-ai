@@ -5,9 +5,7 @@ Handles administrative functions like user management, system configuration,
 approval rules, and system metrics.
 """
 
-from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db, require_admin, require_lead_reviewer
@@ -67,7 +65,7 @@ async def get_system_status(
     return {
         "status": "healthy",
         "database": "connected",
-        "active_users": db.query(User).filter(User.is_active == True).count(),
+        "active_users": db.query(User).filter(User.is_active is True).count(),
         "pending_reviews": 0,  # TODO: Get from review service
         "message": "System status endpoint - to be fully implemented",
     }

@@ -8,14 +8,12 @@ Manages WebSocket connections for real-time notifications about:
 - System-wide notifications
 """
 
-import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
-from uuid import UUID
+from typing import Any, Dict, Optional, Set
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 from pydantic import BaseModel
 
 from core.services.metrics_service import metrics_service

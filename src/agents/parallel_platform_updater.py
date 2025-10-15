@@ -5,16 +5,17 @@ Implements concurrent platform updates with circuit breakers and async coordinat
 """
 import asyncio
 import base64
-import hashlib
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import aiohttp
-import boto3
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import Nova Act automation if available
 try:
@@ -24,10 +25,6 @@ try:
 except ImportError:
     logger.warning("Nova Act automation not available")
     NOVA_ACT_AVAILABLE = False
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class PlatformType(Enum):
@@ -201,7 +198,7 @@ class GitHubConnector(PlatformConnector):
                     if response.status == 200:
                         current_file = await response.json()
                         current_sha = current_file["sha"]
-            except:
+            except Exception:
                 pass  # File might not exist
 
         # Prepare update payload

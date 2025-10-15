@@ -6,7 +6,7 @@ Core agent that processes changes and orchestrates documentation updates
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 import boto3
 import structlog
@@ -52,7 +52,7 @@ class DocumentOrchestrator:
 
         change_data = change["Item"]
         logger.info(
-            f"Processing change",
+            "Processing change",
             change_id=change_id,
             repository=change_data.get("change_data", {}).get("repository_name"),
         )
@@ -115,7 +115,7 @@ class DocumentOrchestrator:
                 ),
             )
 
-            result_text = json.loads(response["body"].read())["completion"]
+            _result_text = json.loads(response["body"].read())["completion"]
 
             # Parse the structured response
             # For MVP, simple logic - if README changed, update it
@@ -206,7 +206,7 @@ class DocumentOrchestrator:
                 }
             )
 
-            logger.info(f"Documentation created", document_id=document_id)
+            logger.info("Documentation created", document_id=document_id)
 
             return {
                 "action": "created",
@@ -285,7 +285,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             detail = event["detail"]
             change_id = detail["change_id"]
 
-            logger.info(f"Processing change from EventBridge", change_id=change_id)
+            logger.info("Processing change from EventBridge", change_id=change_id)
 
             # Process the change
             orchestrator = DocumentOrchestrator()

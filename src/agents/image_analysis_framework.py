@@ -18,13 +18,12 @@ import boto3
 import cv2
 import numpy as np
 import pytesseract
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
-from ..config.model_config import ModelCapability, ModelConfigManager
-from .multi_agent_supervisor import BedrockAgent, MultiAgentSupervisor
+from ..config.model_config import ModelConfigManager
 
 # Import existing components
-from .self_corrective_rag import QualityMetric, SelfCorrectiveRAG
+from .self_corrective_rag import SelfCorrectiveRAG
 
 logger = logging.getLogger(__name__)
 
@@ -719,7 +718,7 @@ class ContentValidator:
         height, width = gray.shape
 
         # Check left side for vertical navigation
-        left_region = gray[:, : int(width * 0.2)]
+        _left_region = gray[:, : int(width * 0.2)]
 
         # Check top for horizontal navigation
         top_region = gray[: int(height * 0.2), :]
@@ -927,7 +926,7 @@ class ImageAnalysisEngine:
         # Color blindness check (simplified)
         r_channel = img_array[:, :, 0]
         g_channel = img_array[:, :, 1]
-        b_channel = img_array[:, :, 2]
+        _b_channel = img_array[:, :, 2]
 
         rg_diff = np.mean(np.abs(r_channel.astype(float) - g_channel.astype(float)))
         colorblind_friendly = (
@@ -1193,7 +1192,7 @@ async def main():
     # Analyze image
     result = await analysis_engine.analyze_image(request)
 
-    print(f"Image Analysis Results:")
+    print("Image Analysis Results:")
     print(f"- Overall Confidence: {result.confidence:.3f}")
     print(f"- Processing Time: {result.processing_time:.2f}s")
 

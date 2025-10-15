@@ -14,7 +14,7 @@ import hmac
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import boto3
 import httpx
@@ -331,7 +331,7 @@ async def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         github_event = json.loads(body)
         github_event_type = headers.get("x-github-event", "unknown")
 
-        logger.info(f"Received GitHub event", event_type=github_event_type)
+        logger.info("Received GitHub event", event_type=github_event_type)
 
         # Extract change data
         change_data = extract_change_data(github_event)

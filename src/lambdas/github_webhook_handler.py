@@ -117,7 +117,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         github_event = json.loads(body)
         github_event_type = headers.get("x-github-event", "unknown")
 
-        logger.info(f"Received GitHub event", event_type=github_event_type)
+        logger.info("Received GitHub event", event_type=github_event_type)
 
         # Extract change data
         change_data = extract_change_data(github_event)
@@ -166,7 +166,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             ]
         )
 
-        logger.info(f"Change recorded and event published", change_id=change_id)
+        logger.info("Change recorded and event published", change_id=change_id)
 
         return {
             "statusCode": 200,

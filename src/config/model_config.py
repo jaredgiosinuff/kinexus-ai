@@ -5,13 +5,11 @@ Manages AWS Bedrock model assignments and fallback strategies
 """
 import json
 import logging
-import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import boto3
-from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 

@@ -1,10 +1,9 @@
-import json
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-from sqlalchemy import and_, asc, case, desc, func, or_
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import and_, desc, func
+from sqlalchemy.orm import Session
 
 from ..database import get_database_session
 from ..models.conversations import (
@@ -17,9 +16,6 @@ from ..models.conversations import (
     ConversationSummary,
     ConversationUpdate,
     LiveConversationStatus,
-    ModelCall,
-    PerformanceMetrics,
-    ReasoningStep,
 )
 from ..services.logging_service import StructuredLogger
 
@@ -267,7 +263,7 @@ class ConversationRepository:
             ).count()
 
             # Get aggregate metrics
-            completed_query = base_query.filter(
+            _completed_query = base_query.filter(
                 AgentConversation.status == ConversationStatus.COMPLETED
             )
 

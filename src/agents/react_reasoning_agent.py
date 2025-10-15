@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import boto3
 
@@ -142,7 +142,7 @@ class ReActDocumentationAgent:
             current_context,
         )
 
-        observation_1 = await self._observation_step(
+        _observation_1 = await self._observation_step(
             "Analysis shows the change impacts and scope", action_result_1
         )
 
@@ -151,7 +151,7 @@ class ReActDocumentationAgent:
         ] = action_result_1.result_data
 
         # Step 2: Search for related documentation
-        thought_2 = await self._thought_step(
+        _thought_2 = await self._thought_step(
             "Based on the change analysis, what documentation sections are likely affected?",
             current_context,
         )
@@ -162,7 +162,7 @@ class ReActDocumentationAgent:
             current_context,
         )
 
-        observation_2 = await self._observation_step(
+        _observation_2 = await self._observation_step(
             "Found potentially affected documentation sections", action_result_2
         )
 
@@ -171,7 +171,7 @@ class ReActDocumentationAgent:
         ] = action_result_2.result_data
 
         # Step 3: Assess priority and impact
-        thought_3 = await self._thought_step(
+        _thought_3 = await self._thought_step(
             "What is the priority level and cascade impact of updating these documentation sections?",
             current_context,
         )
@@ -182,7 +182,7 @@ class ReActDocumentationAgent:
             current_context,
         )
 
-        observation_3 = await self._observation_step(
+        _observation_3 = await self._observation_step(
             "Determined update priorities and potential cascade effects",
             action_result_3,
         )
@@ -192,7 +192,7 @@ class ReActDocumentationAgent:
         ] = action_result_3.result_data
 
         # Step 4: Plan optimal update sequence
-        thought_4 = await self._thought_step(
+        _thought_4 = await self._thought_step(
             "Given the priorities and dependencies, what's the optimal update sequence?",
             current_context,
         )
@@ -203,7 +203,7 @@ class ReActDocumentationAgent:
             current_context,
         )
 
-        observation_4 = await self._observation_step(
+        _observation_4 = await self._observation_step(
             "Generated comprehensive update plan with sequencing", action_result_4
         )
 
@@ -212,7 +212,7 @@ class ReActDocumentationAgent:
         ] = action_result_4.result_data
 
         # Step 5: Validate approach and identify risks
-        reflection = await self._reflection_step(
+        _reflection = await self._reflection_step(
             "Reviewing the complete analysis - are there any gaps, risks, or improvements needed?",
             current_context,
         )
@@ -527,7 +527,7 @@ class ReActDocumentationAgent:
 
     async def _plan_updates_action(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Create an optimal update plan"""
-        analysis_progress = context.get("analysis_progress", {})
+        _analysis_progress = context.get("analysis_progress", {})
 
         update_plan = {
             "execution_phases": [

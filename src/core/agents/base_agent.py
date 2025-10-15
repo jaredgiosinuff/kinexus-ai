@@ -4,17 +4,14 @@ Supports Claude 4, Nova models, and configurable reasoning patterns
 """
 
 import asyncio
-import json
-import logging
 import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, AsyncIterator, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-import structlog
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
@@ -446,7 +443,7 @@ class BaseAgent(ABC):
         reasoning_chain: ReasoningChain,
     ):
         """Implement ensemble reasoning combining multiple models and patterns"""
-        ensemble_results = []
+        _ensemble_results = []
 
         # Run different reasoning patterns in parallel
         patterns = [

@@ -6,7 +6,6 @@ Validates all implemented features and generates a validation report
 import json
 import os
 import sys
-import traceback
 from datetime import datetime
 
 # Add test directory to path
@@ -83,13 +82,13 @@ def run_test_suite():
 
                 if success:
                     test_results["passed_tests"] += 1
-                    print(f"   ✅ Status: PASSED")
+                    print("   ✅ Status: PASSED")
                 else:
                     test_results["failed_tests"] += 1
-                    print(f"   ❌ Status: FAILED")
+                    print("   ❌ Status: FAILED")
 
             else:
-                print(f"   ⚠️  Status: SKIPPED (no test runner found)")
+                print("   ⚠️  Status: SKIPPED (no test runner found)")
                 category_result["status"] = "SKIPPED"
 
             end_time = datetime.utcnow()
@@ -320,7 +319,7 @@ def check_file_contains(file_path, search_string):
         with open(full_path, "r") as f:
             content = f.read()
             return search_string in content
-    except:
+    except Exception:
         return False
 
 

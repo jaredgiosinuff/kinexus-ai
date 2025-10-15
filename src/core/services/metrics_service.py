@@ -9,7 +9,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Deque, Dict, List, Optional, Tuple, Union
+from typing import Deque, Dict, List, Optional, Tuple
 
 from prometheus_client import CollectorRegistry, Counter
 from prometheus_client import Enum as PrometheusEnum
@@ -17,12 +17,10 @@ from prometheus_client import (
     Gauge,
     Histogram,
     Info,
-    MetricsHandler,
     Summary,
     generate_latest,
     start_http_server,
 )
-from prometheus_client.openmetrics.exposition import CONTENT_TYPE_LATEST
 
 from ..config import get_settings
 from .logging_service import LogCategory, StructuredLogger

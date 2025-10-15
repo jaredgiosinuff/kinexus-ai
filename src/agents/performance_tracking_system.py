@@ -4,7 +4,6 @@ Self-Improving Agent Performance Tracking System - 2024-2025 Agentic AI Pattern
 Implements continuous performance monitoring, analysis, and optimization for multi-agent workflows
 """
 import asyncio
-import hashlib
 import json
 import logging
 import statistics

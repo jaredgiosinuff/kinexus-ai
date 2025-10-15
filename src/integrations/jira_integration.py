@@ -3,8 +3,6 @@ Jira Integration for Issue Tracking and Documentation Synchronization
 Manages documentation that lives in Jira issues, comments, and knowledge base
 """
 
-import base64
-import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 

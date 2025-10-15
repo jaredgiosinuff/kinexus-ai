@@ -11,7 +11,7 @@ DOCUMENTATION STRATEGY:
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import boto3
 import structlog
@@ -146,7 +146,7 @@ class EnhancedDocumentOrchestrator:
         jira_context = change_data.get("change_data", {}).get(
             "documentation_context", {}
         )
-        issue_key = jira_context.get("issue_key")
+        _issue_key = jira_context.get("issue_key")
         doc_type = jira_context.get("documentation_type", "general")
 
         # Generate appropriate documentation based on ticket type
@@ -230,7 +230,7 @@ class EnhancedDocumentOrchestrator:
             )
 
             logger.info(
-                f"GitHub documentation created",
+                "GitHub documentation created",
                 repository=repository,
                 doc_type=doc_type,
                 s3_key=s3_key,
@@ -415,7 +415,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             detail = event["detail"]
             change_id = detail["change_id"]
 
-            logger.info(f"Processing change from EventBridge", change_id=change_id)
+            logger.info("Processing change from EventBridge", change_id=change_id)
 
             orchestrator = EnhancedDocumentOrchestrator()
             import asyncio
