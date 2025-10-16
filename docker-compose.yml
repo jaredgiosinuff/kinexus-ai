@@ -172,7 +172,6 @@ services:
       - LOG_LEVEL=INFO
     volumes:
       - ./src/agents/graphrag:/app/src/agents/graphrag
-      - ./scripts/graphrag:/app/scripts
       - graphrag_data:/app/data
     networks:
       - kinexus_dev_network

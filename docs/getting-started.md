@@ -24,6 +24,9 @@ Kinexus AI is an enterprise platform that leverages Amazon Bedrock Agents, Claud
 git clone https://github.com/jaredgiosinuff/kinexus-ai.git
 cd kinexus-ai
 
+# Ensure dependencies are locked
+poetry lock
+
 # Start complete development environment
 ./quick-start.sh dev
 
