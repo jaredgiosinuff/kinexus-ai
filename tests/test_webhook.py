@@ -6,7 +6,6 @@ import json
 from datetime import datetime
 
 
-
 def test_github_push_event():
     """Simulate a GitHub push event"""
 
