@@ -32,6 +32,7 @@ class TestQualityAssessor:
     def mock_model_config(self):
         """Mock model configuration"""
         config = Mock(spec=ModelConfigManager)
+        config.region = "us-east-1"
         return config
 
     @pytest.fixture
@@ -149,7 +150,9 @@ class TestCorrectionEngine:
     @pytest.fixture
     def mock_model_config(self):
         """Mock model configuration"""
-        return Mock(spec=ModelConfigManager)
+        config = Mock(spec=ModelConfigManager)
+        config.region = "us-east-1"
+        return config
 
     @pytest.fixture
     def correction_engine(self, mock_rag_system, mock_model_config):
@@ -240,7 +243,9 @@ class TestSelfCorrectiveRAG:
     @pytest.fixture
     def mock_model_config(self):
         """Mock model configuration"""
-        return Mock(spec=ModelConfigManager)
+        config = Mock(spec=ModelConfigManager)
+        config.region = "us-east-1"
+        return config
 
     @pytest.fixture
     def crag_system(self, mock_rag_system, mock_model_config):
