@@ -124,12 +124,12 @@ class QualityAssessor:
             query, result
         )
         scores[QualityMetric.COHERENCE] = await self._assess_coherence(result)
-        scores[
-            QualityMetric.FACTUAL_CONSISTENCY
-        ] = await self._assess_factual_consistency(result)
-        scores[
-            QualityMetric.SOURCE_RELIABILITY
-        ] = await self._assess_source_reliability(result)
+        scores[QualityMetric.FACTUAL_CONSISTENCY] = (
+            await self._assess_factual_consistency(result)
+        )
+        scores[QualityMetric.SOURCE_RELIABILITY] = (
+            await self._assess_source_reliability(result)
+        )
         scores[QualityMetric.TEMPORAL_VALIDITY] = await self._assess_temporal_validity(
             result
         )

@@ -2,6 +2,7 @@
 Document Service for Kinexus AI
 Handles document management operations
 """
+
 import logging
 from typing import Any, Dict, Optional
 
