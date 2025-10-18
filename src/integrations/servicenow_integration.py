@@ -44,7 +44,6 @@ class ServiceNowIntegration(BaseIntegration):
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
-
                     if response.status == 200:
                         data = await response.json()
                         return TestResult(

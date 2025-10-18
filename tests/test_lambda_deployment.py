@@ -228,7 +228,6 @@ class TestFeatureValidation:
             patch("multi_agent_supervisor.SelfImprovingPerformanceManager"),
             patch("multi_agent_supervisor.MCPClient"),
         ):
-
             sys.path.append(
                 os.path.join(os.path.dirname(__file__), "..", "src", "agents")
             )

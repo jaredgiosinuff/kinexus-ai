@@ -645,10 +645,11 @@ class AgenticRAGSystem:
                 }
 
             # Step 4: Response synthesis
-            synthesized_response, confidence = (
-                await self.response_synthesizer.synthesize_response(
-                    query, all_chunks, agent_breakdown
-                )
+            (
+                synthesized_response,
+                confidence,
+            ) = await self.response_synthesizer.synthesize_response(
+                query, all_chunks, agent_breakdown
             )
 
             # Step 5: Store experience in memory

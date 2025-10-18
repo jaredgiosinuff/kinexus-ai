@@ -594,7 +594,6 @@ class IntegrationService:
                     and integration.next_sync
                     and integration.next_sync <= current_time
                 ):
-
                     try:
                         await self.sync_integration(integration.id, "incremental")
                     except Exception as e:

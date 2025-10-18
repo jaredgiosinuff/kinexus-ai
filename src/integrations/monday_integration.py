@@ -223,7 +223,6 @@ class MondayIntegration(BaseIntegration):
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(total=60),
                 ) as response:
-
                     if response.status != 200:
                         raise Exception(
                             f"API request failed with status {response.status}"
@@ -656,7 +655,6 @@ class MondayIntegration(BaseIntegration):
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
-
                     if response.status != 200:
                         self.logger.error(
                             "Failed to fetch item data",
