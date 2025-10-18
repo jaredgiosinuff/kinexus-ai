@@ -1,6 +1,7 @@
 #!/bin/bash
 # Run the same code quality checks that GitHub Actions CI runs
 # This ensures your code will pass CI before you push
+# Updated to use access key authentication
 
 set -e
 
