@@ -998,7 +998,9 @@ class ImageAnalysisEngine:
             "overall_health": (
                 "good"
                 if not errors and len(warnings) <= 1
-                else "poor" if errors else "fair"
+                else "poor"
+                if errors
+                else "fair"
             ),
         }
 

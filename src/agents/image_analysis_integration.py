@@ -673,7 +673,6 @@ class ImageAnalysisIntegrationManager:
         metrics_service: MetricsService,
         crag_system: Optional[SelfCorrectiveRAG] = None,
     ):
-
         self.model_config = model_config
         self.document_service = document_service
         self.metrics_service = metrics_service

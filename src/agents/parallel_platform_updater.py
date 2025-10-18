@@ -385,7 +385,6 @@ class ParallelPlatformUpdater:
                         and update.platform
                         in [PlatformType.CONFLUENCE, PlatformType.SHAREPOINT]
                     ):
-
                         logger.info(
                             f"API update failed for {update.platform.value}, trying browser automation"
                         )
@@ -404,7 +403,6 @@ class ParallelPlatformUpdater:
                         and update.platform
                         in [PlatformType.CONFLUENCE, PlatformType.SHAREPOINT]
                     ):
-
                         logger.info(
                             f"API error for {update.platform.value}, trying browser automation fallback"
                         )

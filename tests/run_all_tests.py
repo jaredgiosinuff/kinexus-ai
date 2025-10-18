@@ -145,7 +145,9 @@ def generate_validation_report(test_results):
         status_symbol = (
             "✅"
             if result["status"] == "PASSED"
-            else "❌" if result["status"] == "FAILED" else "⚠️"
+            else "❌"
+            if result["status"] == "FAILED"
+            else "⚠️"
         )
         print(f"  {status_symbol} {category_name}: {result['status']}")
         if result["errors"]:
