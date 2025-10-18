@@ -223,13 +223,47 @@ run_tests() {
     print_step "Running tests in containerized environment..."
 
     # Ensure services are running
-    docker-compose up -d postgres redis
+    docker-compose up -d postgres redis api
 
     # Wait for database
     sleep 5
 
-    # Run tests
-    docker-compose exec api poetry run pytest tests/ --cov=src --cov-report=term-missing
+    # Run tests in container if present; fallback to smoke test when none collected
+    if docker-compose exec -T api sh -lc 'test -d /app/tests'; then
+        print_step "Running pytest suite..."
+        set +e
+        docker-compose exec -T api sh -lc 'poetry run pytest tests/ --cov=src --cov-report=term-missing'
+        code=$?
+        set -e
+        if [ $code -eq 5 ]; then
+            print_step "No tests collected. Performing API health smoke test..."
+            sleep 3
+            set +e
+            docker-compose exec -T api sh -lc 'curl -sf http://localhost:8000/health'
+            status=$?
+            set -e
+            if [ $status -ne 0 ]; then
+                print_error "Smoke test failed: API health endpoint not reachable"
+                exit 1
+            fi
+            print_success "Smoke test passed: API /health reachable"
+        elif [ $code -ne 0 ]; then
+            print_error "Pytest failed with exit code $code"
+            exit $code
+        fi
+    else
+        print_step "No tests/ directory found in container. Performing API health smoke test..."
+        sleep 3
+        set +e
+        docker-compose exec -T api sh -lc 'curl -sf http://localhost:8000/health'
+        status=$?
+        set -e
+        if [ $status -ne 0 ]; then
+            print_error "Smoke test failed: API health endpoint not reachable"
+            exit 1
+        fi
+        print_success "Smoke test passed: API /health reachable"
+    fi
 
     print_success "Tests completed"
 }

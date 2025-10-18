@@ -1,7 +1,6 @@
 # Docker Compose for Kinexus AI Development Environment
 # This file defines the local development services using port range 3100-3110
 
-version: '3.8'
 
 services:
   # PostgreSQL Database
@@ -53,18 +52,18 @@ services:
       # LocalStack configuration
       SERVICES: s3,dynamodb,lambda,sqs,sns,secretsmanager,ssm,iam,sts,events
       DEBUG: 1
-      DATA_DIR: /tmp/localstack/data
+      DATA_DIR: /var/lib/localstack
+      TMPDIR: /var/lib/localstack/tmp
+      LOCALSTACK_TMPDIR: /var/lib/localstack/tmp
       DOCKER_HOST: unix:///var/run/docker.sock
-      HOST_TMP_FOLDER: /tmp/localstack
       PERSISTENCE: 1
       # AWS configuration
       AWS_DEFAULT_REGION: us-east-1
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
     volumes:
-      - "/tmp/localstack:/tmp/localstack"
+      - localstack_data:/var/lib/localstack
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - localstack_data:/tmp/localstack/data
     networks:
       - kinexus_dev_network
     healthcheck:
@@ -137,9 +136,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      localstack:
-        condition: service_healthy
-    command: ["poetry", "run", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   # Mock Bedrock Service (for AI model mocking)
   mock-bedrock:
@@ -175,7 +172,6 @@ services:
       - LOG_LEVEL=INFO
     volumes:
       - ./src/agents/graphrag:/app/src/agents/graphrag
-      - ./scripts/graphrag:/app/scripts
       - graphrag_data:/app/data
     networks:
       - kinexus_dev_network
@@ -199,7 +195,6 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.orchestrator
-      target: agent-base
     container_name: kinexus_orchestrator
     ports:
       - "8010:8010"
@@ -242,7 +237,6 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.change-analyzer
-      target: agent-base
     container_name: kinexus_change_analyzer
     ports:
       - "8011:8011"
@@ -285,7 +279,6 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.content-creator
-      target: agent-base
     container_name: kinexus_content_creator
     ports:
       - "8012:8012"
@@ -326,7 +319,6 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.quality-controller
-      target: agent-base
     container_name: kinexus_quality_controller
     ports:
       - "8013:8013"
@@ -367,7 +359,6 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.web-automator
-      target: agent-base
     container_name: kinexus_web_automator
     ports:
       - "8014:8014"

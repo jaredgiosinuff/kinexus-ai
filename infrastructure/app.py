@@ -155,7 +155,7 @@ class KinexusAIMVPStack(Stack):
             event_bus=self.event_bus,
             event_pattern={
                 "source": ["kinexus.github", "kinexus.jira"],
-                "detail-type": ["ChangeDetected"]
+                "detail_type": ["ChangeDetected"]
             },
             targets=[targets.LambdaFunction(self.document_orchestrator)]
         )
@@ -200,25 +200,25 @@ class KinexusAIMVPStack(Stack):
         from aws_cdk import CfnOutput
 
         CfnOutput(
-            self, "APIEndpoint",
+            self, "APIEndpointOutput",
             value=self.api.url,
             description="API Gateway endpoint URL"
         )
 
         CfnOutput(
-            self, "GitHubWebhookURL",
+            self, "GitHubWebhookURLOutput",
             value=f"{self.api.url}webhooks/github",
             description="GitHub webhook URL"
         )
 
         CfnOutput(
-            self, "JiraWebhookURL",
+            self, "JiraWebhookURLOutput",
             value=f"{self.api.url}webhooks/jira",
             description="Jira webhook URL"
         )
 
         CfnOutput(
-            self, "DocumentsBucket",
+            self, "DocumentsBucketNameOutput",
             value=self.documents_bucket.bucket_name,
             description="S3 bucket for documents"
         )

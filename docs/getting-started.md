@@ -24,6 +24,9 @@ Kinexus AI is an enterprise platform that leverages Amazon Bedrock Agents, Claud
 git clone https://github.com/jaredgiosinuff/kinexus-ai.git
 cd kinexus-ai
 
+# Ensure dependencies are locked
+poetry lock
+
 # Start complete development environment
 ./quick-start.sh dev
 
@@ -31,16 +34,21 @@ cd kinexus-ai
 ./quick-start.sh test
 
 # Access main services
-open http://localhost:3105  # API Documentation
-open http://localhost:3107  # Frontend Dashboard
-open http://localhost:3106  # Mock AI Agents
+open http://localhost:3105        # API root
+open http://localhost:3105/docs   # API documentation (Swagger UI)
+open http://localhost:3106        # Mock AI Agents
+# Note: The frontend dashboard at http://localhost:3107 is not available in this setup yet.
 ```
 
 **What you get**: Full containerized environment with PostgreSQL, Redis, OpenSearch, Mock AI services, and complete API.
 
 ### Option 2: Cloud Deployment (Production Ready)
 
-**Prerequisites**: AWS Account with Bedrock access, AWS CLI
+**Prerequisites**:
+- **AWS Account** with Bedrock access and configured credentials (`aws configure`).
+- **AWS CDK CLI** installed (one-time): `npm install -g aws-cdk` or `brew install aws-cdk`.
+- **Python environment** available with `pip` and optionally `pyenv`/`venv`.
+- **Poetry** installed to export deps for the Lambda layer (e.g., `pipx install poetry`).
 
 ```bash
 # Clone repository
@@ -50,7 +58,10 @@ cd kinexus-ai
 # Configure AWS credentials
 aws configure
 
-# Deploy infrastructure
+# Build the Lambda layer asset required by CDK (produces lambda_layer.zip)
+./scripts/build-layer.sh
+
+# Deploy infrastructure (uses CDK under the hood)
 ./scripts/deploy-aws.sh
 
 # Configure integrations

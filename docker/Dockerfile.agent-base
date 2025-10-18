@@ -11,7 +11,12 @@ ENV PYTHONUNBUFFERED=1 \
     POETRY_CACHE_DIR=/tmp/poetry_cache
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
+    elif [ -f /etc/apt/sources.list ]; then \
+        sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list; \
+    fi && \
+    apt-get -o Acquire::Retries=5 update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     libpq-dev \

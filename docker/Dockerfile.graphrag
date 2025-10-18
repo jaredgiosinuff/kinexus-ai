@@ -3,12 +3,24 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies (hardened for proxies and flaky mirrors)
+RUN set -eux; \
+    # Ensure debian sources use HTTPS (handles both deb822 and classic list)
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
+      sed -i 's|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    if [ -f /etc/apt/sources.list ]; then \
+      sed -i 's|http://|https://|g' /etc/apt/sources.list || true; \
+    fi; \
+    echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates \
+      git \
+      curl \
+      build-essential; \
+    rm -rf /var/lib/apt/lists/*
 
 # Install GraphRAG and dependencies
 COPY requirements-graphrag.txt .
@@ -16,7 +28,6 @@ RUN pip install --no-cache-dir -r requirements-graphrag.txt
 
 # Copy GraphRAG configuration and scripts
 COPY src/agents/graphrag/ ./src/agents/graphrag/
-COPY scripts/graphrag/ ./scripts/
 
 # Create data directories
 RUN mkdir -p /app/data/input /app/data/output /app/data/cache
