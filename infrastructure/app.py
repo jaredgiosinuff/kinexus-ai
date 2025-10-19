@@ -211,11 +211,65 @@ class KinexusAIMVPStack(Stack):
             apigateway.LambdaIntegration(self.jira_webhook_handler)
         )
 
+        # Review Ticket Creator Lambda
+        self.review_ticket_creator = lambda_.Function(
+            self, "ReviewTicketCreator",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            code=lambda_.Code.from_asset("src/lambdas"),
+            handler="review_ticket_creator.lambda_handler",
+            timeout=Duration.seconds(60),
+            memory_size=512,
+            environment={
+                **orchestrator_env,  # Inherit Jira credentials
+                "JIRA_PROJECT_KEY": "TOAST",
+            },
+            layers=[self.lambda_layer],
+            log_retention=logs.RetentionDays.ONE_WEEK
+        )
+
+        # Approval Handler Lambda
+        self.approval_handler = lambda_.Function(
+            self, "ApprovalHandler",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            code=lambda_.Code.from_asset("src/lambdas"),
+            handler="approval_handler.lambda_handler",
+            timeout=Duration.seconds(90),
+            memory_size=512,
+            environment=orchestrator_env,  # Inherit all Jira/Confluence credentials
+            layers=[self.lambda_layer],
+            log_retention=logs.RetentionDays.ONE_WEEK
+        )
+
+        # Grant permissions for new Lambdas
+        self.documents_table.grant_read_write_data(self.review_ticket_creator)
+        self.documents_table.grant_read_write_data(self.approval_handler)
+        self.documents_bucket.grant_read_write(self.review_ticket_creator)
+        self.documents_bucket.grant_read_write(self.approval_handler)
+        self.event_bus.grant_put_events_to(self.approval_handler)
+
+        # EventBridge Rule to trigger review ticket creator after document generation
+        events.Rule(
+            self, "DocumentGeneratedRule",
+            event_bus=self.event_bus,
+            event_pattern={
+                "source": ["kinexus.orchestrator"],
+                "detail_type": ["DocumentGenerated"]
+            },
+            targets=[targets.LambdaFunction(self.review_ticket_creator)]
+        )
+
         # Documents API endpoints
         documents_resource = self.api.root.add_resource("documents")
         documents_resource.add_method(
             "GET",
             apigateway.LambdaIntegration(self.document_orchestrator)
+        )
+
+        # Approval webhook endpoint (separate from main Jira webhook)
+        approval_resource = webhooks_resource.add_resource("approval")
+        approval_resource.add_method(
+            "POST",
+            apigateway.LambdaIntegration(self.approval_handler)
         )
 
         # Output important values
