@@ -362,7 +362,11 @@ jobs:
             -c deployment_type=${{ needs.configure.outputs.deployment_type }} \
             -c environment=${{ needs.configure.outputs.environment }} \
             -c region=${{ env.AWS_REGION }} \
-            -c account=${{ secrets.AWS_ACCOUNT_ID }}
+            -c account=${{ secrets.AWS_ACCOUNT_ID }} \
+            -c jira_base_url="${{ secrets.JIRA_BASE_URL }}" \
+            -c jira_email="${{ secrets.JIRA_EMAIL }}" \
+            -c jira_api_token="${{ secrets.JIRA_API_TOKEN }}" \
+            -c confluence_url="${{ secrets.CONFLUENCE_URL }}"
 
       - name: CDK Synth
         run: |
@@ -370,7 +374,11 @@ jobs:
             -c deployment_type=${{ needs.configure.outputs.deployment_type }} \
             -c environment=${{ needs.configure.outputs.environment }} \
             -c region=${{ env.AWS_REGION }} \
-            -c account=${{ secrets.AWS_ACCOUNT_ID }}
+            -c account=${{ secrets.AWS_ACCOUNT_ID }} \
+            -c jira_base_url="${{ secrets.JIRA_BASE_URL }}" \
+            -c jira_email="${{ secrets.JIRA_EMAIL }}" \
+            -c jira_api_token="${{ secrets.JIRA_API_TOKEN }}" \
+            -c confluence_url="${{ secrets.CONFLUENCE_URL }}"
 
       - name: CDK Deploy
         id: deploy
@@ -380,6 +388,10 @@ jobs:
             -c environment=${{ needs.configure.outputs.environment }} \
             -c region=${{ env.AWS_REGION }} \
             -c account=${{ secrets.AWS_ACCOUNT_ID }} \
+            -c jira_base_url="${{ secrets.JIRA_BASE_URL }}" \
+            -c jira_email="${{ secrets.JIRA_EMAIL }}" \
+            -c jira_api_token="${{ secrets.JIRA_API_TOKEN }}" \
+            -c confluence_url="${{ secrets.CONFLUENCE_URL }}" \
             --require-approval never \
             --outputs-file cdk-outputs.json
 
