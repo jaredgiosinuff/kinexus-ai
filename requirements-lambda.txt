@@ -1,11 +1,9 @@
 # Minimal Lambda runtime dependencies (only what's imported in src/lambdas/*)
 # Keep this list small to stay under the 250MB unzipped limit.
+# NOTE: boto3 and botocore are provided by AWS Lambda runtime - DO NOT include them
 
 # Logging
 structlog>=23,<24
-
-# AWS SDK (provides botocore as a dependency)
-boto3>=1.28,<2
 
 # HTTP client (used by v2 handlers)
 httpx>=0.25,<1
