@@ -31,8 +31,8 @@ else
   USED_EXPORT=true
 fi
 
-# Install to layer directory (no cache, no deps resolution beyond listed)
-pip install -r "$REQ_FILE" -t "$LAYER_DIR/python" --no-deps --no-cache-dir
+# Install to layer directory WITH dependencies (removed --no-deps to include all dependencies)
+pip install -r "$REQ_FILE" -t "$LAYER_DIR/python" --no-cache-dir
 
 # Prune non-runtime files to reduce size
 find "$LAYER_DIR/python" -type d -name "__pycache__" -prune -exec rm -rf {} +
