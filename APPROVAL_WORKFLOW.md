@@ -178,7 +178,7 @@ Please add:
       ```
       ✅ Documentation approved and published!
 
-      📚 Confluence: https://jared-cluff.atlassian.net/wiki/spaces/SD/pages/98310
+      📚 Confluence: https://yourcompany.atlassian.net/wiki/spaces/SD/pages/98310
 
       Approved by: Sarah TechWriter
       ```
@@ -384,11 +384,11 @@ DOCUMENTS_BUCKET=kinexus-documents-{account}-{region}
 EVENT_BUS=kinexus-events
 
 # Jira/Confluence
-JIRA_BASE_URL=https://jared-cluff.atlassian.net
-JIRA_EMAIL=jbcluff@gmail.com
+JIRA_BASE_URL=https://yourcompany.atlassian.net
+JIRA_EMAIL=user@company.com
 JIRA_API_TOKEN={secret}
-CONFLUENCE_URL=https://jared-cluff.atlassian.net/wiki
-JIRA_PROJECT_KEY=TOAST
+CONFLUENCE_URL=https://yourcompany.atlassian.net/wiki
+JIRA_PROJECT_KEY=YOUR-PROJECT-KEY
 ```
 
 ### Jira Webhook Configuration

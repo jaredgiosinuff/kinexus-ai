@@ -29,10 +29,12 @@ cdk deploy --context environment=development \
 ```
 
 **Production Endpoints:**
-- API: `https://z1rsr9mld0.execute-api.us-east-1.amazonaws.com/prod/`
-- Jira Webhook: `.../webhooks/jira`
-- Approval Webhook: `.../webhooks/approval`
-- Documents API: `.../documents`
+- API: `https://{api-id}.execute-api.{region}.amazonaws.com/prod/`
+- Jira Webhook: `{api-endpoint}/webhooks/jira`
+- Approval Webhook: `{api-endpoint}/webhooks/approval`
+- Documents API: `{api-endpoint}/documents`
+
+*(Replace `{api-id}` and `{region}` with your actual values from CloudFormation outputs)*
 
 **📚 Complete Documentation**: [docs/README.md](docs/README.md) - Comprehensive guides for development, deployment, and administration
 
