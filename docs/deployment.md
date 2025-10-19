@@ -83,8 +83,8 @@ export JIRA_API_TOKEN="your-token"
 - [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) configured
 - [Node.js 18+](https://nodejs.org/) (for AWS CDK)
 - [Python 3.11+](https://www.python.org/downloads/)
-- Jira Cloud account with API access
-- Confluence Cloud account
+- Jira Cloud account with API access (see [atlassian-setup-guide.md](atlassian-setup-guide.md))
+- Confluence Cloud account (see [atlassian-setup-guide.md](atlassian-setup-guide.md))
 
 **Tools:**
 - `jq` - JSON processor
@@ -587,7 +587,7 @@ For automated deployment via GitHub Actions:
 | `AWS_ACCOUNT_ID` | Your AWS account ID | AWS Console → Account dropdown → Copy account ID |
 | `JIRA_BASE_URL` | Jira instance URL | `https://yourcompany.atlassian.net` |
 | `JIRA_EMAIL` | Jira account email | Your Jira login email |
-| `JIRA_API_TOKEN` | Jira API token | [Create token](https://id.atlassian.com/manage-profile/security/api-tokens) |
+| `JIRA_API_TOKEN` | Jira API token | [Create token](https://id.atlassian.com/manage-profile/security/api-tokens) - See [Atlassian Setup Guide](atlassian-setup-guide.md) |
 | `CONFLUENCE_URL` | Confluence instance URL | `https://yourcompany.atlassian.net/wiki` |
 
 ### Optional GitHub Secrets
@@ -895,8 +895,9 @@ aws lambda get-function-configuration \
 - [Architecture](architecture.md) - Detailed system architecture
 - [Approval Workflow](../APPROVAL_WORKFLOW.md) - Complete workflow documentation
 - [AWS Deployment Setup](aws-deployment-setup.md) - IAM permissions and setup
+- [Atlassian Setup Guide](atlassian-setup-guide.md) - Jira/Confluence account and API token setup
 - [GitHub Actions Setup](github-actions-deployment.md) - CI/CD pipeline details
-- [Integration Configuration](integration-configuration.md) - Jira/Confluence setup
+- [Integration Configuration](integration-configuration.md) - Jira/Confluence configuration
 
 ### External Resources
 - [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)

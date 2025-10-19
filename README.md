@@ -96,9 +96,10 @@ If approved, documentation automatically publishes to Confluence with version tr
 - [Architecture](docs/architecture.md) - AWS serverless architecture details
 - [Approval Workflow](APPROVAL_WORKFLOW.md) - Complete Phase 4 workflow documentation
 - [Deployment](docs/deployment.md) - AWS deployment and GitHub Actions setup
+- [Atlassian Setup Guide](docs/atlassian-setup-guide.md) - **NEW:** Jira/Confluence account and API token setup
+- [AWS Deployment Setup](docs/aws-deployment-setup.md) - Infrastructure configuration
 - [Development](docs/development.md) - Local development (FastAPI legacy stack)
 - [Documentation Workflow](docs/documentation-workflow.md) - Document lifecycle and storage
-- [AWS Deployment Setup](docs/aws-deployment-setup.md) - Infrastructure configuration
 - [Testing](docs/testing.md) - Test suite and coverage
 - [Security](docs/security.md) - Security policies and best practices
 - [Integrations](docs/integrations.md) - External system connections
