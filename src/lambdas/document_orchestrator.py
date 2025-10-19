@@ -187,8 +187,8 @@ class DocumentOrchestrator:
 
         # Determine if this is a Jira ticket or GitHub change
         files_changed = change_data.get("change_data", {}).get("files_changed", [])
-        ticket_summary = change_data.get("summary", "")
-        ticket_description = change_data.get("documentation_context", {}).get("description", "")
+        ticket_summary = change_data.get("change_data", {}).get("summary", "")
+        ticket_description = change_data.get("change_data", {}).get("documentation_context", {}).get("description", "")
 
         is_jira_ticket = not files_changed and ticket_summary
 
