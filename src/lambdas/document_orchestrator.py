@@ -101,21 +101,29 @@ class DocumentOrchestrator:
         prompt = self._build_analysis_prompt(context)
 
         try:
+            # Use Messages API for Claude 3.5 Sonnet
             response = bedrock.invoke_model(
                 modelId=CLAUDE_MODEL_ID,
                 contentType="application/json",
                 accept="application/json",
                 body=json.dumps(
                     {
-                        "prompt": f"\n\nHuman: {prompt}\n\nAssistant:",
-                        "max_tokens_to_sample": 1000,
+                        "anthropic_version": "bedrock-2023-05-31",
+                        "max_tokens": 1000,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
                         "temperature": 0.3,
                         "top_p": 0.9,
                     }
                 ),
             )
 
-            _result_text = json.loads(response["body"].read())["completion"]
+            response_body = json.loads(response["body"].read())
+            _result_text = response_body["content"][0]["text"]
 
             # Parse the structured response
             # For MVP, simple logic - if README changed, update it
@@ -153,22 +161,29 @@ class DocumentOrchestrator:
         prompt = self._build_generation_prompt(change_data, analysis, is_update=False)
 
         try:
-            # Generate content with Claude
+            # Generate content with Claude using Messages API
             response = bedrock.invoke_model(
                 modelId=CLAUDE_MODEL_ID,
                 contentType="application/json",
                 accept="application/json",
                 body=json.dumps(
                     {
-                        "prompt": f"\n\nHuman: {prompt}\n\nAssistant:",
-                        "max_tokens_to_sample": 4000,
+                        "anthropic_version": "bedrock-2023-05-31",
+                        "max_tokens": 4000,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
                         "temperature": 0.5,
                         "top_p": 0.95,
                     }
                 ),
             )
 
-            generated_content = json.loads(response["body"].read())["completion"]
+            response_body = json.loads(response["body"].read())
+            generated_content = response_body["content"][0]["text"]
 
             # Store in S3
             document_id = (
