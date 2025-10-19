@@ -31,7 +31,7 @@ DOCUMENTS_BUCKET = os.environ.get("DOCUMENTS_BUCKET", "kinexus-documents")
 EVENT_BUS = os.environ.get("EVENT_BUS", "kinexus-events")
 
 # AI Model configuration
-CLAUDE_MODEL_ID = "anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5 - latest model
+CLAUDE_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0"  # Claude 3.5 Sonnet - latest with on-demand support
 
 
 class DocumentOrchestrator:
@@ -71,8 +71,8 @@ class DocumentOrchestrator:
         # Update change status
         self.changes_table.update_item(
             Key={"change_id": change_id},
-            UpdateExpression="SET #status = :status, processed = :processed, processed_at = :timestamp",
-            ExpressionAttributeNames={"#status": "status"},
+            UpdateExpression="SET #status = :status, #processed = :processed, processed_at = :timestamp",
+            ExpressionAttributeNames={"#status": "status", "#processed": "processed"},
             ExpressionAttributeValues={
                 ":status": "completed",
                 ":processed": True,
