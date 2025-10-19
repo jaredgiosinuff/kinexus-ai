@@ -98,7 +98,7 @@ class KinexusAIMVPStack(Stack):
             "CHANGES_TABLE": self.changes_table.table_name,
             "EVENT_BUS": self.event_bus.event_bus_name,
         }
-        # Add Jira credentials from context if provided
+        # Add Jira/Confluence credentials from GitHub secrets via CDK context
         if self.node.try_get_context("jira_base_url"):
             jira_env["JIRA_BASE_URL"] = self.node.try_get_context("jira_base_url")
         if self.node.try_get_context("jira_email"):
@@ -127,7 +127,7 @@ class KinexusAIMVPStack(Stack):
             "DOCUMENTS_BUCKET": self.documents_bucket.bucket_name,
             "EVENT_BUS": self.event_bus.event_bus_name
         }
-        # Add Jira/Confluence credentials from context if provided
+        # Add Jira/Confluence credentials from GitHub secrets via CDK context
         if self.node.try_get_context("jira_base_url"):
             orchestrator_env["JIRA_BASE_URL"] = self.node.try_get_context("jira_base_url")
         if self.node.try_get_context("jira_email"):
