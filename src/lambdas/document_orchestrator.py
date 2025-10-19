@@ -60,17 +60,10 @@ def search_confluence(cql_query: str, limit: int = 10) -> List[Dict[str, Any]]:
 
     try:
         search_url = f"{CONFLUENCE_URL}/rest/api/content/search"
-        params = {
-            "cql": cql_query,
-            "limit": limit,
-            "expand": "version,body.storage"
-        }
+        params = {"cql": cql_query, "limit": limit, "expand": "version,body.storage"}
 
         response = requests.get(
-            search_url,
-            params=params,
-            auth=(JIRA_EMAIL, JIRA_API_TOKEN),
-            timeout=10
+            search_url, params=params, auth=(JIRA_EMAIL, JIRA_API_TOKEN), timeout=10
         )
         response.raise_for_status()
 
@@ -79,14 +72,18 @@ def search_confluence(cql_query: str, limit: int = 10) -> List[Dict[str, Any]]:
         # Extract relevant fields
         pages = []
         for result in results:
-            pages.append({
-                "id": result["id"],
-                "title": result["title"],
-                "url": f"{CONFLUENCE_URL}/wiki{result['_links']['webui']}",
-                "version": result.get("version", {}).get("number", 1),
-                "space": result.get("space", {}).get("key", ""),
-                "content_preview": result.get("body", {}).get("storage", {}).get("value", "")[:500]
-            })
+            pages.append(
+                {
+                    "id": result["id"],
+                    "title": result["title"],
+                    "url": f"{CONFLUENCE_URL}/wiki{result['_links']['webui']}",
+                    "version": result.get("version", {}).get("number", 1),
+                    "space": result.get("space", {}).get("key", ""),
+                    "content_preview": result.get("body", {})
+                    .get("storage", {})
+                    .get("value", "")[:500],
+                }
+            )
 
         logger.info(f"Confluence search returned {len(pages)} results", cql=cql_query)
         return pages
@@ -109,15 +106,58 @@ def extract_keywords_from_text(text: str, max_keywords: int = 5) -> List[str]:
     """
     # Remove common stop words
     stop_words = {
-        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
-        "been", "being", "have", "has", "had", "do", "does", "did", "will",
-        "would", "should", "could", "may", "might", "must", "can", "this",
-        "that", "these", "those", "i", "you", "he", "she", "it", "we", "they"
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "but",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "are",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "should",
+        "could",
+        "may",
+        "might",
+        "must",
+        "can",
+        "this",
+        "that",
+        "these",
+        "those",
+        "i",
+        "you",
+        "he",
+        "she",
+        "it",
+        "we",
+        "they",
     }
 
     # Clean and tokenize
-    words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
+    words = re.findall(r"\b[a-zA-Z]{3,}\b", text.lower())
 
     # Filter stop words and get unique keywords
     keywords = []
@@ -188,7 +228,11 @@ class DocumentOrchestrator:
         # Determine if this is a Jira ticket or GitHub change
         files_changed = change_data.get("change_data", {}).get("files_changed", [])
         ticket_summary = change_data.get("change_data", {}).get("summary", "")
-        ticket_description = change_data.get("change_data", {}).get("documentation_context", {}).get("description", "")
+        ticket_description = (
+            change_data.get("change_data", {})
+            .get("documentation_context", {})
+            .get("description", "")
+        )
 
         is_jira_ticket = not files_changed and ticket_summary
 
@@ -204,7 +248,7 @@ class DocumentOrchestrator:
                 return {
                     "action": "create",
                     "reason": "No keywords extracted, creating new documentation",
-                    "jira_ticket": ticket_summary
+                    "jira_ticket": ticket_summary,
                 }
 
             # Try multiple search strategies
@@ -241,7 +285,7 @@ class DocumentOrchestrator:
                     "action": "create",
                     "reason": "No related Confluence pages found, creating new documentation",
                     "jira_ticket": ticket_summary,
-                    "keywords": keywords
+                    "keywords": keywords,
                 }
 
         else:
@@ -280,7 +324,7 @@ class DocumentOrchestrator:
         ticket_summary: str,
         ticket_description: str,
         search_results: List[Dict[str, Any]],
-        keywords: List[str]
+        keywords: List[str],
     ) -> Dict[str, Any]:
         """
         Use Claude to analyze Confluence search results and decide whether to
@@ -335,16 +379,15 @@ Be conservative - only choose "update" if you're confident the existing page dir
                 modelId=CLAUDE_MODEL_ID,
                 contentType="application/json",
                 accept="application/json",
-                body=json.dumps({
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 500,
-                    "messages": [{
-                        "role": "user",
-                        "content": prompt
-                    }],
-                    "temperature": 0.2,
-                    "top_p": 0.9,
-                }),
+                body=json.dumps(
+                    {
+                        "anthropic_version": "bedrock-2023-05-31",
+                        "max_tokens": 500,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.2,
+                        "top_p": 0.9,
+                    }
+                ),
             )
 
             response_body = json.loads(response["body"].read())
@@ -352,22 +395,28 @@ Be conservative - only choose "update" if you're confident the existing page dir
 
             # Parse Claude's JSON response
             # Extract JSON from potential markdown code blocks
-            json_match = re.search(r'\{.*\}', claude_response, re.DOTALL)
+            json_match = re.search(r"\{.*\}", claude_response, re.DOTALL)
             if json_match:
                 analysis = json.loads(json_match.group())
             else:
                 analysis = json.loads(claude_response)
 
-            logger.info("Claude analysis complete",
-                        action=analysis.get("action"),
-                        confidence=analysis.get("confidence"))
+            logger.info(
+                "Claude analysis complete",
+                action=analysis.get("action"),
+                confidence=analysis.get("confidence"),
+            )
 
             # Build result
             if analysis.get("action") == "update" and analysis.get("target_page_id"):
                 # Find the target page details
                 target_page = next(
-                    (r for r in search_results if r["id"] == analysis["target_page_id"]),
-                    search_results[0]  # Fallback to first result
+                    (
+                        r
+                        for r in search_results
+                        if r["id"] == analysis["target_page_id"]
+                    ),
+                    search_results[0],  # Fallback to first result
                 )
                 return {
                     "action": "update",
@@ -377,18 +426,20 @@ Be conservative - only choose "update" if you're confident the existing page dir
                     "target_page_version": target_page["version"],
                     "confidence": analysis.get("confidence", 50),
                     "reason": analysis.get("reasoning", "Claude recommended update"),
-                    "jira_ticket": ticket_summary
+                    "jira_ticket": ticket_summary,
                 }
             else:
                 # Create new documentation
                 return {
                     "action": "create",
-                    "suggested_title": analysis.get("target_page_title", ticket_summary),
+                    "suggested_title": analysis.get(
+                        "target_page_title", ticket_summary
+                    ),
                     "confidence": analysis.get("confidence", 50),
                     "reason": analysis.get("reasoning", "Claude recommended new doc"),
                     "jira_ticket": ticket_summary,
                     "keywords": keywords,
-                    "related_pages": [r["url"] for r in search_results[:3]]
+                    "related_pages": [r["url"] for r in search_results[:3]],
                 }
 
         except Exception as e:
@@ -397,7 +448,7 @@ Be conservative - only choose "update" if you're confident the existing page dir
             return {
                 "action": "create",
                 "reason": f"Analysis error: {str(e)}, defaulting to create new doc",
-                "jira_ticket": ticket_summary
+                "jira_ticket": ticket_summary,
             }
 
     async def create_documentation(
@@ -418,12 +469,7 @@ Be conservative - only choose "update" if you're confident the existing page dir
                     {
                         "anthropic_version": "bedrock-2023-05-31",
                         "max_tokens": 4000,
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": prompt
-                            }
-                        ],
+                        "messages": [{"role": "user", "content": prompt}],
                         "temperature": 0.5,
                         "top_p": 0.95,
                     }
@@ -519,12 +565,16 @@ Be conservative - only choose "update" if you're confident the existing page dir
         # Check if this is a Jira ticket or GitHub change
         files = change_data.get("change_data", {}).get("files_changed", [])
         ticket_summary = change_data.get("summary", "")
-        ticket_description = change_data.get("documentation_context", {}).get("description", "")
+        ticket_description = change_data.get("documentation_context", {}).get(
+            "description", ""
+        )
 
         if ticket_summary and not files:
             # JIRA TICKET PROMPT
             action_type = "Update" if is_update else "Create"
-            target = analysis.get("target_page_title", analysis.get("suggested_title", ticket_summary))
+            target = analysis.get(
+                "target_page_title", analysis.get("suggested_title", ticket_summary)
+            )
 
             prompt = f"""Generate technical documentation for a Jira ticket that describes a system change or new feature.
 
