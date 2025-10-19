@@ -31,7 +31,7 @@ DOCUMENTS_BUCKET = os.environ.get("DOCUMENTS_BUCKET", "kinexus-documents")
 EVENT_BUS = os.environ.get("EVENT_BUS", "kinexus-events")
 
 # AI Model configuration
-CLAUDE_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0"  # Claude 3.5 Sonnet - latest with on-demand support
+CLAUDE_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"  # Claude 3 Haiku - fast, cost-effective, on-demand
 
 
 class DocumentOrchestrator:
