@@ -70,8 +70,27 @@ A detailed breakdown lives in [docs/architecture.md](docs/architecture.md) and [
 
 ## Quick Start Guide
 
-### 1. Close a Jira Ticket
-Close any Jira ticket (e.g., `TOAST-42`) with appropriate labels (e.g., `needs-docs`, `new-feature`)
+### 1. Create and Transition a Jira Ticket
+
+**Important:** The workflow only triggers when tickets transition from an **active work state** to completion.
+
+**Required Transition:**
+```
+To Do → In Progress → Done  ✅ (triggers workflow)
+```
+
+**Will NOT Trigger:**
+```
+To Do → Done  ❌ (skipped - not from active state)
+```
+
+**Steps:**
+1. Create a Jira ticket (e.g., `TOAST-42`)
+2. Move to **"In Progress"** (or "In Review", "Testing", "QA")
+3. Move to **"Done"** (or "Closed", "Resolved")
+
+**Optional Labels** (bypass status requirement):
+- Add label `needs-docs` to any ticket to force documentation generation regardless of status transitions
 
 ### 2. Review Ticket Auto-Created
 Within ~2 minutes, a review ticket appears (e.g., `TOAST-43: Review: API Authentication Guide`)

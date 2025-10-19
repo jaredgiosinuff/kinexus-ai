@@ -10,9 +10,45 @@ The Kinexus AI approval workflow provides human oversight for AI-generated docum
 
 ### Phase 1: Trigger (Jira Ticket Closed)
 
-1. Developer closes a Jira ticket (e.g., `TOAST-42: Add OAuth2 authentication`)
+**Critical: Ticket Status Transition Requirements**
+
+The workflow **only triggers** when tickets transition from an **active work state** to a completion state.
+
+**Valid Transitions (Will Trigger):**
+```
+✅ In Progress → Done
+✅ In Review → Done
+✅ Testing → Done
+✅ QA → Closed
+```
+
+**Invalid Transitions (Will NOT Trigger):**
+```
+❌ To Do → Done         (ticket wasn't actively worked on)
+❌ Backlog → Closed     (just cleanup, no real work)
+❌ Open → Resolved      (not in active development)
+```
+
+**Exception: `needs-docs` Label**
+- Tickets with the `needs-docs` label **always trigger** regardless of status transitions
+- Use this for edge cases where you need to force documentation generation
+
+**How to Add Labels in Jira:**
+1. Open the ticket (e.g., https://yourcompany.atlassian.net/browse/TOAST-42)
+2. Find the **Labels** field (usually in the Details section on the right)
+3. Click the Labels field and type `needs-docs`
+4. Press Enter to add the label
+
+**Workflow Steps:**
+
+1. Developer transitions a Jira ticket from active state to done (e.g., `In Progress → Done` for `TOAST-42: Add OAuth2 authentication`)
 2. Jira webhook fires → `jira_webhook_handler` Lambda
-3. Smart filtering determines if documentation is needed
+3. **Smart filtering** determines if documentation is needed:
+   - ✅ Check: Is ticket transitioning **TO** Done/Closed/Resolved?
+   - ✅ Check: Is ticket transitioning **FROM** In Progress/In Review/Testing/QA?
+   - ✅ Check: Does ticket have `needs-docs` label? (bypasses previous check)
+   - ✅ Check: Is ticket type Story/Feature/Epic/Task?
+   - ❌ Skip: If ticket is too old (>30 days) or has `no-docs` label
 4. Change record created in DynamoDB (`kinexus-changes` table)
 5. EventBridge event sent (`kinexus.jira` / `ChangeDetected`)
 
@@ -454,6 +490,47 @@ JIRA_PROJECT_KEY=YOUR-PROJECT-KEY
 ---
 
 ## Troubleshooting
+
+### Workflow Not Triggering (Most Common Issue)
+
+**Symptom:** Ticket closed but no documentation workflow started
+
+**Check Lambda Logs:**
+```bash
+aws logs tail /aws/lambda/KinexusAIMVPStack-*-JiraWebhookHandler* \
+  --since 5m --profile your-profile --region us-east-1 --format short
+```
+
+**Common Skip Reasons:**
+
+1. **"Status To Do is not a completion status"**
+   - You transitioned the ticket but it wasn't moved to Done/Closed/Resolved
+   - **Fix:** Move ticket to "Done", "Closed", or "Resolved"
+
+2. **"Ticket wasn't in active development (was in To Do)"**
+   - You moved directly from To Do → Done without going through In Progress
+   - **Fix:** Move ticket: To Do → In Progress → Done
+   - **Or:** Add `needs-docs` label to bypass this check
+
+3. **"Status None is not a completion status"**
+   - Jira webhook didn't include proper status transition data
+   - **Fix:** Try moving the ticket through states again
+   - Check Jira webhook configuration
+
+4. **"Issue type Bug doesn't need documentation"**
+   - Bugs are skipped by default (configurable)
+   - **Fix:** Add `needs-docs` label or change issue type to Story/Task/Feature
+
+**Quick Fix - Add Label:**
+1. Open ticket in Jira
+2. Click on Labels field (usually right sidebar)
+3. Type `needs-docs` and press Enter
+4. Move ticket to Done again
+
+**Quick Fix - Proper Transition:**
+1. Move ticket to "To Do" (if not already)
+2. Move ticket to "In Progress"
+3. Move ticket to "Done"
 
 ### Review Ticket Not Created
 

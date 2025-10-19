@@ -20,14 +20,42 @@ Kinexus AI runs a **fully automated documentation workflow** with human-in-the-l
 
 **Lambda:** `JiraWebhookHandler` (src/lambdas/jira_webhook_handler.py:30s)
 
-**Smart Filtering:**
+**Critical: Status Transition Requirements**
+
+The webhook handler uses **smart filtering** to avoid generating documentation for every ticket closure (e.g., old ticket cleanup, won't-fix bugs).
+
+**Valid Transitions (Will Trigger):**
+- ✅ In Progress → Done
+- ✅ In Review → Done
+- ✅ Testing → Closed
+- ✅ QA → Resolved
+
+**Invalid Transitions (Will Skip):**
+- ❌ To Do → Done (not actively worked on)
+- ❌ Backlog → Closed (just cleanup)
+- ❌ Open → Won't Fix (no work done)
+
+**Exception: `needs-docs` Label**
+- Bypasses status transition checks
+- Forces documentation generation for any ticket
+
+**Smart Filtering Logic:**
 ```python
 # Determines if documentation is needed based on:
-- Ticket labels (needs-docs, new-feature, breaking-change)
-- Issue type (Story, Epic, Task)
-- Status transitions (To Do → Done)
-- Description keywords (API, documentation, guide, etc.)
+1. Status transition TO: Done/Closed/Resolved/Complete
+2. Status transition FROM: In Progress/In Review/Testing/QA
+3. OR has label: needs-docs, new-feature, breaking-change, api-change
+4. Issue type: Story, Epic, Task, Feature, Improvement
+5. NOT: Bug (unless has needs-docs label)
+6. NOT: Too old (>30 days since creation)
+7. NOT: Has skip labels (no-docs, internal-only, tech-debt)
 ```
+
+**How to Add Labels:**
+1. Open ticket: https://yourcompany.atlassian.net/browse/TOAST-42
+2. Find **Labels** field (Details section, right sidebar)
+3. Click the field and type `needs-docs`
+4. Press Enter to save
 
 **Actions:**
 1. Parse Jira webhook payload
