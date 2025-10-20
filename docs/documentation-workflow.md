@@ -493,6 +493,103 @@ JIRA_PROJECT_KEY=YOUR-PROJECT-KEY
 
 ---
 
+## Required Jira Labels
+
+### Labels for Triggering Documentation Generation
+
+These labels can be added to source tickets (TOAST-4, etc.) to trigger or influence documentation generation:
+
+**Primary Trigger Label:**
+- `needs-docs` - **Forces documentation generation** regardless of status transition
+
+**Feature Type Labels:**
+- `new-feature` - Indicates a new feature (triggers documentation)
+- `breaking-change` - Flags breaking changes (requires documentation)
+- `api-change` - API modifications (triggers documentation)
+
+**Configuration Labels:**
+- `no-docs` - **Prevents documentation generation** (skips ticket)
+- `internal-only` - Internal changes only (skips ticket)
+- `tech-debt` - Technical debt (skips ticket)
+
+**How to Add Labels in Jira:**
+1. Open your ticket: `https://yourcompany.atlassian.net/browse/TOAST-42`
+2. Find the **Labels** field (usually in the Details section, right sidebar)
+3. Click the field and type label name (e.g., `needs-docs`)
+4. Press **Enter** to save
+
+### Auto-Generated Labels on Review Tickets
+
+Review tickets (created by ReviewTicketCreator Lambda) are **automatically labeled** with:
+
+- `documentation-review` - **Required for approval workflow** (ApprovalHandler checks for this)
+- `auto-generated` - Indicates system-generated ticket
+- `kinexus-ai` - Identifies Kinexus AI workflow
+
+**Implementation:** Labels are added via Jira REST API update endpoint after ticket creation. This works even if the labels field is not configured on the Jira create screen.
+
+**Code Location:** `src/lambdas/review_ticket_creator.py:414-431`
+
+### Fallback Detection (Robust Design)
+
+**ApprovalHandler** uses two methods to detect review tickets:
+
+1. **Primary:** Check for `documentation-review` label
+2. **Fallback:** Check if summary starts with `"Review:"`
+
+This ensures the approval workflow works even if label addition fails.
+
+**Code Location:** `src/lambdas/approval_handler.py:315-328`
+
+### Troubleshooting Labels
+
+**Problem:** Review ticket created but approval workflow doesn't trigger
+
+**Solutions:**
+1. **Check labels on review ticket:**
+   ```bash
+   curl -u "user@example.com:$JIRA_API_TOKEN" \
+     "https://yourcompany.atlassian.net/rest/api/3/issue/TOAST-13" | \
+     jq '.fields.labels'
+   ```
+   Expected: `["documentation-review", "auto-generated", "kinexus-ai"]`
+
+2. **Check ApprovalHandler logs:**
+   ```bash
+   aws logs tail /aws/lambda/*ApprovalHandler* --since 5m --profile your-profile
+   ```
+   Look for: `"Not a review ticket: labels=[], summary=Review: ..."`
+
+3. **Manual fix (temporary workaround):**
+   - Open review ticket in Jira UI
+   - Add label `documentation-review` manually
+   - Post approval comment again (`APPROVED`)
+
+4. **Check summary pattern:**
+   - Review tickets MUST have summary starting with `"Review:"`
+   - This is the fallback detection method
+
+**Problem:** Source ticket doesn't trigger documentation generation
+
+**Solutions:**
+1. **Check status transition:**
+   - Must transition FROM: In Progress/In Review/Testing/QA
+   - Must transition TO: Done/Closed/Resolved
+   - Wrong: `To Do → Done` (no active work)
+   - Right: `To Do → In Progress → Done` ✅
+
+2. **Use bypass label:**
+   - Add `needs-docs` label to any ticket
+   - This bypasses status transition requirements
+
+3. **Check JiraWebhookHandler logs:**
+   ```bash
+   aws logs tail /aws/lambda/*JiraWebhookHandler* --since 5m --profile your-profile
+   ```
+   Look for: `"Skipping ticket"` with reason
+
+---
+
 ## Planned Enhancements
 
 - **Automated Image Generation** — AI generates diagrams from descriptions using Mermaid/PlantUML
