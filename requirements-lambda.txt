@@ -1,14 +1,26 @@
-# Lambda-specific requirements (lighter versions)
-boto3==1.28.57
-botocore==1.31.57
-fastapi==0.104.1
-pydantic==2.4.2
-httpx==0.25.0
-anthropic==0.7.1
-python-jose[cryptography]==3.3.0
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
-redis==5.0.1
-python-dotenv==1.0.0
-structlog==23.2.0
-tenacity==8.2.3
+# Minimal Lambda runtime dependencies (only what's imported in src/lambdas/*)
+# Keep this list small to stay under the 250MB unzipped limit.
+# NOTE: boto3 and botocore are provided by AWS Lambda runtime - DO NOT include them
+
+# Logging
+structlog>=23,<24
+
+# HTTP client (used by v2 handlers)
+httpx>=0.25,<1
+
+# Utilities
+python-dateutil>=2.8,<3
+tenacity>=8.2,<9
+typing-extensions>=4.8,<5
+
+# AI/ML for Bedrock calls
+anthropic>=0.7,<1
+
+# Validation (if used by handlers)
+pydantic>=2.5,<3
+
+# Fast JSON handling
+orjson>=3.9,<4
+
+# HTTP requests for Jira/Confluence API
+requests>=2.31,<3

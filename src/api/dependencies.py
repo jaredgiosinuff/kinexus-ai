@@ -5,18 +5,18 @@ These dependencies are used across multiple router modules to ensure
 consistent authentication, database access, and user authorization.
 """
 
-from datetime import datetime, timedelta
-from typing import Optional, Generator
+from datetime import datetime
+from typing import Generator, Optional
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
+from core.config import settings
 from database.connection import get_db_session
 from database.models import User, UserRole
-from core.config import settings
 
 # Security scheme for JWT tokens
 security = HTTPBearer()
@@ -29,7 +29,7 @@ def get_db() -> Generator[Session, None, None]:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> User:
     """
     Get current authenticated user from JWT token.
@@ -55,7 +55,7 @@ async def get_current_user(
         payload = jwt.decode(
             credentials.credentials,
             settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM]
+            algorithms=[settings.ALGORITHM],
         )
 
         # Extract user ID from token
@@ -80,8 +80,7 @@ async def get_current_user(
     # Check if user is active
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account is disabled"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User account is disabled"
         )
 
     # Update last login timestamp
@@ -92,7 +91,7 @@ async def get_current_user(
 
 
 async def get_current_active_user(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> User:
     """
     Get current active user (alias for get_current_user with better name).
@@ -116,19 +115,19 @@ def require_role(required_role: UserRole):
     Returns:
         Dependency function that checks user role
     """
+
     def check_role(current_user: User = Depends(get_current_active_user)) -> User:
         # Role hierarchy (higher index = more permissions)
         role_hierarchy = [
             UserRole.VIEWER,
             UserRole.REVIEWER,
             UserRole.LEAD_REVIEWER,
-            UserRole.ADMIN
+            UserRole.ADMIN,
         ]
 
         if current_user.role not in role_hierarchy:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid user role"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Invalid user role"
             )
 
         user_level = role_hierarchy.index(current_user.role)
@@ -137,7 +136,7 @@ def require_role(required_role: UserRole):
         if user_level < required_level:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Requires {required_role.value} role or higher"
+                detail=f"Requires {required_role.value} role or higher",
             )
 
         return current_user
@@ -191,9 +190,7 @@ def get_user_agent(request: Request) -> str:
 
 
 async def validate_webhook_signature(
-    request: Request,
-    signature_header: str,
-    secret: str
+    request: Request, signature_header: str, secret: str
 ) -> bool:
     """
     Validate webhook signature using HMAC.
@@ -209,32 +206,28 @@ async def validate_webhook_signature(
     Raises:
         HTTPException: If signature validation fails
     """
-    import hmac
     import hashlib
+    import hmac
 
     # Get signature from headers
     signature = request.headers.get(signature_header)
     if not signature:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing webhook signature"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing webhook signature"
         )
 
     # Read request body
     body = await request.body()
 
     # Calculate expected signature
-    expected_signature = "sha256=" + hmac.new(
-        secret.encode(),
-        body,
-        hashlib.sha256
-    ).hexdigest()
+    expected_signature = (
+        "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    )
 
     # Compare signatures (constant time comparison)
     if not hmac.compare_digest(signature, expected_signature):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid webhook signature"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature"
         )
 
     return True
@@ -244,10 +237,7 @@ class AuditLogger:
     """Dependency for logging user actions for audit trail."""
 
     def __init__(
-        self,
-        action: str,
-        resource_type: str,
-        resource_id: Optional[UUID] = None
+        self, action: str, resource_type: str, resource_id: Optional[UUID] = None
     ):
         self.action = action
         self.resource_type = resource_type
@@ -257,7 +247,7 @@ class AuditLogger:
         self,
         request: Request,
         current_user: User = Depends(get_current_active_user),
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
     ):
         """Log audit event."""
         from database.models import AuditLog
@@ -268,7 +258,7 @@ class AuditLogger:
             resource_type=self.resource_type,
             resource_id=self.resource_id,
             ip_address=get_client_ip(request),
-            user_agent=get_user_agent(request)
+            user_agent=get_user_agent(request),
         )
 
         db.add(audit_log)

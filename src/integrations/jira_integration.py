@@ -2,14 +2,14 @@
 Jira Integration for Issue Tracking and Documentation Synchronization
 Manages documentation that lives in Jira issues, comments, and knowledge base
 """
-import aiohttp
-import json
-import base64
-from typing import Dict, Any, List, Optional
+
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import aiohttp
+import structlog
 
 from .base_integration import BaseIntegration, SyncResult, TestResult
-import structlog
 
 logger = structlog.get_logger()
 
@@ -27,19 +27,17 @@ class JiraClient:
     """
 
     def __init__(self, server_url: str, username: str, api_token: str):
-        self.server_url = server_url.rstrip('/')
+        self.server_url = server_url.rstrip("/")
         self.auth = (username, api_token)
         self.headers = {
             "Accept": "application/json",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
     async def get_issue(self, issue_key: str) -> Optional[Dict]:
         """Get issue details by key (e.g., 'PROJ-123'). Uses Jira REST API v3 (2025)."""
         url = f"{self.server_url}/rest/api/3/issue/{issue_key}"
-        params = {
-            "expand": "renderedFields,comment,attachment,changelog"
-        }
+        params = {"expand": "renderedFields,comment,attachment,changelog"}
 
         async with aiohttp.ClientSession() as session:
             try:
@@ -47,7 +45,7 @@ class JiraClient:
                     url,
                     auth=aiohttp.BasicAuth(self.auth[0], self.auth[1]),
                     headers=self.headers,
-                    params=params
+                    params=params,
                 )
                 if response.status == 200:
                     return await response.json()
@@ -68,7 +66,16 @@ class JiraClient:
             "jql": jql,
             "maxResults": max_results,
             "expand": ["renderedFields"],
-            "fields": ["key", "summary", "description", "issuetype", "status", "assignee", "created", "updated"]
+            "fields": [
+                "key",
+                "summary",
+                "description",
+                "issuetype",
+                "status",
+                "assignee",
+                "created",
+                "updated",
+            ],
         }
 
         async with aiohttp.ClientSession() as session:
@@ -77,7 +84,7 @@ class JiraClient:
                     url,
                     auth=aiohttp.BasicAuth(self.auth[0], self.auth[1]),
                     headers=self.headers,
-                    json=payload
+                    json=payload,
                 )
                 if response.status == 200:
                     data = await response.json()
@@ -92,16 +99,14 @@ class JiraClient:
     async def add_comment(self, issue_key: str, comment_body: str) -> Dict:
         """Add a comment to an issue. Uses Jira REST API v3 (2025)."""
         url = f"{self.server_url}/rest/api/3/issue/{issue_key}/comment"
-        payload = {
-            "body": comment_body
-        }
+        payload = {"body": comment_body}
 
         async with aiohttp.ClientSession() as session:
             response = await session.post(
                 url,
                 auth=aiohttp.BasicAuth(self.auth[0], self.auth[1]),
                 headers=self.headers,
-                json=payload
+                json=payload,
             )
 
             if response.status in [200, 201]:
@@ -111,7 +116,9 @@ class JiraClient:
                 logger.error(f"Failed to add comment: {response.status}")
                 raise Exception(f"Failed to add comment: {response.status}")
 
-    async def update_issue_description(self, issue_key: str, new_description: str, update_reason: str) -> Dict:
+    async def update_issue_description(
+        self, issue_key: str, new_description: str, update_reason: str
+    ) -> Dict:
         """Update an issue's description with documentation updates. Uses Jira REST API v3 (2025)."""
         url = f"{self.server_url}/rest/api/3/issue/{issue_key}"
 
@@ -123,18 +130,14 @@ class JiraClient:
 _Last updated by Kinexus AI on {timestamp}: {update_reason}_
 """
 
-        payload = {
-            "fields": {
-                "description": description_with_note
-            }
-        }
+        payload = {"fields": {"description": description_with_note}}
 
         async with aiohttp.ClientSession() as session:
             response = await session.put(
                 url,
                 auth=aiohttp.BasicAuth(self.auth[0], self.auth[1]),
                 headers=self.headers,
-                json=payload
+                json=payload,
             )
 
             if response.status == 204:
@@ -144,8 +147,13 @@ _Last updated by Kinexus AI on {timestamp}: {update_reason}_
                 logger.error(f"Failed to update issue: {response.status}")
                 raise Exception(f"Failed to update issue: {response.status}")
 
-    async def create_documentation_issue(self, project_key: str, summary: str,
-                                       description: str, components: List[str] = None) -> Dict:
+    async def create_documentation_issue(
+        self,
+        project_key: str,
+        summary: str,
+        description: str,
+        components: List[str] = None,
+    ) -> Dict:
         """Create a new documentation issue."""
         payload = {
             "fields": {
@@ -153,7 +161,7 @@ _Last updated by Kinexus AI on {timestamp}: {update_reason}_
                 "summary": summary,
                 "description": description,
                 "issuetype": {"name": "Task"},  # or "Documentation" if available
-                "labels": ["documentation", "kinexus-ai-generated"]
+                "labels": ["documentation", "kinexus-ai-generated"],
             }
         }
 
@@ -168,7 +176,7 @@ _Last updated by Kinexus AI on {timestamp}: {update_reason}_
                 url,
                 auth=aiohttp.BasicAuth(self.auth[0], self.auth[1]),
                 headers=self.headers,
-                json=payload
+                json=payload,
             )
 
             if response.status in [200, 201]:
@@ -179,13 +187,15 @@ _Last updated by Kinexus AI on {timestamp}: {update_reason}_
                 logger.error(f"Failed to create issue: {response.status}")
                 raise Exception(f"Failed to create issue: {response.status}")
 
-    async def link_issues(self, inward_issue: str, outward_issue: str, link_type: str = "Relates") -> Dict:
+    async def link_issues(
+        self, inward_issue: str, outward_issue: str, link_type: str = "Relates"
+    ) -> Dict:
         """Create a link between two issues."""
         url = f"{self.server_url}/rest/api/3/issueLink"
         payload = {
             "type": {"name": link_type},
             "inwardIssue": {"key": inward_issue},
-            "outwardIssue": {"key": outward_issue}
+            "outwardIssue": {"key": outward_issue},
         }
 
         async with aiohttp.ClientSession() as session:
@@ -193,7 +203,7 @@ _Last updated by Kinexus AI on {timestamp}: {update_reason}_
                 url,
                 auth=aiohttp.BasicAuth(self.auth[0], self.auth[1]),
                 headers=self.headers,
-                json=payload
+                json=payload,
             )
 
             if response.status in [200, 201]:
@@ -203,10 +213,12 @@ _Last updated by Kinexus AI on {timestamp}: {update_reason}_
                 logger.error(f"Failed to link issues: {response.status}")
                 raise Exception(f"Failed to link issues: {response.status}")
 
-    async def find_related_issues(self, keywords: List[str], project_keys: List[str] = None) -> List[Dict]:
+    async def find_related_issues(
+        self, keywords: List[str], project_keys: List[str] = None
+    ) -> List[Dict]:
         """Find issues that might need documentation updates based on keywords."""
         # Build JQL query
-        text_conditions = ' OR '.join([f'text ~ "{keyword}"' for keyword in keywords])
+        text_conditions = " OR ".join([f'text ~ "{keyword}"' for keyword in keywords])
 
         if project_keys:
             project_condition = f"project in ({','.join(project_keys)})"
@@ -216,21 +228,21 @@ _Last updated by Kinexus AI on {timestamp}: {update_reason}_
 
         # Add filters for relevant issue types
         jql += ' AND issuetype in ("Story", "Bug", "Task", "Epic")'
-        jql += ' ORDER BY updated DESC'
+        jql += " ORDER BY updated DESC"
 
         issues = await self.search_issues(jql)
 
         # Score relevance based on keyword matches
         for issue in issues:
-            description = issue.get('fields', {}).get('description', '') or ''
-            summary = issue.get('fields', {}).get('summary', '') or ''
-            content = (description + ' ' + summary).lower()
+            description = issue.get("fields", {}).get("description", "") or ""
+            summary = issue.get("fields", {}).get("summary", "") or ""
+            content = (description + " " + summary).lower()
 
             score = sum(1 for keyword in keywords if keyword.lower() in content)
-            issue['relevance_score'] = score
+            issue["relevance_score"] = score
 
         # Sort by relevance
-        issues.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+        issues.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
 
         return issues
 
@@ -251,7 +263,7 @@ class JiraDocumentationManager:
 
         # Extract keywords from the change
         keywords = self._extract_keywords(change_data)
-        project_keys = change_data.get('jira_projects', [])
+        project_keys = change_data.get("jira_projects", [])
 
         # Find related issues
         related_issues = await self.client.find_related_issues(keywords, project_keys)
@@ -262,20 +274,22 @@ class JiraDocumentationManager:
         for issue in related_issues[:10]:  # Limit to top 10 most relevant
             try:
                 # Determine what needs updating
-                update_strategy = await self._determine_update_strategy(issue, change_data)
+                update_strategy = await self._determine_update_strategy(
+                    issue, change_data
+                )
 
-                if update_strategy['needs_update']:
-                    result = await self._apply_update(issue, update_strategy, change_data)
+                if update_strategy["needs_update"]:
+                    result = await self._apply_update(
+                        issue, update_strategy, change_data
+                    )
                     results.append(result)
                 else:
                     logger.debug(f"Issue {issue['key']} doesn't need updates")
             except Exception as e:
                 logger.error(f"Failed to update issue {issue['key']}: {e}")
-                results.append({
-                    'issue_key': issue['key'],
-                    'status': 'error',
-                    'error': str(e)
-                })
+                results.append(
+                    {"issue_key": issue["key"], "status": "error", "error": str(e)}
+                )
 
         return results
 
@@ -283,10 +297,10 @@ class JiraDocumentationManager:
         """
         Create new documentation issues for significant changes.
         """
-        if not change_data.get('jira_projects'):
-            return {'status': 'skipped', 'reason': 'No Jira projects configured'}
+        if not change_data.get("jira_projects"):
+            return {"status": "skipped", "reason": "No Jira projects configured"}
 
-        project_key = change_data['jira_projects'][0]  # Use first project
+        project_key = change_data["jira_projects"][0]  # Use first project
 
         # Generate summary and description
         summary = f"Documentation update needed: {change_data.get('commit_message', 'Code changes')}"
@@ -319,76 +333,79 @@ This issue was automatically created by Kinexus AI to track documentation update
                 project_key=project_key,
                 summary=summary,
                 description=description,
-                components=change_data.get('components', [])
+                components=change_data.get("components", []),
             )
 
             return {
-                'status': 'created',
-                'issue_key': result['key'],
-                'issue_url': f"{self.client.server_url}/browse/{result['key']}"
+                "status": "created",
+                "issue_key": result["key"],
+                "issue_url": f"{self.client.server_url}/browse/{result['key']}",
             }
         except Exception as e:
             logger.error(f"Failed to create documentation issue: {e}")
-            return {'status': 'error', 'error': str(e)}
+            return {"status": "error", "error": str(e)}
 
     def _extract_keywords(self, change_data: Dict) -> List[str]:
         """Extract relevant keywords from change data for searching."""
         keywords = []
 
         # From file paths
-        if 'files_changed' in change_data:
-            for file in change_data['files_changed']:
+        if "files_changed" in change_data:
+            for file in change_data["files_changed"]:
                 # Extract meaningful parts from file path
-                parts = file.split('/')
-                keywords.extend([p for p in parts if not p.startswith('.') and len(p) > 2])
+                parts = file.split("/")
+                keywords.extend(
+                    [p for p in parts if not p.startswith(".") and len(p) > 2]
+                )
 
         # From commit messages
-        if 'commit_message' in change_data:
+        if "commit_message" in change_data:
             # Extract significant words
-            words = change_data['commit_message'].split()
-            keywords.extend([w for w in words if len(w) > 3 and not w.startswith('#')])
+            words = change_data["commit_message"].split()
+            keywords.extend([w for w in words if len(w) > 3 and not w.startswith("#")])
 
         # From function/class names if available
-        if 'code_entities' in change_data:
-            keywords.extend(change_data['code_entities'])
+        if "code_entities" in change_data:
+            keywords.extend(change_data["code_entities"])
 
         return list(set(keywords))  # Unique keywords
 
     async def _determine_update_strategy(self, issue: Dict, change_data: Dict) -> Dict:
         """Determine what sections need updating based on the change."""
-        fields = issue.get('fields', {})
-        description = fields.get('description', '') or ''
-        summary = fields.get('summary', '') or ''
-        issue_type = fields.get('issuetype', {}).get('name', '').lower()
+        fields = issue.get("fields", {})
+        description = fields.get("description", "") or ""
+        summary = fields.get("summary", "") or ""
+        issue_type = fields.get("issuetype", {}).get("name", "").lower()
 
-        strategy = {
-            'needs_update': False,
-            'update_type': None,
-            'action': None
-        }
+        strategy = {"needs_update": False, "update_type": None, "action": None}
 
         # Check if issue mentions changed files
-        for file in change_data.get('files_changed', []):
+        for file in change_data.get("files_changed", []):
             if file in description or file in summary:
-                strategy['needs_update'] = True
-                strategy['update_type'] = 'code_reference'
-                strategy['action'] = 'add_comment'
+                strategy["needs_update"] = True
+                strategy["update_type"] = "code_reference"
+                strategy["action"] = "add_comment"
                 break
 
         # Check if it's a documentation-related issue
-        if any(keyword in issue_type for keyword in ['doc', 'story', 'task']):
-            if any(keyword in description.lower() for keyword in ['api', 'guide', 'tutorial']):
-                strategy['needs_update'] = True
-                strategy['update_type'] = 'documentation_task'
-                strategy['action'] = 'add_comment'
+        if any(keyword in issue_type for keyword in ["doc", "story", "task"]):
+            if any(
+                keyword in description.lower()
+                for keyword in ["api", "guide", "tutorial"]
+            ):
+                strategy["needs_update"] = True
+                strategy["update_type"] = "documentation_task"
+                strategy["action"] = "add_comment"
 
         return strategy
 
-    async def _apply_update(self, issue: Dict, strategy: Dict, change_data: Dict) -> Dict:
+    async def _apply_update(
+        self, issue: Dict, strategy: Dict, change_data: Dict
+    ) -> Dict:
         """Apply the determined updates to the issue."""
-        issue_key = issue['key']
+        issue_key = issue["key"]
 
-        if strategy['action'] == 'add_comment':
+        if strategy["action"] == "add_comment":
             # Create a comment with the update information
             comment_body = f"""*Automated Documentation Update*
 
@@ -408,20 +425,20 @@ _Comment added automatically by Kinexus AI_"""
             result = await self.client.add_comment(issue_key, comment_body)
 
             return {
-                'status': 'updated',
-                'issue_key': issue_key,
-                'action': 'comment_added',
-                'comment_id': result.get('id')
+                "status": "updated",
+                "issue_key": issue_key,
+                "action": "comment_added",
+                "comment_id": result.get("id"),
             }
 
-        return {'status': 'no_action', 'issue_key': issue_key}
+        return {"status": "no_action", "issue_key": issue_key}
 
     def _format_file_list(self, files: List[str]) -> str:
         """Format file list for Jira markup."""
         if not files:
             return "No files specified"
 
-        return '\n'.join([f"* {{code}}{file}{{code}}" for file in files])
+        return "\n".join([f"* {{code}}{file}{{code}}" for file in files])
 
 
 class JiraIntegration(BaseIntegration):
@@ -429,7 +446,12 @@ class JiraIntegration(BaseIntegration):
 
     def __init__(self, integration):
         super().__init__(integration)
-        self.required_config_fields = ["server_url", "username", "api_token", "projects"]
+        self.required_config_fields = [
+            "server_url",
+            "username",
+            "api_token",
+            "projects",
+        ]
         self._client = None
         self._doc_manager = None
 
@@ -441,7 +463,7 @@ class JiraIntegration(BaseIntegration):
             self._client = JiraClient(
                 server_url=config["server_url"],
                 username=config["username"],
-                api_token=config["api_token"]
+                api_token=config["api_token"],
             )
         return self._client
 
@@ -463,7 +485,7 @@ class JiraIntegration(BaseIntegration):
                     url,
                     auth=aiohttp.BasicAuth(self.client.auth[0], self.client.auth[1]),
                     headers=self.client.headers,
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(total=30),
                 )
 
                 if response.status == 200:
@@ -474,20 +496,17 @@ class JiraIntegration(BaseIntegration):
                         details={
                             "user": data.get("displayName"),
                             "account_id": data.get("accountId"),
-                            "server": self.client.server_url
-                        }
+                            "server": self.client.server_url,
+                        },
                     )
                 else:
                     return TestResult(
                         success=False,
-                        message=f"HTTP {response.status}: Authentication failed"
+                        message=f"HTTP {response.status}: Authentication failed",
                     )
 
         except Exception as e:
-            return TestResult(
-                success=False,
-                message=f"Connection failed: {str(e)}"
-            )
+            return TestResult(success=False, message=f"Connection failed: {str(e)}")
 
     async def sync(self) -> SyncResult:
         """Sync data from Jira projects."""
@@ -497,7 +516,9 @@ class JiraIntegration(BaseIntegration):
 
             for project_key in projects:
                 # Get recent issues from this project
-                jql = f"project = {project_key} AND updated >= -7d ORDER BY updated DESC"
+                jql = (
+                    f"project = {project_key} AND updated >= -7d ORDER BY updated DESC"
+                )
                 issues = await self.client.search_issues(jql, max_results=50)
                 total_issues += len(issues)
 
@@ -508,17 +529,13 @@ class JiraIntegration(BaseIntegration):
                 records_processed=total_issues,
                 metadata={
                     "projects_synced": len(projects),
-                    "sync_type": "recent_issues"
-                }
+                    "sync_type": "recent_issues",
+                },
             )
 
         except Exception as e:
             logger.error(f"Sync failed: {e}")
-            return SyncResult(
-                success=False,
-                records_processed=0,
-                error=str(e)
-            )
+            return SyncResult(success=False, records_processed=0, error=str(e))
 
     async def process_webhook(self, event_type: str, payload: Dict[str, Any]) -> bool:
         """Process Jira webhook events."""
@@ -553,23 +570,25 @@ class JiraIntegration(BaseIntegration):
         """Handle code changes and update related Jira documentation."""
         try:
             # Add Jira project configuration to change data
-            change_data['jira_projects'] = self.integration.config.get("projects", [])
+            change_data["jira_projects"] = self.integration.config.get("projects", [])
 
             # Process the change and update related issues
             update_results = await self.doc_manager.process_code_change(change_data)
 
             # Optionally create a new documentation issue for significant changes
             create_result = None
-            if change_data.get('impact_score', 0) > 7:  # High impact changes
-                create_result = await self.doc_manager.create_documentation_from_change(change_data)
+            if change_data.get("impact_score", 0) > 7:  # High impact changes
+                create_result = await self.doc_manager.create_documentation_from_change(
+                    change_data
+                )
 
             return {
-                'status': 'processed',
-                'updates': update_results,
-                'new_issue': create_result,
-                'summary': f"Updated {len(update_results)} issues"
+                "status": "processed",
+                "updates": update_results,
+                "new_issue": create_result,
+                "summary": f"Updated {len(update_results)} issues",
             }
 
         except Exception as e:
             logger.error(f"Error handling code change: {e}")
-            return {'status': 'error', 'error': str(e)}
+            return {"status": "error", "error": str(e)}

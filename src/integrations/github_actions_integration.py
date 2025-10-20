@@ -3,21 +3,20 @@
 GitHub Actions Integration - 2024-2025 Agentic AI Pattern
 Implements PR-based documentation workflows with tiered update strategies
 """
-import boto3
+import asyncio
 import json
 import logging
-import asyncio
-import yaml
-from datetime import datetime
-from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
-import os
-import base64
+from typing import Any, Dict, List, Optional
+
+import boto3
+import yaml
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class BranchType(Enum):
     FEATURE = "feature"
@@ -26,11 +25,13 @@ class BranchType(Enum):
     MAIN = "main"
     HOTFIX = "hotfix"
 
+
 class UpdateScope(Enum):
     REPO_ONLY = "repo_only"
     INTERNAL_WIKI = "internal_wiki"
     FULL_ENTERPRISE = "full_enterprise"
     CUSTOM = "custom"
+
 
 class DocumentationType(Enum):
     API_DOCS = "api_docs"
@@ -40,6 +41,7 @@ class DocumentationType(Enum):
     RELEASE_NOTES = "release_notes"
     TROUBLESHOOTING = "troubleshooting"
 
+
 @dataclass
 class DocumentationMapping:
     doc_type: DocumentationType
@@ -47,6 +49,7 @@ class DocumentationMapping:
     target_locations: Dict[str, str]  # platform -> location mapping
     update_conditions: Dict[str, Any] = field(default_factory=dict)
     priority: int = 1
+
 
 @dataclass
 class BranchConfiguration:
@@ -57,6 +60,7 @@ class BranchConfiguration:
     documentation_mappings: List[DocumentationMapping]
     auto_merge_docs: bool = False
     require_approval: bool = False
+
 
 @dataclass
 class PRContext:
@@ -71,6 +75,7 @@ class PRContext:
     repository: str
     head_sha: str
 
+
 class GitHubActionsOrchestrator:
     """
     Orchestrates documentation updates based on GitHub Actions workflows
@@ -78,8 +83,8 @@ class GitHubActionsOrchestrator:
     """
 
     def __init__(self, region: str = "us-east-1"):
-        self.bedrock = boto3.client('bedrock-runtime', region_name=region)
-        self.dynamodb = boto3.resource('dynamodb', region_name=region)
+        self.bedrock = boto3.client("bedrock-runtime", region_name=region)
+        self.dynamodb = boto3.resource("dynamodb", region_name=region)
         self.github_client = None  # Will be initialized with repo context
 
         # Default configuration (can be overridden by repo-specific config)
@@ -100,13 +105,12 @@ class GitHubActionsOrchestrator:
                         doc_type=DocumentationType.DEVELOPER_DOCS,
                         source_patterns=["src/**/*.py", "lib/**/*.js", "*.md"],
                         target_locations={"github": "docs/"},
-                        priority=1
+                        priority=1,
                     )
                 ],
                 auto_merge_docs=True,
-                require_approval=False
+                require_approval=False,
             ),
-
             # Development branch - internal systems
             BranchConfiguration(
                 branch_pattern="develop",
@@ -116,27 +120,30 @@ class GitHubActionsOrchestrator:
                 documentation_mappings=[
                     DocumentationMapping(
                         doc_type=DocumentationType.API_DOCS,
-                        source_patterns=["api/**/*.py", "routes/**/*.js", "openapi.yaml"],
+                        source_patterns=[
+                            "api/**/*.py",
+                            "routes/**/*.js",
+                            "openapi.yaml",
+                        ],
                         target_locations={
                             "github": "docs/api/",
-                            "confluence": "SPACE:DEV/API Documentation"
+                            "confluence": "SPACE:DEV/API Documentation",
                         },
-                        priority=1
+                        priority=1,
                     ),
                     DocumentationMapping(
                         doc_type=DocumentationType.ARCHITECTURE,
                         source_patterns=["architecture/**/*", "docs/architecture/**/*"],
                         target_locations={
                             "github": "docs/architecture/",
-                            "confluence": "SPACE:DEV/Architecture"
+                            "confluence": "SPACE:DEV/Architecture",
                         },
-                        priority=2
-                    )
+                        priority=2,
+                    ),
                 ],
                 auto_merge_docs=False,
-                require_approval=True
+                require_approval=True,
             ),
-
             # Main branch - full enterprise sync
             BranchConfiguration(
                 branch_pattern="main|master",
@@ -150,9 +157,9 @@ class GitHubActionsOrchestrator:
                         target_locations={
                             "github": "docs/api/",
                             "confluence": "SPACE:PROD/API Documentation",
-                            "sharepoint": "sites/engineering/API Docs"
+                            "sharepoint": "sites/engineering/API Docs",
                         },
-                        priority=1
+                        priority=1,
                     ),
                     DocumentationMapping(
                         doc_type=DocumentationType.USER_GUIDE,
@@ -160,67 +167,83 @@ class GitHubActionsOrchestrator:
                         target_locations={
                             "github": "docs/user/",
                             "confluence": "SPACE:PROD/User Guides",
-                            "sharepoint": "sites/support/User Documentation"
+                            "sharepoint": "sites/support/User Documentation",
                         },
-                        priority=1
+                        priority=1,
                     ),
                     DocumentationMapping(
                         doc_type=DocumentationType.RELEASE_NOTES,
-                        source_patterns=["CHANGELOG.md", "RELEASE.md", "docs/releases/**/*"],
+                        source_patterns=[
+                            "CHANGELOG.md",
+                            "RELEASE.md",
+                            "docs/releases/**/*",
+                        ],
                         target_locations={
                             "github": "docs/releases/",
                             "confluence": "SPACE:PROD/Release Notes",
-                            "sharepoint": "sites/support/Release Information"
+                            "sharepoint": "sites/support/Release Information",
                         },
-                        priority=1
-                    )
+                        priority=1,
+                    ),
                 ],
                 auto_merge_docs=False,
-                require_approval=True
-            )
+                require_approval=True,
+            ),
         ]
 
     async def process_pull_request(
         self,
         pr_context: PRContext,
         custom_config: Optional[Dict[str, Any]] = None,
-        execute_updates: bool = True
+        execute_updates: bool = True,
     ) -> Dict[str, Any]:
         """Process PR and determine documentation updates needed"""
 
-        logger.info(f"Processing PR #{pr_context.pr_number}: {pr_context.source_branch} → {pr_context.target_branch}")
+        logger.info(
+            f"Processing PR #{pr_context.pr_number}: {pr_context.source_branch} → {pr_context.target_branch}"
+        )
 
         try:
             # Load repository-specific configuration if provided
-            config = await self._load_repository_config(pr_context.repository, custom_config)
+            config = await self._load_repository_config(
+                pr_context.repository, custom_config
+            )
 
             # Determine branch configuration
-            branch_config = self._match_branch_configuration(pr_context.target_branch, config)
+            branch_config = self._match_branch_configuration(
+                pr_context.target_branch, config
+            )
 
             if not branch_config:
                 return {
                     "documentation_updates_needed": False,
                     "reason": f"No configuration found for target branch: {pr_context.target_branch}",
-                    "supported_branches": [c.branch_pattern for c in config]
+                    "supported_branches": [c.branch_pattern for c in config],
                 }
 
             # Analyze changed files to determine documentation impact
-            doc_analysis = await self._analyze_documentation_impact(pr_context, branch_config)
+            doc_analysis = await self._analyze_documentation_impact(
+                pr_context, branch_config
+            )
 
             if not doc_analysis["updates_needed"]:
                 return {
                     "documentation_updates_needed": False,
                     "reason": "No documentation-triggering changes detected",
                     "analyzed_files": len(pr_context.changed_files),
-                    "branch_config": branch_config.branch_pattern
+                    "branch_config": branch_config.branch_pattern,
                 }
 
             # Generate documentation updates
-            update_plan = await self._generate_update_plan(pr_context, branch_config, doc_analysis)
+            update_plan = await self._generate_update_plan(
+                pr_context, branch_config, doc_analysis
+            )
 
             execution_results = None
             if execute_updates:
-                execution_results = await self._execute_documentation_updates(update_plan, pr_context)
+                execution_results = await self._execute_documentation_updates(
+                    update_plan, pr_context
+                )
 
             return {
                 "documentation_updates_needed": True,
@@ -228,13 +251,13 @@ class GitHubActionsOrchestrator:
                     "pattern": branch_config.branch_pattern,
                     "type": branch_config.branch_type.value,
                     "scope": branch_config.update_scope.value,
-                    "platforms": branch_config.target_platforms
+                    "platforms": branch_config.target_platforms,
                 },
                 "documentation_analysis": doc_analysis,
                 "update_plan": update_plan,
                 "execution_results": execution_results if execute_updates else None,
                 "execution_mode": "execute" if execute_updates else "plan_only",
-                "github_actions_integration": True
+                "github_actions_integration": True,
             }
 
         except Exception as e:
@@ -242,10 +265,12 @@ class GitHubActionsOrchestrator:
             return {
                 "documentation_updates_needed": False,
                 "error": str(e),
-                "pr_context": pr_context.pr_number
+                "pr_context": pr_context.pr_number,
             }
 
-    async def _load_repository_config(self, repository: str, custom_config: Optional[Dict[str, Any]]) -> List[BranchConfiguration]:
+    async def _load_repository_config(
+        self, repository: str, custom_config: Optional[Dict[str, Any]]
+    ) -> List[BranchConfiguration]:
         """Load repository-specific configuration"""
 
         if custom_config:
@@ -263,7 +288,9 @@ class GitHubActionsOrchestrator:
         except Exception:
             return self.default_config
 
-    def _match_branch_configuration(self, target_branch: str, configs: List[BranchConfiguration]) -> Optional[BranchConfiguration]:
+    def _match_branch_configuration(
+        self, target_branch: str, configs: List[BranchConfiguration]
+    ) -> Optional[BranchConfiguration]:
         """Match target branch to configuration"""
 
         import re
@@ -275,7 +302,9 @@ class GitHubActionsOrchestrator:
 
         return None
 
-    async def _analyze_documentation_impact(self, pr_context: PRContext, branch_config: BranchConfiguration) -> Dict[str, Any]:
+    async def _analyze_documentation_impact(
+        self, pr_context: PRContext, branch_config: BranchConfiguration
+    ) -> Dict[str, Any]:
         """Analyze changed files to determine documentation impact"""
 
         import fnmatch
@@ -292,25 +321,33 @@ class GitHubActionsOrchestrator:
                         break
 
             if matching_files:
-                impacted_mappings.append({
-                    "doc_type": mapping.doc_type.value,
-                    "matching_files": matching_files,
-                    "target_locations": mapping.target_locations,
-                    "priority": mapping.priority
-                })
+                impacted_mappings.append(
+                    {
+                        "doc_type": mapping.doc_type.value,
+                        "matching_files": matching_files,
+                        "target_locations": mapping.target_locations,
+                        "priority": mapping.priority,
+                    }
+                )
 
         # Use AI to analyze the semantic impact
-        semantic_analysis = await self._analyze_semantic_impact(pr_context, impacted_mappings)
+        semantic_analysis = await self._analyze_semantic_impact(
+            pr_context, impacted_mappings
+        )
 
         return {
             "updates_needed": len(impacted_mappings) > 0,
             "impacted_mappings": impacted_mappings,
             "semantic_analysis": semantic_analysis,
             "total_changed_files": len(pr_context.changed_files),
-            "documentation_files_affected": sum(len(m["matching_files"]) for m in impacted_mappings)
+            "documentation_files_affected": sum(
+                len(m["matching_files"]) for m in impacted_mappings
+            ),
         }
 
-    async def _analyze_semantic_impact(self, pr_context: PRContext, impacted_mappings: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _analyze_semantic_impact(
+        self, pr_context: PRContext, impacted_mappings: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Use AI to analyze the semantic impact of changes"""
 
         prompt = f"""
@@ -342,10 +379,17 @@ class GitHubActionsOrchestrator:
             return {
                 "analysis_available": False,
                 "fallback_priority": 3,
-                "suggested_updates": ["Review and update relevant documentation sections"]
+                "suggested_updates": [
+                    "Review and update relevant documentation sections"
+                ],
             }
 
-    async def _generate_update_plan(self, pr_context: PRContext, branch_config: BranchConfiguration, doc_analysis: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_update_plan(
+        self,
+        pr_context: PRContext,
+        branch_config: BranchConfiguration,
+        doc_analysis: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """Generate detailed update plan based on analysis"""
 
         update_tasks = []
@@ -353,14 +397,18 @@ class GitHubActionsOrchestrator:
         for mapping_data in doc_analysis["impacted_mappings"]:
             for platform, location in mapping_data["target_locations"].items():
                 if platform in branch_config.target_platforms:
-                    update_tasks.append({
-                        "platform": platform,
-                        "location": location,
-                        "doc_type": mapping_data["doc_type"],
-                        "source_files": mapping_data["matching_files"],
-                        "priority": mapping_data["priority"],
-                        "update_method": self._determine_update_method(platform, branch_config)
-                    })
+                    update_tasks.append(
+                        {
+                            "platform": platform,
+                            "location": location,
+                            "doc_type": mapping_data["doc_type"],
+                            "source_files": mapping_data["matching_files"],
+                            "priority": mapping_data["priority"],
+                            "update_method": self._determine_update_method(
+                                platform, branch_config
+                            ),
+                        }
+                    )
 
         # Sort by priority
         update_tasks.sort(key=lambda x: x["priority"])
@@ -370,16 +418,22 @@ class GitHubActionsOrchestrator:
             "update_tasks": update_tasks,
             "execution_strategy": self._determine_execution_strategy(branch_config),
             "approval_required": branch_config.require_approval,
-            "auto_merge": branch_config.auto_merge_docs
+            "auto_merge": branch_config.auto_merge_docs,
         }
 
-    def _determine_update_method(self, platform: str, branch_config: BranchConfiguration) -> str:
+    def _determine_update_method(
+        self, platform: str, branch_config: BranchConfiguration
+    ) -> str:
         """Determine the best update method for the platform"""
 
         if platform == "github":
             return "github_api"
         elif platform == "confluence":
-            return "confluence_api" if branch_config.branch_type != BranchType.FEATURE else "browser_automation"
+            return (
+                "confluence_api"
+                if branch_config.branch_type != BranchType.FEATURE
+                else "browser_automation"
+            )
         elif platform == "sharepoint":
             return "browser_automation"  # SharePoint often requires browser automation
         else:
@@ -395,7 +449,9 @@ class GitHubActionsOrchestrator:
         else:
             return "staged_execution_with_validation"
 
-    async def _execute_documentation_updates(self, update_plan: Dict[str, Any], pr_context: PRContext) -> Dict[str, Any]:
+    async def _execute_documentation_updates(
+        self, update_plan: Dict[str, Any], pr_context: PRContext
+    ) -> Dict[str, Any]:
         """Execute the documentation updates according to the plan"""
 
         execution_results = {
@@ -403,7 +459,7 @@ class GitHubActionsOrchestrator:
             "completed_tasks": 0,
             "failed_tasks": 0,
             "task_results": [],
-            "execution_strategy": update_plan["execution_strategy"]
+            "execution_strategy": update_plan["execution_strategy"],
         }
 
         try:
@@ -422,9 +478,17 @@ class GitHubActionsOrchestrator:
 
                     task_result = {
                         "task": task,
-                        "status": "completed" if result.get("multi_agent_processing", {}).get("overall_success", False) else "failed",
-                        "execution_time": result.get("multi_agent_processing", {}).get("total_execution_time", 0),
-                        "details": result
+                        "status": (
+                            "completed"
+                            if result.get("multi_agent_processing", {}).get(
+                                "overall_success", False
+                            )
+                            else "failed"
+                        ),
+                        "execution_time": result.get("multi_agent_processing", {}).get(
+                            "total_execution_time", 0
+                        ),
+                        "details": result,
                     }
 
                     execution_results["task_results"].append(task_result)
@@ -436,17 +500,16 @@ class GitHubActionsOrchestrator:
 
                 except Exception as e:
                     logger.error(f"Task execution failed: {str(e)}")
-                    execution_results["task_results"].append({
-                        "task": task,
-                        "status": "failed",
-                        "error": str(e)
-                    })
+                    execution_results["task_results"].append(
+                        {"task": task, "status": "failed", "error": str(e)}
+                    )
                     execution_results["failed_tasks"] += 1
 
             # Generate summary
             execution_results["success_rate"] = (
                 execution_results["completed_tasks"] / execution_results["total_tasks"]
-                if execution_results["total_tasks"] > 0 else 0
+                if execution_results["total_tasks"] > 0
+                else 0
             )
 
             return execution_results
@@ -457,10 +520,12 @@ class GitHubActionsOrchestrator:
                 "execution_failed": True,
                 "error": str(e),
                 "completed_tasks": 0,
-                "total_tasks": update_plan["total_tasks"]
+                "total_tasks": update_plan["total_tasks"],
             }
 
-    def _convert_pr_to_change_data(self, pr_context: PRContext, task: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_pr_to_change_data(
+        self, pr_context: PRContext, task: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Convert PR context to change data format for multi-agent supervisor"""
 
         return {
@@ -471,7 +536,7 @@ class GitHubActionsOrchestrator:
                 "body": pr_context.pr_description,
                 "head": {"sha": pr_context.head_sha},
                 "base": {"ref": pr_context.target_branch},
-                "user": {"login": pr_context.author}
+                "user": {"login": pr_context.author},
             },
             "commits": [{"message": msg} for msg in pr_context.commit_messages],
             "changed_files": pr_context.changed_files,
@@ -480,9 +545,9 @@ class GitHubActionsOrchestrator:
                 "target_platform": task["platform"],
                 "target_location": task["location"],
                 "source_files": task["source_files"],
-                "update_method": task["update_method"]
+                "update_method": task["update_method"],
             },
-            "github_actions_trigger": True
+            "github_actions_trigger": True,
         }
 
     async def _call_bedrock_model(self, prompt: str) -> str:
@@ -493,17 +558,17 @@ class GitHubActionsOrchestrator:
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4000,
                 "temperature": 0.1,
-                "messages": [{"role": "user", "content": prompt}]
+                "messages": [{"role": "user", "content": prompt}],
             }
 
             response = self.bedrock.invoke_model(
                 modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
                 body=json.dumps(request_body),
-                contentType='application/json'
+                contentType="application/json",
             )
 
-            response_body = json.loads(response['body'].read())
-            return response_body['content'][0]['text']
+            response_body = json.loads(response["body"].read())
+            return response_body["content"][0]["text"]
 
         except Exception as e:
             logger.error(f"Bedrock call failed: {str(e)}")
@@ -518,24 +583,29 @@ class GitHubActionsOrchestrator:
             mappings = []
 
             for mapping_config in branch_config.get("documentation_mappings", []):
-                mappings.append(DocumentationMapping(
-                    doc_type=DocumentationType(mapping_config["doc_type"]),
-                    source_patterns=mapping_config["source_patterns"],
-                    target_locations=mapping_config["target_locations"],
-                    priority=mapping_config.get("priority", 1)
-                ))
+                mappings.append(
+                    DocumentationMapping(
+                        doc_type=DocumentationType(mapping_config["doc_type"]),
+                        source_patterns=mapping_config["source_patterns"],
+                        target_locations=mapping_config["target_locations"],
+                        priority=mapping_config.get("priority", 1),
+                    )
+                )
 
-            configurations.append(BranchConfiguration(
-                branch_pattern=branch_config["branch_pattern"],
-                branch_type=BranchType(branch_config["branch_type"]),
-                update_scope=UpdateScope(branch_config["update_scope"]),
-                target_platforms=branch_config["target_platforms"],
-                documentation_mappings=mappings,
-                auto_merge_docs=branch_config.get("auto_merge_docs", False),
-                require_approval=branch_config.get("require_approval", False)
-            ))
+            configurations.append(
+                BranchConfiguration(
+                    branch_pattern=branch_config["branch_pattern"],
+                    branch_type=BranchType(branch_config["branch_type"]),
+                    update_scope=UpdateScope(branch_config["update_scope"]),
+                    target_platforms=branch_config["target_platforms"],
+                    documentation_mappings=mappings,
+                    auto_merge_docs=branch_config.get("auto_merge_docs", False),
+                    require_approval=branch_config.get("require_approval", False),
+                )
+            )
 
         return configurations
+
 
 # GitHub Actions workflow generator
 def generate_github_action_workflow() -> str:
@@ -546,11 +616,9 @@ def generate_github_action_workflow() -> str:
         "on": {
             "pull_request": {
                 "types": ["opened", "synchronize", "reopened"],
-                "branches": ["main", "master", "develop", "feature/*"]
+                "branches": ["main", "master", "develop", "feature/*"],
             },
-            "push": {
-                "branches": ["main", "master"]
-            }
+            "push": {"branches": ["main", "master"]},
         },
         "jobs": {
             "kinexus-documentation": {
@@ -559,19 +627,19 @@ def generate_github_action_workflow() -> str:
                     {
                         "name": "Checkout code",
                         "uses": "actions/checkout@v4",
-                        "with": {"fetch-depth": 0}
+                        "with": {"fetch-depth": 0},
                     },
                     {
                         "name": "Get changed files",
                         "id": "changed-files",
                         "uses": "tj-actions/changed-files@v40",
-                        "with": {"files": "**/*"}
+                        "with": {"files": "**/*"},
                     },
                     {
                         "name": "Trigger Kinexus AI Documentation Update",
                         "env": {
                             "KINEXUS_WEBHOOK_URL": "${{ secrets.KINEXUS_WEBHOOK_URL }}",
-                            "KINEXUS_API_KEY": "${{ secrets.KINEXUS_API_KEY }}"
+                            "KINEXUS_API_KEY": "${{ secrets.KINEXUS_API_KEY }}",
                         },
                         "run": """
 curl -X POST "$KINEXUS_WEBHOOK_URL" \\
@@ -592,21 +660,22 @@ curl -X POST "$KINEXUS_WEBHOOK_URL" \\
     "commit_messages": ["${{ github.event.head_commit.message || github.event.pull_request.title }}"],
     "github_actions_trigger": true
   }'
-                        """
-                    }
-                ]
+                        """,
+                    },
+                ],
             }
-        }
+        },
     }
 
     return yaml.dump(workflow, default_flow_style=False)
+
 
 # Integration function for the webhook handler
 async def process_github_actions_webhook(
     webhook_data: Dict[str, Any],
     *,
     execute_updates: bool = True,
-    custom_config: Optional[Dict[str, Any]] = None
+    custom_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Process GitHub Actions webhook for PR-based documentation updates
@@ -617,29 +686,35 @@ async def process_github_actions_webhook(
         # Extract PR context from webhook
         pr_context = PRContext(
             pr_number=webhook_data.get("pull_request", {}).get("number", 0),
-            source_branch=webhook_data.get("pull_request", {}).get("head", {}).get("ref", ""),
-            target_branch=webhook_data.get("pull_request", {}).get("base", {}).get("ref", ""),
+            source_branch=webhook_data.get("pull_request", {})
+            .get("head", {})
+            .get("ref", ""),
+            target_branch=webhook_data.get("pull_request", {})
+            .get("base", {})
+            .get("ref", ""),
             changed_files=webhook_data.get("changed_files", []),
             commit_messages=webhook_data.get("commit_messages", []),
             pr_title=webhook_data.get("pull_request", {}).get("title", ""),
             pr_description=webhook_data.get("pull_request", {}).get("body", ""),
-            author=webhook_data.get("pull_request", {}).get("user", {}).get("login", ""),
+            author=webhook_data.get("pull_request", {})
+            .get("user", {})
+            .get("login", ""),
             repository=webhook_data.get("repository", {}).get("full_name", ""),
-            head_sha=webhook_data.get("pull_request", {}).get("head", {}).get("sha", "")
+            head_sha=webhook_data.get("pull_request", {})
+            .get("head", {})
+            .get("sha", ""),
         )
 
         # Process the PR
         result = await orchestrator.process_pull_request(
-            pr_context,
-            custom_config=custom_config,
-            execute_updates=execute_updates
+            pr_context, custom_config=custom_config, execute_updates=execute_updates
         )
 
         return {
             "github_actions_integration_completed": True,
             "processing_method": "pr_based_documentation_workflow",
             "workflow_version": "2024-2025-tiered-updates",
-            **result
+            **result,
         }
 
     except Exception as e:
@@ -647,8 +722,9 @@ async def process_github_actions_webhook(
         return {
             "github_actions_integration_completed": False,
             "error": str(e),
-            "fallback_recommendation": "Process as standard webhook"
+            "fallback_recommendation": "Process as standard webhook",
         }
+
 
 if __name__ == "__main__":
     # Generate sample workflow file
@@ -669,15 +745,17 @@ if __name__ == "__main__":
                 "body": "This PR adds new REST API endpoints for user CRUD operations",
                 "head": {"ref": "feature/user-api", "sha": "abc123"},
                 "base": {"ref": "develop"},
-                "user": {"login": "developer"}
+                "user": {"login": "developer"},
             },
             "repository": {"full_name": "company/api-service"},
             "changed_files": ["src/api/users.py", "docs/api.md", "tests/test_users.py"],
             "commit_messages": ["Add user API endpoints", "Update API documentation"],
-            "github_actions_trigger": True
+            "github_actions_trigger": True,
         }
 
-        result = await process_github_actions_webhook(test_webhook, execute_updates=False)
+        result = await process_github_actions_webhook(
+            test_webhook, execute_updates=False
+        )
         print("\nTest Result:")
         print("=" * 50)
         print(json.dumps(result, indent=2))

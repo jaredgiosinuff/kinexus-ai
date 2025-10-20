@@ -1,25 +1,25 @@
+from typing import Any, Dict
+
 import aiohttp
-import json
-from typing import Dict, Any, List, Optional
-from datetime import datetime
 
 from .base_integration import BaseIntegration, SyncResult, TestResult
 
+
 class SharePointIntegration(BaseIntegration):
     """
-SCAFFOLD IMPLEMENTATION - SharePoint integration for document management.
+    SCAFFOLD IMPLEMENTATION - SharePoint integration for document management.
 
-This is a placeholder implementation that provides:
-- Basic connection testing
-- Authentication framework
-- Stub methods for sync and webhook processing
+    This is a placeholder implementation that provides:
+    - Basic connection testing
+    - Authentication framework
+    - Stub methods for sync and webhook processing
 
-TO IMPLEMENT: Full SharePoint REST API integration with:
-- Document library management
-- File upload/download/update operations
-- Site collection and permission handling
-- Advanced search and metadata operations
-"""
+    TO IMPLEMENT: Full SharePoint REST API integration with:
+    - Document library management
+    - File upload/download/update operations
+    - Site collection and permission handling
+    - Advanced search and metadata operations
+    """
 
     def __init__(self, integration):
         super().__init__(integration)
@@ -41,27 +41,22 @@ TO IMPLEMENT: Full SharePoint REST API integration with:
                 async with session.get(
                     f"{self.api_base_url}/web",
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
-
                     if response.status == 200:
                         data = await response.json()
                         return TestResult(
                             success=True,
                             message="Connection successful",
-                            details={"site_title": data.get("d", {}).get("Title")}
+                            details={"site_title": data.get("d", {}).get("Title")},
                         )
                     else:
                         return TestResult(
-                            success=False,
-                            message=f"HTTP {response.status}"
+                            success=False, message=f"HTTP {response.status}"
                         )
 
         except Exception as e:
-            return TestResult(
-                success=False,
-                message=f"Connection failed: {str(e)}"
-            )
+            return TestResult(success=False, message=f"Connection failed: {str(e)}")
 
     async def sync(self) -> SyncResult:
         """SCAFFOLD: Sync documents from SharePoint libraries."""
@@ -75,7 +70,7 @@ TO IMPLEMENT: Full SharePoint REST API integration with:
         return SyncResult(
             success=True,
             records_processed=0,
-            metadata={"implementation": "scaffold", "status": "not_implemented"}
+            metadata={"implementation": "scaffold", "status": "not_implemented"},
         )
 
     async def process_webhook(self, event_type: str, payload: Dict[str, Any]) -> bool:

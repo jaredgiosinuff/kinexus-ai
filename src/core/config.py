@@ -5,11 +5,10 @@ Centralizes all environment-based configuration with proper validation
 and type safety using Pydantic settings.
 """
 
-import os
-from typing import List, Optional
 from functools import lru_cache
+from typing import List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -22,7 +21,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # API Configuration
-    API_HOST: str = "0.0.0.0"
+    API_HOST: str = "0.0.0.0"  # nosec B104 - Required for Docker container networking
     API_PORT: int = 8000
     API_PREFIX: str = "/api"
 
@@ -76,7 +75,9 @@ class Settings(BaseSettings):
     # File Storage
     STORAGE_BACKEND: str = "s3"  # 's3' or 'local'
     S3_BUCKET_NAME: Optional[str] = None
-    LOCAL_STORAGE_PATH: str = "/tmp/kinexus-docs"
+    LOCAL_STORAGE_PATH: str = (
+        "/tmp/kinexus-docs"  # nosec B108 - Standard temp location for local development
+    )
 
     # Email (for notifications)
     SMTP_HOST: Optional[str] = None
@@ -95,29 +96,29 @@ class Settings(BaseSettings):
     SYSTEM_USER_EMAIL: str = "admin@kinexusai.com"
     GITHUB_ACTIONS_WEBHOOK_TOKEN: Optional[str] = None
 
-    @field_validator('ENVIRONMENT')
+    @field_validator("ENVIRONMENT")
     @classmethod
     def validate_environment(cls, v):
         """Validate environment value."""
-        allowed = ['development', 'staging', 'production']
+        allowed = ["development", "staging", "production", "test"]
         if v not in allowed:
-            raise ValueError(f'Environment must be one of: {allowed}')
+            raise ValueError(f"Environment must be one of: {allowed}")
         return v
 
-    @field_validator('CORS_ORIGINS', mode='before')
+    @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
         """Parse CORS origins from string or list."""
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(',')]
+            return [origin.strip() for origin in v.split(",")]
         return v
 
-    @field_validator('ALLOWED_HOSTS', mode='before')
+    @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod
     def parse_allowed_hosts(cls, v):
         """Parse allowed hosts from string or list."""
         if isinstance(v, str):
-            return [host.strip() for host in v.split(',')]
+            return [host.strip() for host in v.split(",")]
         return v
 
     @property
@@ -139,7 +140,7 @@ class Settings(BaseSettings):
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
-        "case_sensitive": True
+        "case_sensitive": True,
     }
 
 

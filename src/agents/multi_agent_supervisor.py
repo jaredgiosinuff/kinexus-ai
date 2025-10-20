@@ -5,37 +5,52 @@ Implements hierarchical supervisor with specialized sub-agents for autonomous do
 """
 import asyncio
 import json
-import boto3
 import logging
-from datetime import datetime
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+import boto3
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import enhanced agentic AI capabilities
 try:
     from react_reasoning_agent import execute_react_reasoning
+
     REACT_REASONING_AVAILABLE = True
 except ImportError:
     logger.warning("ReAct reasoning agent not available")
     REACT_REASONING_AVAILABLE = False
 
 try:
-    from persistent_memory_system import PersistentMemorySystem, enhance_with_persistent_memory, Experience, ExperienceType
+    from persistent_memory_system import (
+        Experience,
+        ExperienceType,
+        PersistentMemorySystem,
+        enhance_with_persistent_memory,
+    )
+
     PERSISTENT_MEMORY_AVAILABLE = True
 except ImportError:
     logger.warning("Persistent memory system not available")
     PERSISTENT_MEMORY_AVAILABLE = False
 
 try:
-    from nova_act_automation import execute_nova_act_automation
     NOVA_ACT_AVAILABLE = True
 except ImportError:
     logger.warning("Nova Act automation not available")
     NOVA_ACT_AVAILABLE = False
 
 try:
-    from performance_tracking_system import SelfImprovingPerformanceManager, integrate_performance_tracking
+    from performance_tracking_system import (
+        SelfImprovingPerformanceManager,
+        integrate_performance_tracking,
+    )
+
     PERFORMANCE_TRACKING_AVAILABLE = True
 except ImportError:
     logger.warning("Performance tracking system not available")
@@ -43,14 +58,12 @@ except ImportError:
 
 try:
     from mcp_client import MCPClient, MCPServerConnection, MCPTransport
+
     MCP_AVAILABLE = True
 except ImportError:
     logger.warning("MCP client not available")
     MCP_AVAILABLE = False
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class AgentRole(Enum):
     SUPERVISOR = "DocumentationOrchestrator"
@@ -58,6 +71,7 @@ class AgentRole(Enum):
     CONTENT_CREATOR = "ContentCreator"
     QUALITY_CONTROLLER = "QualityController"
     PLATFORM_UPDATER = "PlatformUpdater"
+
 
 @dataclass
 class AgentTask:
@@ -74,6 +88,7 @@ class AgentTask:
         if self.dependencies is None:
             self.dependencies = []
 
+
 @dataclass
 class AgentResult:
     task_id: str
@@ -84,13 +99,14 @@ class AgentResult:
     confidence_score: float
     error_message: Optional[str] = None
 
+
 class BedrockAgent:
     """Individual Bedrock agent with specialized capabilities"""
 
     def __init__(self, role: AgentRole, model_id: str, region: str = "us-east-1"):
         self.role = role
         self.model_id = model_id
-        self.bedrock_runtime = boto3.client('bedrock-runtime', region_name=region)
+        self.bedrock_runtime = boto3.client("bedrock-runtime", region_name=region)
         self.agent_instructions = self._get_role_instructions()
 
     def _get_role_instructions(self) -> str:
@@ -146,7 +162,7 @@ You are the PlatformUpdater agent managing cross-platform documentation deployme
 5. Handle platform authentication and API limitations
 
 Ensure reliable, consistent updates across all target platforms.
-"""
+""",
         }
         return instructions.get(self.role, "You are a documentation management agent.")
 
@@ -172,12 +188,14 @@ Ensure reliable, consistent updates across all target platforms.
                 success=True,
                 result_data=result_data,
                 execution_time=execution_time,
-                confidence_score=result_data.get('confidence_score', 0.8)
+                confidence_score=result_data.get("confidence_score", 0.8),
             )
 
         except Exception as e:
             execution_time = asyncio.get_event_loop().time() - start_time
-            logger.error(f"Agent {self.role.value} failed on task {task.task_id}: {str(e)}")
+            logger.error(
+                f"Agent {self.role.value} failed on task {task.task_id}: {str(e)}"
+            )
 
             return AgentResult(
                 task_id=task.task_id,
@@ -186,7 +204,7 @@ Ensure reliable, consistent updates across all target platforms.
                 result_data={},
                 execution_time=execution_time,
                 confidence_score=0.0,
-                error_message=str(e)
+                error_message=str(e),
             )
 
     def _build_prompt(self, task: AgentTask) -> str:
@@ -220,29 +238,20 @@ Respond in JSON format with the following structure:
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4000,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
+                "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.1,
-                "top_p": 0.9
+                "top_p": 0.9,
             }
         elif "nova" in self.model_id.lower():
             body = {
                 "prompt": prompt,
                 "max_tokens": 4000,
                 "temperature": 0.1,
-                "top_p": 0.9
+                "top_p": 0.9,
             }
         else:
             # Default format
-            body = {
-                "prompt": prompt,
-                "max_tokens": 4000,
-                "temperature": 0.1
-            }
+            body = {"prompt": prompt, "max_tokens": 4000, "temperature": 0.1}
 
         # Execute in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
@@ -251,23 +260,25 @@ Respond in JSON format with the following structure:
             lambda: self.bedrock_runtime.invoke_model(
                 modelId=self.model_id,
                 body=json.dumps(body),
-                contentType='application/json'
-            )
+                contentType="application/json",
+            ),
         )
 
-        response_body = json.loads(response['body'].read())
+        response_body = json.loads(response["body"].read())
         return response_body
 
-    def _parse_response(self, response: Dict[str, Any], task: AgentTask) -> Dict[str, Any]:
+    def _parse_response(
+        self, response: Dict[str, Any], task: AgentTask
+    ) -> Dict[str, Any]:
         """Parse and validate model response"""
         try:
             # Extract content based on model type
             if "claude" in self.model_id.lower():
-                content = response['content'][0]['text']
+                content = response["content"][0]["text"]
             elif "nova" in self.model_id.lower():
-                content = response.get('completion', response.get('text', ''))
+                content = response.get("completion", response.get("text", ""))
             else:
-                content = response.get('completion', response.get('text', ''))
+                content = response.get("completion", response.get("text", ""))
 
             # Try to parse as JSON
             try:
@@ -280,7 +291,7 @@ Respond in JSON format with the following structure:
                     "confidence_score": 0.7,
                     "output_data": {"raw_response": content},
                     "recommendations": ["Review and validate the response"],
-                    "next_steps": ["Manual review required"]
+                    "next_steps": ["Manual review required"],
                 }
 
         except Exception as e:
@@ -291,8 +302,9 @@ Respond in JSON format with the following structure:
                 "error": str(e),
                 "output_data": {},
                 "recommendations": ["Retry with different parameters"],
-                "next_steps": ["Debug response parsing"]
+                "next_steps": ["Debug response parsing"],
             }
+
 
 class MultiAgentSupervisor:
     """
@@ -337,24 +349,24 @@ class MultiAgentSupervisor:
         agents = {
             AgentRole.SUPERVISOR: BedrockAgent(
                 role=AgentRole.SUPERVISOR,
-                model_id="anthropic.claude-sonnet-4-5-v2:0"  # Latest Claude Sonnet 4.5 for complex reasoning
+                model_id="anthropic.claude-sonnet-4-5-v2:0",  # Latest Claude Sonnet 4.5 for complex reasoning
             ),
             AgentRole.CHANGE_ANALYZER: BedrockAgent(
                 role=AgentRole.CHANGE_ANALYZER,
-                model_id="anthropic.claude-sonnet-4-v1:0"  # Claude Sonnet 4 for balanced analysis
+                model_id="anthropic.claude-sonnet-4-v1:0",  # Claude Sonnet 4 for balanced analysis
             ),
             AgentRole.CONTENT_CREATOR: BedrockAgent(
                 role=AgentRole.CONTENT_CREATOR,
-                model_id="anthropic.claude-sonnet-4-5-v2:0"  # Latest model for high-quality content
+                model_id="anthropic.claude-sonnet-4-5-v2:0",  # Latest model for high-quality content
             ),
             AgentRole.QUALITY_CONTROLLER: BedrockAgent(
                 role=AgentRole.QUALITY_CONTROLLER,
-                model_id="anthropic.claude-sonnet-4-5-v2:0"  # Best model for detailed analysis
+                model_id="anthropic.claude-sonnet-4-5-v2:0",  # Best model for detailed analysis
             ),
             AgentRole.PLATFORM_UPDATER: BedrockAgent(
                 role=AgentRole.PLATFORM_UPDATER,
-                model_id="anthropic.claude-sonnet-4-v1:0"  # Balanced for platform operations
-            )
+                model_id="anthropic.claude-sonnet-4-v1:0",  # Balanced for platform operations
+            ),
         }
         return agents
 
@@ -363,7 +375,7 @@ class MultiAgentSupervisor:
         Main entry point for processing change events using multi-agent collaboration
         Enhanced with ReAct reasoning, persistent memory, and performance tracking
         """
-        logger.info(f"Processing change event with enhanced multi-agent supervisor")
+        logger.info("Processing change event with enhanced multi-agent supervisor")
 
         # Start performance tracking
         session_id = None
@@ -384,7 +396,9 @@ class MultiAgentSupervisor:
             # Phase 0: Get memory insights for context enhancement
             memory_insights = None
             if self.memory_system:
-                memory_insights = await enhance_with_persistent_memory(change_data, self.memory_system)
+                memory_insights = await enhance_with_persistent_memory(
+                    change_data, self.memory_system
+                )
 
             # Phase 0.5: Enhanced ReAct reasoning for complex changes (if available)
             react_analysis = None
@@ -402,19 +416,28 @@ class MultiAgentSupervisor:
                 input_data={
                     "change_data": change_data,
                     "task": "analyze_and_plan_documentation_updates",
-                    "available_agents": [role.value for role in AgentRole if role != AgentRole.SUPERVISOR],
+                    "available_agents": [
+                        role.value for role in AgentRole if role != AgentRole.SUPERVISOR
+                    ],
                     "react_analysis": react_analysis,  # Include ReAct insights
-                    "memory_insights": memory_insights  # Include memory insights
-                }
+                    "memory_insights": memory_insights,  # Include memory insights
+                },
             )
 
-            supervisor_result = await self.agents[AgentRole.SUPERVISOR].execute_task(supervisor_task)
+            supervisor_result = await self.agents[AgentRole.SUPERVISOR].execute_task(
+                supervisor_task
+            )
 
             if not supervisor_result.success:
-                return {"error": "Supervisor analysis failed", "details": supervisor_result.error_message}
+                return {
+                    "error": "Supervisor analysis failed",
+                    "details": supervisor_result.error_message,
+                }
 
             # Phase 2: Execute parallel sub-agent tasks based on supervisor plan
-            sub_tasks = self._create_sub_tasks(change_data, supervisor_result.result_data)
+            sub_tasks = self._create_sub_tasks(
+                change_data, supervisor_result.result_data
+            )
 
             # Execute independent tasks in parallel
             parallel_tasks = [task for task in sub_tasks if not task.dependencies]
@@ -424,26 +447,31 @@ class MultiAgentSupervisor:
             parallel_results = await self._execute_parallel_tasks(parallel_tasks)
 
             # Run dependent tasks in sequence
-            sequential_results = await self._execute_dependent_tasks(dependent_tasks, parallel_results)
+            sequential_results = await self._execute_dependent_tasks(
+                dependent_tasks, parallel_results
+            )
 
             # Phase 3: Supervisor synthesizes final result
             all_results = {**parallel_results, **sequential_results}
-            final_result = await self._synthesize_results(change_data, supervisor_result, all_results, react_analysis)
+            final_result = await self._synthesize_results(
+                change_data, supervisor_result, all_results, react_analysis
+            )
 
             # Phase 4: Learn from this experience (if memory system available)
             if self.memory_system:
-                await self._record_experience(change_data, all_results, final_result, supervisor_result)
+                await self._record_experience(
+                    change_data, all_results, final_result, supervisor_result
+                )
 
             # Phase 5: Complete performance tracking and integrate results
             if self.performance_tracking_enabled:
-                await self.performance_manager.tracker.end_session(session_id, success=True)
+                await self.performance_manager.tracker.end_session(
+                    session_id, success=True
+                )
 
                 # Integrate performance insights into the results
                 final_result = await integrate_performance_tracking(
-                    final_result,
-                    self.performance_manager,
-                    session_id,
-                    all_results
+                    final_result, self.performance_manager, session_id, all_results
                 )
 
             return final_result
@@ -453,69 +481,85 @@ class MultiAgentSupervisor:
 
             # Complete performance tracking for failed session
             if self.performance_tracking_enabled and session_id:
-                await self.performance_manager.tracker.end_session(session_id, success=False)
+                await self.performance_manager.tracker.end_session(
+                    session_id, success=False
+                )
 
             return {"error": "Multi-agent processing failed", "details": str(e)}
 
-    def _create_sub_tasks(self, change_data: Dict[str, Any], supervisor_plan: Dict[str, Any]) -> List[AgentTask]:
+    def _create_sub_tasks(
+        self, change_data: Dict[str, Any], supervisor_plan: Dict[str, Any]
+    ) -> List[AgentTask]:
         """Create sub-tasks based on supervisor's analysis and plan"""
         tasks = []
         base_timestamp = datetime.utcnow().timestamp()
 
         # Change Analysis Task
-        tasks.append(AgentTask(
-            task_id=f"change-analysis-{base_timestamp}",
-            agent_role=AgentRole.CHANGE_ANALYZER,
-            input_data={
-                "change_data": change_data,
-                "supervisor_guidance": supervisor_plan.get("analysis_guidance", {}),
-                "focus_areas": supervisor_plan.get("focus_areas", [])
-            },
-            priority=1
-        ))
+        tasks.append(
+            AgentTask(
+                task_id=f"change-analysis-{base_timestamp}",
+                agent_role=AgentRole.CHANGE_ANALYZER,
+                input_data={
+                    "change_data": change_data,
+                    "supervisor_guidance": supervisor_plan.get("analysis_guidance", {}),
+                    "focus_areas": supervisor_plan.get("focus_areas", []),
+                },
+                priority=1,
+            )
+        )
 
         # Content Creation Task (depends on analysis)
-        tasks.append(AgentTask(
-            task_id=f"content-creation-{base_timestamp}",
-            agent_role=AgentRole.CONTENT_CREATOR,
-            input_data={
-                "change_data": change_data,
-                "supervisor_guidance": supervisor_plan.get("content_guidance", {}),
-                "style_requirements": supervisor_plan.get("style_requirements", {})
-            },
-            dependencies=[f"change-analysis-{base_timestamp}"],
-            priority=2
-        ))
+        tasks.append(
+            AgentTask(
+                task_id=f"content-creation-{base_timestamp}",
+                agent_role=AgentRole.CONTENT_CREATOR,
+                input_data={
+                    "change_data": change_data,
+                    "supervisor_guidance": supervisor_plan.get("content_guidance", {}),
+                    "style_requirements": supervisor_plan.get("style_requirements", {}),
+                },
+                dependencies=[f"change-analysis-{base_timestamp}"],
+                priority=2,
+            )
+        )
 
         # Quality Control Task (depends on content creation)
-        tasks.append(AgentTask(
-            task_id=f"quality-control-{base_timestamp}",
-            agent_role=AgentRole.QUALITY_CONTROLLER,
-            input_data={
-                "change_data": change_data,
-                "supervisor_guidance": supervisor_plan.get("quality_guidance", {}),
-                "quality_standards": supervisor_plan.get("quality_standards", {})
-            },
-            dependencies=[f"content-creation-{base_timestamp}"],
-            priority=3
-        ))
+        tasks.append(
+            AgentTask(
+                task_id=f"quality-control-{base_timestamp}",
+                agent_role=AgentRole.QUALITY_CONTROLLER,
+                input_data={
+                    "change_data": change_data,
+                    "supervisor_guidance": supervisor_plan.get("quality_guidance", {}),
+                    "quality_standards": supervisor_plan.get("quality_standards", {}),
+                },
+                dependencies=[f"content-creation-{base_timestamp}"],
+                priority=3,
+            )
+        )
 
         # Platform Update Task (depends on quality control)
-        tasks.append(AgentTask(
-            task_id=f"platform-update-{base_timestamp}",
-            agent_role=AgentRole.PLATFORM_UPDATER,
-            input_data={
-                "change_data": change_data,
-                "supervisor_guidance": supervisor_plan.get("platform_guidance", {}),
-                "target_platforms": supervisor_plan.get("target_platforms", ["github", "confluence"])
-            },
-            dependencies=[f"quality-control-{base_timestamp}"],
-            priority=4
-        ))
+        tasks.append(
+            AgentTask(
+                task_id=f"platform-update-{base_timestamp}",
+                agent_role=AgentRole.PLATFORM_UPDATER,
+                input_data={
+                    "change_data": change_data,
+                    "supervisor_guidance": supervisor_plan.get("platform_guidance", {}),
+                    "target_platforms": supervisor_plan.get(
+                        "target_platforms", ["github", "confluence"]
+                    ),
+                },
+                dependencies=[f"quality-control-{base_timestamp}"],
+                priority=4,
+            )
+        )
 
         return tasks
 
-    async def _execute_parallel_tasks(self, tasks: List[AgentTask]) -> Dict[str, AgentResult]:
+    async def _execute_parallel_tasks(
+        self, tasks: List[AgentTask]
+    ) -> Dict[str, AgentResult]:
         """Execute independent tasks in parallel for maximum efficiency"""
         if not tasks:
             return {}
@@ -524,8 +568,7 @@ class MultiAgentSupervisor:
 
         # Create coroutines for parallel execution
         task_coroutines = [
-            self.agents[task.agent_role].execute_task(task)
-            for task in tasks
+            self.agents[task.agent_role].execute_task(task) for task in tasks
         ]
 
         # Execute all tasks concurrently
@@ -543,14 +586,16 @@ class MultiAgentSupervisor:
                     result_data={},
                     execution_time=0.0,
                     confidence_score=0.0,
-                    error_message=str(result)
+                    error_message=str(result),
                 )
             else:
                 result_dict[result.task_id] = result
 
         return result_dict
 
-    async def _execute_dependent_tasks(self, tasks: List[AgentTask], completed_results: Dict[str, AgentResult]) -> Dict[str, AgentResult]:
+    async def _execute_dependent_tasks(
+        self, tasks: List[AgentTask], completed_results: Dict[str, AgentResult]
+    ) -> Dict[str, AgentResult]:
         """Execute tasks with dependencies in the correct order"""
         if not tasks:
             return {}
@@ -566,7 +611,10 @@ class MultiAgentSupervisor:
             # Find tasks whose dependencies are satisfied
             ready_tasks = []
             for task in remaining_tasks:
-                if all(dep_id in completed_results or dep_id in result_dict for dep_id in task.dependencies):
+                if all(
+                    dep_id in completed_results or dep_id in result_dict
+                    for dep_id in task.dependencies
+                ):
                     ready_tasks.append(task)
 
             if not ready_tasks:
@@ -583,7 +631,9 @@ class MultiAgentSupervisor:
                 task = ready_tasks[0]
                 # Inject dependency results into task input
                 task.input_data["dependency_results"] = {
-                    dep_id: (completed_results.get(dep_id) or result_dict.get(dep_id)).result_data
+                    dep_id: (
+                        completed_results.get(dep_id) or result_dict.get(dep_id)
+                    ).result_data
                     for dep_id in task.dependencies
                 }
 
@@ -593,7 +643,9 @@ class MultiAgentSupervisor:
                 # Multiple ready tasks can be executed in parallel
                 for task in ready_tasks:
                     task.input_data["dependency_results"] = {
-                        dep_id: (completed_results.get(dep_id) or result_dict.get(dep_id)).result_data
+                        dep_id: (
+                            completed_results.get(dep_id) or result_dict.get(dep_id)
+                        ).result_data
                         for dep_id in task.dependencies
                     }
 
@@ -602,7 +654,13 @@ class MultiAgentSupervisor:
 
         return result_dict
 
-    async def _synthesize_results(self, original_change_data: Dict[str, Any], supervisor_result: AgentResult, all_results: Dict[str, AgentResult], react_analysis: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _synthesize_results(
+        self,
+        original_change_data: Dict[str, Any],
+        supervisor_result: AgentResult,
+        all_results: Dict[str, AgentResult],
+        react_analysis: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Have supervisor synthesize all sub-agent results into final output"""
 
         synthesis_task = AgentTask(
@@ -617,15 +675,17 @@ class MultiAgentSupervisor:
                         "success": result.success,
                         "result_data": result.result_data,
                         "confidence_score": result.confidence_score,
-                        "execution_time": result.execution_time
+                        "execution_time": result.execution_time,
                     }
                     for task_id, result in all_results.items()
                 },
-                "task": "synthesize_documentation_update_results"
-            }
+                "task": "synthesize_documentation_update_results",
+            },
         )
 
-        synthesis_result = await self.agents[AgentRole.SUPERVISOR].execute_task(synthesis_task)
+        synthesis_result = await self.agents[AgentRole.SUPERVISOR].execute_task(
+            synthesis_task
+        )
 
         # Compile comprehensive response
         result = {
@@ -637,14 +697,31 @@ class MultiAgentSupervisor:
                         "success": result.success,
                         "confidence": result.confidence_score,
                         "execution_time": result.execution_time,
-                        "output": result.result_data if result.success else result.error_message
+                        "output": (
+                            result.result_data
+                            if result.success
+                            else result.error_message
+                        ),
                     }
                     for task_id, result in all_results.items()
                 },
-                "synthesis": synthesis_result.result_data if synthesis_result.success else synthesis_result.error_message,
-                "overall_success": synthesis_result.success and all(r.success for r in all_results.values()),
-                "total_execution_time": sum(r.execution_time for r in all_results.values()) + synthesis_result.execution_time,
-                "average_confidence": sum(r.confidence_score for r in all_results.values()) / len(all_results) if all_results else 0.0
+                "synthesis": (
+                    synthesis_result.result_data
+                    if synthesis_result.success
+                    else synthesis_result.error_message
+                ),
+                "overall_success": synthesis_result.success
+                and all(r.success for r in all_results.values()),
+                "total_execution_time": sum(
+                    r.execution_time for r in all_results.values()
+                )
+                + synthesis_result.execution_time,
+                "average_confidence": (
+                    sum(r.confidence_score for r in all_results.values())
+                    / len(all_results)
+                    if all_results
+                    else 0.0
+                ),
             }
         }
 
@@ -653,48 +730,76 @@ class MultiAgentSupervisor:
             result["react_reasoning"] = {
                 "enabled": True,
                 "complexity_triggered": True,
-                "reasoning_traces_count": len(react_analysis.get("reasoning_traces", [])),
+                "reasoning_traces_count": len(
+                    react_analysis.get("reasoning_traces", [])
+                ),
                 "final_analysis": react_analysis.get("final_analysis", {}),
-                "reasoning_method": react_analysis.get("reasoning_method", "claude_4_react_pattern")
+                "reasoning_method": react_analysis.get(
+                    "reasoning_method", "claude_4_react_pattern"
+                ),
             }
         else:
             result["react_reasoning"] = {
                 "enabled": REACT_REASONING_AVAILABLE,
                 "complexity_triggered": False,
-                "reason": "Change complexity below threshold for ReAct reasoning"
+                "reason": "Change complexity below threshold for ReAct reasoning",
             }
 
         # Include persistent memory information
         result["persistent_memory"] = {
             "enabled": PERSISTENT_MEMORY_AVAILABLE,
-            "system_initialized": self.memory_initialized if hasattr(self, 'memory_initialized') else False,
+            "system_initialized": (
+                self.memory_initialized
+                if hasattr(self, "memory_initialized")
+                else False
+            ),
             "memory_enhancement_active": self.memory_system is not None,
-            "learning_enabled": True if self.memory_system else False
+            "learning_enabled": True if self.memory_system else False,
         }
 
         # Include Nova Act browser automation information
         result["nova_act_automation"] = {
             "enabled": NOVA_ACT_AVAILABLE,
             "browser_automation_ready": True if NOVA_ACT_AVAILABLE else False,
-            "supported_platforms": ["confluence", "sharepoint", "notion", "jira", "custom_wiki"] if NOVA_ACT_AVAILABLE else [],
-            "automation_version": "2024-2025-browser-automation" if NOVA_ACT_AVAILABLE else None
+            "supported_platforms": (
+                ["confluence", "sharepoint", "notion", "jira", "custom_wiki"]
+                if NOVA_ACT_AVAILABLE
+                else []
+            ),
+            "automation_version": (
+                "2024-2025-browser-automation" if NOVA_ACT_AVAILABLE else None
+            ),
         }
 
         # Include performance tracking information
         result["performance_tracking"] = {
             "enabled": PERFORMANCE_TRACKING_AVAILABLE,
-            "self_improving_active": self.performance_tracking_enabled if hasattr(self, 'performance_tracking_enabled') else False,
-            "performance_optimization_enabled": True if PERFORMANCE_TRACKING_AVAILABLE else False,
-            "tracking_version": "2024-2025-self-improving-performance" if PERFORMANCE_TRACKING_AVAILABLE else None
+            "self_improving_active": (
+                self.performance_tracking_enabled
+                if hasattr(self, "performance_tracking_enabled")
+                else False
+            ),
+            "performance_optimization_enabled": (
+                True if PERFORMANCE_TRACKING_AVAILABLE else False
+            ),
+            "tracking_version": (
+                "2024-2025-self-improving-performance"
+                if PERFORMANCE_TRACKING_AVAILABLE
+                else None
+            ),
         }
 
         # Include MCP integration information
         result["mcp_integration"] = {
             "enabled": MCP_AVAILABLE,
-            "client_active": self.mcp_enabled if hasattr(self, 'mcp_enabled') else False,
-            "connections_initialized": self.mcp_initialized if hasattr(self, 'mcp_initialized') else False,
+            "client_active": (
+                self.mcp_enabled if hasattr(self, "mcp_enabled") else False
+            ),
+            "connections_initialized": (
+                self.mcp_initialized if hasattr(self, "mcp_initialized") else False
+            ),
             "protocol_version": "1.0.0" if MCP_AVAILABLE else None,
-            "tool_interoperability": True if MCP_AVAILABLE else False
+            "tool_interoperability": True if MCP_AVAILABLE else False,
         }
 
         return result
@@ -718,11 +823,19 @@ class MultiAgentSupervisor:
                 message = commit.get("message", "").lower()
                 if any(keyword in message for keyword in ["api", "endpoint", "route"]):
                     file_types_detected.add("api")
-                if any(keyword in message for keyword in ["database", "schema", "migration"]):
+                if any(
+                    keyword in message
+                    for keyword in ["database", "schema", "migration"]
+                ):
                     file_types_detected.add("database")
-                if any(keyword in message for keyword in ["auth", "security", "permission"]):
+                if any(
+                    keyword in message for keyword in ["auth", "security", "permission"]
+                ):
                     file_types_detected.add("security")
-                if any(keyword in message for keyword in ["config", "environment", "setting"]):
+                if any(
+                    keyword in message
+                    for keyword in ["config", "environment", "setting"]
+                ):
                     file_types_detected.add("config")
 
         complexity_score += len(file_types_detected) * 0.15  # Max 0.6 for 4 types
@@ -731,33 +844,56 @@ class MultiAgentSupervisor:
         if "commits" in change_data:
             for commit in change_data["commits"]:
                 message = commit.get("message", "").lower()
-                if any(keyword in message for keyword in ["breaking", "major", "remove", "deprecated"]):
+                if any(
+                    keyword in message
+                    for keyword in ["breaking", "major", "remove", "deprecated"]
+                ):
                     complexity_score += 0.4
                     break
 
         # Factor 4: Cross-system implications
         if "repository" in change_data:
             repo_name = change_data["repository"].get("full_name", "").lower()
-            if any(keyword in repo_name for keyword in ["core", "platform", "shared", "common"]):
+            if any(
+                keyword in repo_name
+                for keyword in ["core", "platform", "shared", "common"]
+            ):
                 complexity_score += 0.2
 
         # Cap at 1.0
         return min(complexity_score, 1.0)
 
-    async def _record_experience(self, change_data: Dict[str, Any], all_results: Dict[str, AgentResult], final_result: Dict[str, Any], supervisor_result: AgentResult):
+    async def _record_experience(
+        self,
+        change_data: Dict[str, Any],
+        all_results: Dict[str, AgentResult],
+        final_result: Dict[str, Any],
+        supervisor_result: AgentResult,
+    ):
         """Record the experience for learning and future reference"""
 
         try:
             # Calculate success metrics
-            overall_success = final_result.get("multi_agent_processing", {}).get("overall_success", False)
-            avg_confidence = final_result.get("multi_agent_processing", {}).get("average_confidence", 0.0)
-            total_execution_time = final_result.get("multi_agent_processing", {}).get("total_execution_time", 0.0)
+            overall_success = final_result.get("multi_agent_processing", {}).get(
+                "overall_success", False
+            )
+            avg_confidence = final_result.get("multi_agent_processing", {}).get(
+                "average_confidence", 0.0
+            )
+            total_execution_time = final_result.get("multi_agent_processing", {}).get(
+                "total_execution_time", 0.0
+            )
 
             success_metrics = {
                 "overall_success": 1.0 if overall_success else 0.0,
                 "average_confidence": avg_confidence,
-                "execution_efficiency": 1.0 / (total_execution_time + 1),  # Efficiency score
-                "agent_success_rate": sum(1 for r in all_results.values() if r.success) / len(all_results) if all_results else 0.0
+                "execution_efficiency": 1.0
+                / (total_execution_time + 1),  # Efficiency score
+                "agent_success_rate": (
+                    sum(1 for r in all_results.values() if r.success) / len(all_results)
+                    if all_results
+                    else 0.0
+                ),
             }
 
             # Extract actions taken
@@ -768,7 +904,7 @@ class MultiAgentSupervisor:
                     "action": "execute_task",
                     "success": result.success,
                     "execution_time": result.execution_time,
-                    "confidence": result.confidence_score
+                    "confidence": result.confidence_score,
                 }
                 for task_id, result in all_results.items()
             ]
@@ -776,16 +912,22 @@ class MultiAgentSupervisor:
             # Generate lessons learned based on outcomes
             lessons_learned = []
             if overall_success:
-                lessons_learned.append("Multi-agent collaboration successful for this change type")
+                lessons_learned.append(
+                    "Multi-agent collaboration successful for this change type"
+                )
                 if avg_confidence > 0.8:
                     lessons_learned.append("High confidence achieved across all agents")
                 if total_execution_time < 10:  # Fast processing
                     lessons_learned.append("Efficient processing time achieved")
             else:
                 lessons_learned.append("Multi-agent processing encountered issues")
-                failed_agents = [r.agent_role.value for r in all_results.values() if not r.success]
+                failed_agents = [
+                    r.agent_role.value for r in all_results.values() if not r.success
+                ]
                 if failed_agents:
-                    lessons_learned.append(f"Agents requiring attention: {', '.join(failed_agents)}")
+                    lessons_learned.append(
+                        f"Agents requiring attention: {', '.join(failed_agents)}"
+                    )
 
             # Determine experience type based on change data
             experience_type = ExperienceType.CHANGE_ANALYSIS
@@ -802,7 +944,7 @@ class MultiAgentSupervisor:
                 success_metrics=success_metrics,
                 lessons_learned=lessons_learned,
                 agent_participants=[role.value for role in AgentRole],
-                confidence_score=avg_confidence
+                confidence_score=avg_confidence,
             )
 
             # Store experience for learning
@@ -824,7 +966,7 @@ class MultiAgentSupervisor:
                     "name": "claude-desktop",
                     "url": "http://localhost:3000/mcp",  # Claude Desktop MCP endpoint
                     "transport": "http",
-                    "auth_token": None  # Would use OAuth in production
+                    "auth_token": None,  # Would use OAuth in production
                 },
                 # Add more MCP servers as they become available
             ]
@@ -836,26 +978,33 @@ class MultiAgentSupervisor:
                         name=config["name"],
                         url=config["url"],
                         transport=MCPTransport(config["transport"]),
-                        auth_token=config.get("auth_token")
+                        auth_token=config.get("auth_token"),
                     )
 
                     success = await self.mcp_client.connect_to_server(connection)
                     if success:
                         logger.info(f"Connected to MCP server: {config['name']}")
                     else:
-                        logger.warning(f"Failed to connect to MCP server: {config['name']}")
+                        logger.warning(
+                            f"Failed to connect to MCP server: {config['name']}"
+                        )
 
                 except Exception as e:
-                    logger.error(f"Error connecting to MCP server {config['name']}: {str(e)}")
+                    logger.error(
+                        f"Error connecting to MCP server {config['name']}: {str(e)}"
+                    )
 
             # Log available MCP tools and resources
             if self.mcp_client:
                 tools = await self.mcp_client.list_available_tools()
                 resources = await self.mcp_client.list_available_resources()
-                logger.info(f"MCP integration: {tools['total_tools']} tools, {resources['total_resources']} resources available")
+                logger.info(
+                    f"MCP integration: {tools['total_tools']} tools, {resources['total_resources']} resources available"
+                )
 
         except Exception as e:
             logger.error(f"Failed to initialize MCP connections: {str(e)}")
+
 
 # Lambda handler function for webhook integration
 async def lambda_handler_async(event, context):
@@ -869,8 +1018,12 @@ async def lambda_handler_async(event, context):
 
     # Extract change data from event
     try:
-        if 'body' in event:
-            change_data = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
+        if "body" in event:
+            change_data = (
+                json.loads(event["body"])
+                if isinstance(event["body"], str)
+                else event["body"]
+            )
         else:
             change_data = event
 
@@ -878,33 +1031,38 @@ async def lambda_handler_async(event, context):
         result = await supervisor.process_change_event(change_data)
 
         return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
             },
-            'body': json.dumps({
-                'message': 'Multi-agent processing completed',
-                'agentic_ai_version': '2024-2025-latest',
-                'processing_type': 'bedrock-multi-agent-supervisor',
-                'result': result
-            })
+            "body": json.dumps(
+                {
+                    "message": "Multi-agent processing completed",
+                    "agentic_ai_version": "2024-2025-latest",
+                    "processing_type": "bedrock-multi-agent-supervisor",
+                    "result": result,
+                }
+            ),
         }
 
     except Exception as e:
         logger.error(f"Multi-agent processing error: {str(e)}")
         return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
             },
-            'body': json.dumps({
-                'error': 'Multi-agent processing failed',
-                'details': str(e),
-                'fallback': 'Single-agent mode recommended'
-            })
+            "body": json.dumps(
+                {
+                    "error": "Multi-agent processing failed",
+                    "details": str(e),
+                    "fallback": "Single-agent mode recommended",
+                }
+            ),
         }
+
 
 def lambda_handler(event, context):
     """Synchronous wrapper for Lambda"""

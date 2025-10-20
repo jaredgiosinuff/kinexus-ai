@@ -2,9 +2,10 @@
 GitHub Client for Document Management
 Manages documents that live in GitHub repositories
 """
+
 import base64
-import json
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
+
 import httpx
 import structlog
 
@@ -22,7 +23,7 @@ class GitHubClient:
         self.base_url = base_url
         self.headers = {
             "Authorization": f"token {token}",
-            "Accept": "application/vnd.github.v3+json"
+            "Accept": "application/vnd.github.v3+json",
         }
 
     async def get_file(self, repo: str, path: str, ref: str = "main") -> Optional[Dict]:
@@ -48,19 +49,28 @@ class GitHubClient:
                 logger.error(f"Error fetching file: {e}")
                 return None
 
-    async def get_file_content(self, repo: str, path: str, ref: str = "main") -> Optional[str]:
+    async def get_file_content(
+        self, repo: str, path: str, ref: str = "main"
+    ) -> Optional[str]:
         """
         Get the decoded content of a file.
         """
         file_data = await self.get_file(repo, path, ref)
-        if file_data and 'content' in file_data:
+        if file_data and "content" in file_data:
             # GitHub returns base64 encoded content
-            content = base64.b64decode(file_data['content']).decode('utf-8')
+            content = base64.b64decode(file_data["content"]).decode("utf-8")
             return content
         return None
 
-    async def update_file(self, repo: str, path: str, content: str,
-                         message: str, sha: str, branch: str = "main") -> Dict:
+    async def update_file(
+        self,
+        repo: str,
+        path: str,
+        content: str,
+        message: str,
+        sha: str,
+        branch: str = "main",
+    ) -> Dict:
         """
         Update an existing file in GitHub.
         This is the PRIMARY operation - we update docs where they live.
@@ -68,13 +78,13 @@ class GitHubClient:
         url = f"{self.base_url}/repos/{repo}/contents/{path}"
 
         # Encode content to base64
-        encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+        encoded_content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
         data = {
             "message": message,
             "content": encoded_content,
             "sha": sha,  # Required for updates
-            "branch": branch
+            "branch": branch,
         }
 
         async with httpx.AsyncClient() as client:
@@ -84,24 +94,23 @@ class GitHubClient:
                 logger.info(f"Updated {repo}/{path}")
                 return response.json()
             else:
-                logger.error(f"Failed to update file: {response.status_code} - {response.text}")
+                logger.error(
+                    f"Failed to update file: {response.status_code} - {response.text}"
+                )
                 raise Exception(f"Failed to update file: {response.status_code}")
 
-    async def create_file(self, repo: str, path: str, content: str,
-                         message: str, branch: str = "main") -> Dict:
+    async def create_file(
+        self, repo: str, path: str, content: str, message: str, branch: str = "main"
+    ) -> Dict:
         """
         Create a new file in GitHub.
         This is SECONDARY - only when explicitly permitted and needed.
         """
         url = f"{self.base_url}/repos/{repo}/contents/{path}"
 
-        encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+        encoded_content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-        data = {
-            "message": message,
-            "content": encoded_content,
-            "branch": branch
-        }
+        data = {"message": message, "content": encoded_content, "branch": branch}
 
         async with httpx.AsyncClient() as client:
             response = await client.put(url, headers=self.headers, json=data)
@@ -123,13 +132,13 @@ class GitHubClient:
         # Check root directory
         root_files = await self.list_files(repo, "")
         for file in root_files:
-            if file['name'].upper() in ['README.MD', 'CONTRIBUTING.MD', 'CHANGELOG.MD']:
+            if file["name"].upper() in ["README.MD", "CONTRIBUTING.MD", "CHANGELOG.MD"]:
                 doc_files.append(file)
 
         # Check docs directory if it exists
         docs_files = await self.list_files(repo, "docs")
         if docs_files:
-            doc_files.extend([f for f in docs_files if f['name'].endswith('.md')])
+            doc_files.extend([f for f in docs_files if f["name"].endswith(".md")])
 
         return doc_files
 
@@ -145,7 +154,7 @@ class GitHubClient:
                 if response.status_code == 200:
                     return response.json()
                 return []
-            except:
+            except Exception:
                 return []
 
 
@@ -157,8 +166,9 @@ class GitHubDocumentManager:
     def __init__(self, client: GitHubClient):
         self.client = client
 
-    async def update_readme_section(self, repo: str, section_name: str,
-                                   new_content: str, reason: str) -> Dict:
+    async def update_readme_section(
+        self, repo: str, section_name: str, new_content: str, reason: str
+    ) -> Dict:
         """
         Update a specific section of a README file.
         Preserves all other content.
@@ -168,29 +178,29 @@ class GitHubDocumentManager:
         file_data = await self.client.get_file(repo, "README.md")
         if not file_data:
             logger.warning(f"No README.md found in {repo}")
-            return {'error': 'README.md not found'}
+            return {"error": "README.md not found"}
 
-        current_content = base64.b64decode(file_data['content']).decode('utf-8')
+        current_content = base64.b64decode(file_data["content"]).decode("utf-8")
 
         # Find and update the section
-        lines = current_content.split('\n')
+        lines = current_content.split("\n")
         updated_lines = []
         in_section = False
         section_level = 0
 
         for line in lines:
             # Detect section start
-            if section_name in line and line.startswith('#'):
+            if section_name in line and line.startswith("#"):
                 in_section = True
-                section_level = len(line.split(' ')[0])  # Count # symbols
+                section_level = len(line.split(" ")[0])  # Count # symbols
                 updated_lines.append(line)
-                updated_lines.append('')  # Empty line after header
+                updated_lines.append("")  # Empty line after header
                 updated_lines.append(new_content)
                 continue
 
             # Detect section end
-            if in_section and line.startswith('#'):
-                current_level = len(line.split(' ')[0])
+            if in_section and line.startswith("#"):
+                current_level = len(line.split(" ")[0])
                 if current_level <= section_level:
                     in_section = False
 
@@ -198,7 +208,7 @@ class GitHubDocumentManager:
             if not in_section:
                 updated_lines.append(line)
 
-        updated_content = '\n'.join(updated_lines)
+        updated_content = "\n".join(updated_lines)
 
         # Add update note at the bottom
         update_note = f"\n\n<!-- Last updated by Kinexus AI: {reason} -->\n"
@@ -207,10 +217,11 @@ class GitHubDocumentManager:
         else:
             # Replace existing update note
             import re
+
             updated_content = re.sub(
-                r'<!-- Last updated by Kinexus AI:.*?-->',
+                r"<!-- Last updated by Kinexus AI:.*?-->",
                 update_note.strip(),
-                updated_content
+                updated_content,
             )
 
         # Update the file
@@ -219,13 +230,13 @@ class GitHubDocumentManager:
             path="README.md",
             content=updated_content,
             message=f"AI: Update {section_name} section - {reason}",
-            sha=file_data['sha']
+            sha=file_data["sha"],
         )
 
         return {
-            'status': 'updated',
-            'section': section_name,
-            'commit': result.get('commit', {}).get('sha')
+            "status": "updated",
+            "section": section_name,
+            "commit": result.get("commit", {}).get("sha"),
         }
 
     async def ensure_documentation_exists(self, repo: str) -> Dict:
@@ -238,6 +249,6 @@ class GitHubDocumentManager:
             # Check if we have permission to create
             # In production, this would check permissions table
             logger.info(f"No README.md in {repo}, would create if permitted")
-            return {'status': 'no_readme', 'action': 'would_create'}
+            return {"status": "no_readme", "action": "would_create"}
 
-        return {'status': 'readme_exists', 'path': 'README.md'}
+        return {"status": "readme_exists", "path": "README.md"}

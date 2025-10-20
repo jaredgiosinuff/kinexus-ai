@@ -3,19 +3,20 @@
 Model Configuration Manager for Kinexus AI
 Manages AWS Bedrock model assignments and fallback strategies
 """
-import os
 import json
 import logging
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
 import boto3
-from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
+
 class ModelCapability(Enum):
     """Model capabilities"""
+
     TEXT_GENERATION = "text_generation"
     IMAGE_ANALYSIS = "image_analysis"
     REASONING = "reasoning"
@@ -24,16 +25,20 @@ class ModelCapability(Enum):
     HIGH_QUALITY = "high_quality"
     MULTIMODAL = "multimodal"
 
+
 class ModelProvider(Enum):
     """Model providers"""
+
     ANTHROPIC = "anthropic"
     AMAZON = "amazon"
     META = "meta"
     COHERE = "cohere"
 
+
 @dataclass
 class ModelConfig:
     """Configuration for a specific model"""
+
     model_id: str
     provider: ModelProvider
     capabilities: List[ModelCapability]
@@ -48,6 +53,7 @@ class ModelConfig:
         if self.metadata is None:
             self.metadata = {}
 
+
 class ModelConfigManager:
     """
     Manages model configurations and provides intelligent model selection
@@ -55,7 +61,7 @@ class ModelConfigManager:
 
     def __init__(self, region: str = "us-east-1"):
         self.region = region
-        self.bedrock = boto3.client('bedrock', region_name=region)
+        self.bedrock = boto3.client("bedrock", region_name=region)
 
         # Initialize model catalog
         self.models: Dict[str, ModelConfig] = {}
@@ -75,7 +81,7 @@ class ModelConfigManager:
                     ModelCapability.TEXT_GENERATION,
                     ModelCapability.REASONING,
                     ModelCapability.CODING,
-                    ModelCapability.HIGH_QUALITY
+                    ModelCapability.HIGH_QUALITY,
                 ],
                 context_length=1000000,  # 1M tokens
                 cost_per_token=0.000015,  # Estimated
@@ -84,8 +90,8 @@ class ModelConfigManager:
                 metadata={
                     "release_date": "2025-09-29",
                     "best_for": "complex reasoning, autonomous agents, coding",
-                    "performance_tier": "premium"
-                }
+                    "performance_tier": "premium",
+                },
             ),
             "anthropic.claude-sonnet-4-v1:0": ModelConfig(
                 model_id="anthropic.claude-sonnet-4-v1:0",
@@ -93,7 +99,7 @@ class ModelConfigManager:
                 capabilities=[
                     ModelCapability.TEXT_GENERATION,
                     ModelCapability.REASONING,
-                    ModelCapability.CODING
+                    ModelCapability.CODING,
                 ],
                 context_length=1000000,
                 cost_per_token=0.000012,
@@ -102,8 +108,8 @@ class ModelConfigManager:
                 metadata={
                     "release_date": "2025-05-01",
                     "best_for": "balanced performance and cost",
-                    "performance_tier": "standard"
-                }
+                    "performance_tier": "standard",
+                },
             ),
             "anthropic.claude-opus-4-1-v1:0": ModelConfig(
                 model_id="anthropic.claude-opus-4-1-v1:0",
@@ -112,7 +118,7 @@ class ModelConfigManager:
                     ModelCapability.TEXT_GENERATION,
                     ModelCapability.REASONING,
                     ModelCapability.CODING,
-                    ModelCapability.HIGH_QUALITY
+                    ModelCapability.HIGH_QUALITY,
                 ],
                 context_length=1000000,
                 cost_per_token=0.000030,
@@ -121,8 +127,8 @@ class ModelConfigManager:
                 metadata={
                     "release_date": "2025-08-05",
                     "best_for": "maximum accuracy, complex analysis",
-                    "performance_tier": "premium"
-                }
+                    "performance_tier": "premium",
+                },
             ),
             # Legacy Claude models for fallback
             "anthropic.claude-3-5-sonnet-20241022-v2:0": ModelConfig(
@@ -130,7 +136,7 @@ class ModelConfigManager:
                 provider=ModelProvider.ANTHROPIC,
                 capabilities=[
                     ModelCapability.TEXT_GENERATION,
-                    ModelCapability.REASONING
+                    ModelCapability.REASONING,
                 ],
                 context_length=200000,
                 cost_per_token=0.000008,
@@ -139,9 +145,9 @@ class ModelConfigManager:
                 metadata={
                     "release_date": "2024-10-22",
                     "best_for": "legacy support",
-                    "performance_tier": "legacy"
-                }
-            )
+                    "performance_tier": "legacy",
+                },
+            ),
         }
 
         # Amazon Nova models
@@ -153,7 +159,7 @@ class ModelConfigManager:
                     ModelCapability.TEXT_GENERATION,
                     ModelCapability.IMAGE_ANALYSIS,
                     ModelCapability.MULTIMODAL,
-                    ModelCapability.REASONING
+                    ModelCapability.REASONING,
                 ],
                 context_length=300000,
                 cost_per_token=0.000008,
@@ -162,8 +168,8 @@ class ModelConfigManager:
                 metadata={
                     "release_date": "2024-12-03",
                     "best_for": "multimodal analysis, image processing",
-                    "performance_tier": "multimodal"
-                }
+                    "performance_tier": "multimodal",
+                },
             ),
             "amazon.nova-lite-v1:0": ModelConfig(
                 model_id="amazon.nova-lite-v1:0",
@@ -172,7 +178,7 @@ class ModelConfigManager:
                     ModelCapability.TEXT_GENERATION,
                     ModelCapability.IMAGE_ANALYSIS,
                     ModelCapability.MULTIMODAL,
-                    ModelCapability.FAST_PROCESSING
+                    ModelCapability.FAST_PROCESSING,
                 ],
                 context_length=300000,
                 cost_per_token=0.000003,
@@ -180,15 +186,15 @@ class ModelConfigManager:
                 metadata={
                     "release_date": "2024-12-03",
                     "best_for": "fast multimodal processing",
-                    "performance_tier": "fast"
-                }
+                    "performance_tier": "fast",
+                },
             ),
             "amazon.nova-micro-v1:0": ModelConfig(
                 model_id="amazon.nova-micro-v1:0",
                 provider=ModelProvider.AMAZON,
                 capabilities=[
                     ModelCapability.TEXT_GENERATION,
-                    ModelCapability.FAST_PROCESSING
+                    ModelCapability.FAST_PROCESSING,
                 ],
                 context_length=128000,
                 cost_per_token=0.000001,
@@ -196,9 +202,9 @@ class ModelConfigManager:
                 metadata={
                     "release_date": "2024-12-03",
                     "best_for": "lightweight tasks, high volume",
-                    "performance_tier": "ultra_fast"
-                }
-            )
+                    "performance_tier": "ultra_fast",
+                },
+            ),
         }
 
         # Combine all models
@@ -212,14 +218,18 @@ class ModelConfigManager:
         try:
             # Get list of foundation models from Bedrock
             response = self.bedrock.list_foundation_models()
-            available_model_ids = {model['modelId'] for model in response['modelSummaries']}
+            available_model_ids = {
+                model["modelId"] for model in response["modelSummaries"]
+            }
 
             # Update availability status
             for model_id, config in self.models.items():
                 config.is_available = model_id in available_model_ids
 
             available_count = sum(1 for m in self.models.values() if m.is_available)
-            logger.info(f"Found {available_count}/{len(self.models)} models available in {self.region}")
+            logger.info(
+                f"Found {available_count}/{len(self.models)} models available in {self.region}"
+            )
 
         except Exception as e:
             logger.warning(f"Could not check model availability: {str(e)}")
@@ -227,8 +237,11 @@ class ModelConfigManager:
             for config in self.models.values():
                 config.is_available = True
 
-    def get_best_model_for_task(self, required_capabilities: List[ModelCapability],
-                              performance_preference: str = "balanced") -> Optional[str]:
+    def get_best_model_for_task(
+        self,
+        required_capabilities: List[ModelCapability],
+        performance_preference: str = "balanced",
+    ) -> Optional[str]:
         """
         Get the best model for a specific task
 
@@ -247,33 +260,44 @@ class ModelConfigManager:
                 suitable_models.append((model_id, config))
 
         if not suitable_models:
-            logger.warning(f"No suitable models found for capabilities: {required_capabilities}")
+            logger.warning(
+                f"No suitable models found for capabilities: {required_capabilities}"
+            )
             return None
 
         # Sort by preference
         if performance_preference == "fast":
             # Prefer models with fast processing capability and lower cost
-            suitable_models.sort(key=lambda x: (
-                ModelCapability.FAST_PROCESSING in x[1].capabilities,
-                -x[1].cost_per_token
-            ), reverse=True)
+            suitable_models.sort(
+                key=lambda x: (
+                    ModelCapability.FAST_PROCESSING in x[1].capabilities,
+                    -x[1].cost_per_token,
+                ),
+                reverse=True,
+            )
         elif performance_preference == "premium":
             # Prefer high-quality models regardless of cost
-            suitable_models.sort(key=lambda x: (
-                ModelCapability.HIGH_QUALITY in x[1].capabilities,
-                x[1].context_length,
-                -x[1].cost_per_token
-            ), reverse=True)
+            suitable_models.sort(
+                key=lambda x: (
+                    ModelCapability.HIGH_QUALITY in x[1].capabilities,
+                    x[1].context_length,
+                    -x[1].cost_per_token,
+                ),
+                reverse=True,
+            )
         elif performance_preference == "cost_optimized":
             # Prefer lowest cost models
             suitable_models.sort(key=lambda x: x[1].cost_per_token)
         else:  # balanced
             # Balance between quality and cost
-            suitable_models.sort(key=lambda x: (
-                ModelCapability.HIGH_QUALITY in x[1].capabilities,
-                x[1].context_length,
-                -x[1].cost_per_token * 0.5  # Weight cost less heavily
-            ), reverse=True)
+            suitable_models.sort(
+                key=lambda x: (
+                    ModelCapability.HIGH_QUALITY in x[1].capabilities,
+                    x[1].context_length,
+                    -x[1].cost_per_token * 0.5,  # Weight cost less heavily
+                ),
+                reverse=True,
+            )
 
         return suitable_models[0][0]
 
@@ -288,20 +312,26 @@ class ModelConfigManager:
         if preferred_config and preferred_config.fallback_model:
             fallback_config = self.models.get(preferred_config.fallback_model)
             if fallback_config and fallback_config.is_available:
-                logger.info(f"Using fallback model {preferred_config.fallback_model} for {preferred_model_id}")
+                logger.info(
+                    f"Using fallback model {preferred_config.fallback_model} for {preferred_model_id}"
+                )
                 return preferred_config.fallback_model
 
         # Find best available model with similar capabilities
         if preferred_config:
             alternative = self.get_best_model_for_task(preferred_config.capabilities)
             if alternative:
-                logger.info(f"Using alternative model {alternative} for {preferred_model_id}")
+                logger.info(
+                    f"Using alternative model {alternative} for {preferred_model_id}"
+                )
                 return alternative
 
         # Last resort: return any available model
         for model_id, config in self.models.items():
             if config.is_available:
-                logger.warning(f"Using last resort model {model_id} for {preferred_model_id}")
+                logger.warning(
+                    f"Using last resort model {model_id} for {preferred_model_id}"
+                )
                 return model_id
 
         raise RuntimeError(f"No available models found in region {self.region}")
@@ -312,43 +342,47 @@ class ModelConfigManager:
 
         # Supervisor - needs best reasoning
         supervisor_model = self.get_best_model_for_task(
-            [ModelCapability.REASONING, ModelCapability.HIGH_QUALITY],
-            "premium"
+            [ModelCapability.REASONING, ModelCapability.HIGH_QUALITY], "premium"
         )
-        recommendations["supervisor"] = supervisor_model or "anthropic.claude-sonnet-4-5-v2:0"
+        recommendations["supervisor"] = (
+            supervisor_model or "anthropic.claude-sonnet-4-5-v2:0"
+        )
 
         # Change Analyzer - needs balanced performance
         analyzer_model = self.get_best_model_for_task(
-            [ModelCapability.TEXT_GENERATION, ModelCapability.REASONING],
-            "balanced"
+            [ModelCapability.TEXT_GENERATION, ModelCapability.REASONING], "balanced"
         )
-        recommendations["change_analyzer"] = analyzer_model or "anthropic.claude-sonnet-4-v1:0"
+        recommendations["change_analyzer"] = (
+            analyzer_model or "anthropic.claude-sonnet-4-v1:0"
+        )
 
         # Content Creator - needs high quality
         creator_model = self.get_best_model_for_task(
-            [ModelCapability.TEXT_GENERATION, ModelCapability.HIGH_QUALITY],
-            "premium"
+            [ModelCapability.TEXT_GENERATION, ModelCapability.HIGH_QUALITY], "premium"
         )
-        recommendations["content_creator"] = creator_model or "anthropic.claude-sonnet-4-5-v2:0"
+        recommendations["content_creator"] = (
+            creator_model or "anthropic.claude-sonnet-4-5-v2:0"
+        )
 
         # Quality Controller - needs high quality
         quality_model = self.get_best_model_for_task(
-            [ModelCapability.REASONING, ModelCapability.HIGH_QUALITY],
-            "premium"
+            [ModelCapability.REASONING, ModelCapability.HIGH_QUALITY], "premium"
         )
-        recommendations["quality_controller"] = quality_model or "anthropic.claude-sonnet-4-5-v2:0"
+        recommendations["quality_controller"] = (
+            quality_model or "anthropic.claude-sonnet-4-5-v2:0"
+        )
 
         # Platform Updater - needs speed
         updater_model = self.get_best_model_for_task(
-            [ModelCapability.TEXT_GENERATION],
-            "fast"
+            [ModelCapability.TEXT_GENERATION], "fast"
         )
-        recommendations["platform_updater"] = updater_model or "anthropic.claude-sonnet-4-v1:0"
+        recommendations["platform_updater"] = (
+            updater_model or "anthropic.claude-sonnet-4-v1:0"
+        )
 
         # Image Analysis - needs multimodal
         image_model = self.get_best_model_for_task(
-            [ModelCapability.IMAGE_ANALYSIS, ModelCapability.MULTIMODAL],
-            "balanced"
+            [ModelCapability.IMAGE_ANALYSIS, ModelCapability.MULTIMODAL], "balanced"
         )
         recommendations["image_analyzer"] = image_model or "amazon.nova-pro-v1:0"
 
@@ -360,7 +394,9 @@ class ModelConfigManager:
 
     def list_available_models(self) -> List[str]:
         """List all available models in current region"""
-        return [model_id for model_id, config in self.models.items() if config.is_available]
+        return [
+            model_id for model_id, config in self.models.items() if config.is_available
+        ]
 
     def get_model_summary(self) -> Dict[str, Any]:
         """Get summary of model availability and recommendations"""
@@ -373,25 +409,32 @@ class ModelConfigManager:
             "available_models": len(available_models),
             "recommended_assignments": recommendations,
             "model_providers": {
-                provider.value: len([m for m in self.models.values()
-                                  if m.provider == provider and m.is_available])
+                provider.value: len(
+                    [
+                        m
+                        for m in self.models.values()
+                        if m.provider == provider and m.is_available
+                    ]
+                )
                 for provider in ModelProvider
             },
             "capabilities_coverage": {
-                cap.value: len([m for m in self.models.values()
-                              if cap in m.capabilities and m.is_available])
+                cap.value: len(
+                    [
+                        m
+                        for m in self.models.values()
+                        if cap in m.capabilities and m.is_available
+                    ]
+                )
                 for cap in ModelCapability
-            }
+            },
         }
 
-    def validate_model_configuration(self, agent_assignments: Dict[str, str]) -> Dict[str, Any]:
+    def validate_model_configuration(
+        self, agent_assignments: Dict[str, str]
+    ) -> Dict[str, Any]:
         """Validate a set of agent model assignments"""
-        results = {
-            "valid": True,
-            "warnings": [],
-            "errors": [],
-            "recommendations": []
-        }
+        results = {"valid": True, "warnings": [], "errors": [], "recommendations": []}
 
         for agent, model_id in agent_assignments.items():
             config = self.models.get(model_id)
@@ -413,12 +456,16 @@ class ModelConfigManager:
 
             # Check for cost efficiency
             if config.cost_per_token > 0.000020:  # High cost threshold
-                results["warnings"].append(f"High-cost model {model_id} assigned to {agent}")
+                results["warnings"].append(
+                    f"High-cost model {model_id} assigned to {agent}"
+                )
 
         return results
 
+
 # Global model configuration instance
 _model_config = None
+
 
 def get_model_config(region: str = "us-east-1") -> ModelConfigManager:
     """Get global model configuration manager instance"""
@@ -426,6 +473,7 @@ def get_model_config(region: str = "us-east-1") -> ModelConfigManager:
     if _model_config is None or _model_config.region != region:
         _model_config = ModelConfigManager(region)
     return _model_config
+
 
 # Example usage
 if __name__ == "__main__":

@@ -4,30 +4,33 @@ Image Analysis Framework for Documentation Validation
 Provides comprehensive image analysis capabilities for document quality assessment
 """
 import asyncio
+import base64
+import hashlib
+import io
 import json
 import logging
-import base64
-import io
-from typing import Dict, List, Any, Optional, Union, Tuple
 from dataclasses import dataclass, field
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import boto3
-from PIL import Image, ImageDraw, ImageFont
-import numpy as np
 import cv2
+import numpy as np
 import pytesseract
-import hashlib
+from PIL import Image
+
+from ..config.model_config import ModelConfigManager
 
 # Import existing components
-from .self_corrective_rag import SelfCorrectiveRAG, QualityMetric
-from .multi_agent_supervisor import MultiAgentSupervisor, BedrockAgent
-from ..config.model_config import ModelConfigManager, ModelCapability
+from .self_corrective_rag import SelfCorrectiveRAG
 
 logger = logging.getLogger(__name__)
 
+
 class ImageType(Enum):
     """Types of images that can be analyzed"""
+
     SCREENSHOT = "screenshot"
     DIAGRAM = "diagram"
     FLOWCHART = "flowchart"
@@ -39,8 +42,10 @@ class ImageType(Enum):
     ERROR_MESSAGE = "error_message"
     UNKNOWN = "unknown"
 
+
 class AnalysisTask(Enum):
     """Types of analysis tasks"""
+
     TEXT_EXTRACTION = "text_extraction"
     CONTENT_VALIDATION = "content_validation"
     QUALITY_ASSESSMENT = "quality_assessment"
@@ -50,9 +55,11 @@ class AnalysisTask(Enum):
     COMPLETENESS_CHECK = "completeness_check"
     VISUAL_REGRESSION = "visual_regression"
 
+
 @dataclass
 class ImageAnalysisRequest:
     """Request for image analysis"""
+
     image_data: Union[str, bytes]  # Base64 string or bytes
     image_type: ImageType
     analysis_tasks: List[AnalysisTask]
@@ -60,18 +67,22 @@ class ImageAnalysisRequest:
     metadata: Dict[str, Any] = field(default_factory=dict)
     quality_threshold: float = 0.7
 
+
 @dataclass
 class TextExtractionResult:
     """Result of text extraction from image"""
+
     extracted_text: str
     confidence: float
     bounding_boxes: List[Dict[str, Any]]
     language: str
     text_blocks: List[Dict[str, Any]]
 
+
 @dataclass
 class QualityAssessmentResult:
     """Result of image quality assessment"""
+
     overall_score: float
     clarity_score: float
     readability_score: float
@@ -80,9 +91,11 @@ class QualityAssessmentResult:
     issues_detected: List[str]
     recommendations: List[str]
 
+
 @dataclass
 class ContentValidationResult:
     """Result of content validation"""
+
     is_valid: bool
     validation_score: float
     content_matches: List[str]
@@ -90,9 +103,11 @@ class ContentValidationResult:
     missing_elements: List[str]
     extra_elements: List[str]
 
+
 @dataclass
 class ImageAnalysisResult:
     """Comprehensive result of image analysis"""
+
     request_id: str
     image_type: ImageType
     analysis_timestamp: datetime
@@ -105,14 +120,16 @@ class ImageAnalysisResult:
     confidence: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+
 class ImagePreprocessor:
     """Preprocesses images for optimal analysis"""
 
     def __init__(self):
-        self.supported_formats = ['PNG', 'JPEG', 'JPG', 'GIF', 'BMP', 'TIFF']
+        self.supported_formats = ["PNG", "JPEG", "JPG", "GIF", "BMP", "TIFF"]
 
-    async def preprocess_image(self, image_data: Union[str, bytes],
-                             enhancement_type: str = "auto") -> Tuple[Image.Image, Dict[str, Any]]:
+    async def preprocess_image(
+        self, image_data: Union[str, bytes], enhancement_type: str = "auto"
+    ) -> Tuple[Image.Image, Dict[str, Any]]:
         """Preprocess image for optimal analysis"""
 
         # Convert to PIL Image
@@ -126,8 +143,8 @@ class ImagePreprocessor:
         original_size = image.size
 
         # Convert to RGB if necessary
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
+        if image.mode != "RGB":
+            image = image.convert("RGB")
 
         # Apply enhancements based on type
         if enhancement_type == "auto":
@@ -137,11 +154,11 @@ class ImagePreprocessor:
 
         # Generate metadata
         metadata = {
-            'original_size': original_size,
-            'processed_size': enhanced_image.size,
-            'enhancement_applied': enhancement_type,
-            'format': image.format,
-            'mode': enhanced_image.mode
+            "original_size": original_size,
+            "processed_size": enhanced_image.size,
+            "enhancement_applied": enhancement_type,
+            "format": image.format,
+            "mode": enhanced_image.mode,
         }
 
         return enhanced_image, metadata
@@ -180,7 +197,9 @@ class ImagePreprocessor:
         noise_level = np.std(gray)
         return noise_level > 50
 
-    async def _apply_enhancement(self, image: Image.Image, enhancement_type: str) -> Image.Image:
+    async def _apply_enhancement(
+        self, image: Image.Image, enhancement_type: str
+    ) -> Image.Image:
         """Apply specific enhancement to image"""
 
         img_array = np.array(image)
@@ -192,13 +211,13 @@ class ImagePreprocessor:
         elif enhancement_type == "enhance_contrast":
             # Enhance contrast using CLAHE
             lab = cv2.cvtColor(img_array, cv2.COLOR_RGB2LAB)
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-            lab[:,:,0] = clahe.apply(lab[:,:,0])
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            lab[:, :, 0] = clahe.apply(lab[:, :, 0])
             enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
 
         elif enhancement_type == "sharpen":
             # Sharpen image
-            kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+            kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
             enhanced = cv2.filter2D(img_array, -1, kernel)
 
         elif enhancement_type == "denoise":
@@ -214,15 +233,17 @@ class ImagePreprocessor:
 
         return Image.fromarray(enhanced)
 
+
 class TextExtractor:
     """Extracts and analyzes text from images"""
 
     def __init__(self):
         # Configure Tesseract
-        self.tesseract_config = '--oem 3 --psm 6'
+        self.tesseract_config = "--oem 3 --psm 6"
 
-    async def extract_text(self, image: Image.Image,
-                         language: str = 'eng') -> TextExtractionResult:
+    async def extract_text(
+        self, image: Image.Image, language: str = "eng"
+    ) -> TextExtractionResult:
         """Extract text from image using OCR"""
 
         try:
@@ -234,18 +255,16 @@ class TextExtractor:
                 img_array,
                 lang=language,
                 config=self.tesseract_config,
-                output_type=pytesseract.Output.DICT
+                output_type=pytesseract.Output.DICT,
             )
 
             # Extract text
             extracted_text = pytesseract.image_to_string(
-                img_array,
-                lang=language,
-                config=self.tesseract_config
+                img_array, lang=language, config=self.tesseract_config
             ).strip()
 
             # Calculate confidence
-            confidences = [int(conf) for conf in ocr_data['conf'] if int(conf) > 0]
+            confidences = [int(conf) for conf in ocr_data["conf"] if int(conf) > 0]
             avg_confidence = sum(confidences) / len(confidences) if confidences else 0
 
             # Extract bounding boxes
@@ -259,7 +278,7 @@ class TextExtractor:
                 confidence=avg_confidence / 100.0,  # Convert to 0-1 scale
                 bounding_boxes=bounding_boxes,
                 language=language,
-                text_blocks=text_blocks
+                text_blocks=text_blocks,
             )
 
         except Exception as e:
@@ -269,26 +288,32 @@ class TextExtractor:
                 confidence=0.0,
                 bounding_boxes=[],
                 language=language,
-                text_blocks=[]
+                text_blocks=[],
             )
 
     def _extract_bounding_boxes(self, ocr_data: Dict) -> List[Dict[str, Any]]:
         """Extract bounding boxes for detected text"""
 
         boxes = []
-        n_boxes = len(ocr_data['level'])
+        n_boxes = len(ocr_data["level"])
 
         for i in range(n_boxes):
-            if int(ocr_data['conf'][i]) > 0:
-                x, y, w, h = (ocr_data['left'][i], ocr_data['top'][i],
-                             ocr_data['width'][i], ocr_data['height'][i])
+            if int(ocr_data["conf"][i]) > 0:
+                x, y, w, h = (
+                    ocr_data["left"][i],
+                    ocr_data["top"][i],
+                    ocr_data["width"][i],
+                    ocr_data["height"][i],
+                )
 
-                boxes.append({
-                    'text': ocr_data['text'][i],
-                    'confidence': int(ocr_data['conf'][i]),
-                    'bbox': {'x': x, 'y': y, 'width': w, 'height': h},
-                    'level': ocr_data['level'][i]
-                })
+                boxes.append(
+                    {
+                        "text": ocr_data["text"][i],
+                        "confidence": int(ocr_data["conf"][i]),
+                        "bbox": {"x": x, "y": y, "width": w, "height": h},
+                        "level": ocr_data["level"][i],
+                    }
+                )
 
         return boxes
 
@@ -298,55 +323,58 @@ class TextExtractor:
         blocks = []
         current_block = None
 
-        n_boxes = len(ocr_data['level'])
+        n_boxes = len(ocr_data["level"])
 
         for i in range(n_boxes):
-            level = ocr_data['level'][i]
-            text = ocr_data['text'][i].strip()
+            level = ocr_data["level"][i]
+            text = ocr_data["text"][i].strip()
 
             if level == 2 and text:  # Paragraph level
                 if current_block:
                     blocks.append(current_block)
 
                 current_block = {
-                    'text': text,
-                    'bbox': {
-                        'x': ocr_data['left'][i],
-                        'y': ocr_data['top'][i],
-                        'width': ocr_data['width'][i],
-                        'height': ocr_data['height'][i]
+                    "text": text,
+                    "bbox": {
+                        "x": ocr_data["left"][i],
+                        "y": ocr_data["top"][i],
+                        "width": ocr_data["width"][i],
+                        "height": ocr_data["height"][i],
                     },
-                    'confidence': int(ocr_data['conf'][i]),
-                    'words': []
+                    "confidence": int(ocr_data["conf"][i]),
+                    "words": [],
                 }
 
             elif level == 5 and text and current_block:  # Word level
-                current_block['words'].append({
-                    'text': text,
-                    'confidence': int(ocr_data['conf'][i]),
-                    'bbox': {
-                        'x': ocr_data['left'][i],
-                        'y': ocr_data['top'][i],
-                        'width': ocr_data['width'][i],
-                        'height': ocr_data['height'][i]
+                current_block["words"].append(
+                    {
+                        "text": text,
+                        "confidence": int(ocr_data["conf"][i]),
+                        "bbox": {
+                            "x": ocr_data["left"][i],
+                            "y": ocr_data["top"][i],
+                            "width": ocr_data["width"][i],
+                            "height": ocr_data["height"][i],
+                        },
                     }
-                })
+                )
 
         if current_block:
             blocks.append(current_block)
 
         return blocks
 
+
 class VisualQualityAnalyzer:
     """Analyzes visual quality and accessibility of images"""
 
     def __init__(self, model_config: ModelConfigManager):
         self.model_config = model_config
-        self.bedrock = boto3.client('bedrock-runtime')
+        self.bedrock = boto3.client("bedrock-runtime", region_name=model_config.region)
 
-    async def assess_quality(self, image: Image.Image,
-                           image_type: ImageType,
-                           context: Dict[str, Any] = None) -> QualityAssessmentResult:
+    async def assess_quality(
+        self, image: Image.Image, image_type: ImageType, context: Dict[str, Any] = None
+    ) -> QualityAssessmentResult:
         """Assess overall image quality"""
 
         # Technical quality metrics
@@ -357,10 +385,10 @@ class VisualQualityAnalyzer:
 
         # Calculate overall score
         overall_score = (
-            clarity_score * 0.3 +
-            readability_score * 0.3 +
-            completeness_score * 0.2 +
-            accessibility_score * 0.2
+            clarity_score * 0.3
+            + readability_score * 0.3
+            + completeness_score * 0.2
+            + accessibility_score * 0.2
         )
 
         # Identify issues and recommendations
@@ -390,7 +418,7 @@ class VisualQualityAnalyzer:
             completeness_score=completeness_score,
             accessibility_score=accessibility_score,
             issues_detected=issues,
-            recommendations=recommendations
+            recommendations=recommendations,
         )
 
     async def _assess_clarity(self, image: Image.Image) -> float:
@@ -435,12 +463,13 @@ class VisualQualityAnalyzer:
         text_size_score = min(image.size[0] * image.size[1] / (800 * 600), 1.0)
 
         # Combine metrics
-        readability_score = (contrast_ratio * 0.7 + text_size_score * 0.3)
+        readability_score = contrast_ratio * 0.7 + text_size_score * 0.3
 
         return readability_score
 
-    async def _assess_completeness(self, image: Image.Image,
-                                 image_type: ImageType) -> float:
+    async def _assess_completeness(
+        self, image: Image.Image, image_type: ImageType
+    ) -> float:
         """Assess content completeness based on image type"""
 
         img_array = np.array(image)
@@ -450,7 +479,11 @@ class VisualQualityAnalyzer:
         edge_density = np.sum(edges > 0) / edges.size
 
         # Assess based on image type
-        if image_type in [ImageType.DIAGRAM, ImageType.FLOWCHART, ImageType.ARCHITECTURE]:
+        if image_type in [
+            ImageType.DIAGRAM,
+            ImageType.FLOWCHART,
+            ImageType.ARCHITECTURE,
+        ]:
             # These should have high edge density (shapes, lines)
             completeness_score = min(edge_density * 5, 1.0)
         elif image_type == ImageType.DOCUMENTATION_PAGE:
@@ -488,7 +521,9 @@ class VisualQualityAnalyzer:
         gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
         _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
 
         if contours:
             avg_contour_area = np.mean([cv2.contourArea(c) for c in contours])
@@ -498,23 +533,25 @@ class VisualQualityAnalyzer:
 
         # Combine accessibility metrics
         accessibility_score = (
-            contrast_score * 0.5 +
-            color_diversity * 0.3 +
-            text_size_score * 0.2
+            contrast_score * 0.5 + color_diversity * 0.3 + text_size_score * 0.2
         )
 
         return accessibility_score
+
 
 class ContentValidator:
     """Validates image content against documentation requirements"""
 
     def __init__(self, model_config: ModelConfigManager):
         self.model_config = model_config
-        self.bedrock = boto3.client('bedrock-runtime')
+        self.bedrock = boto3.client("bedrock-runtime", region_name=model_config.region)
 
-    async def validate_content(self, image: Image.Image,
-                             expected_content: Dict[str, Any],
-                             extracted_text: str = "") -> ContentValidationResult:
+    async def validate_content(
+        self,
+        image: Image.Image,
+        expected_content: Dict[str, Any],
+        extracted_text: str = "",
+    ) -> ContentValidationResult:
         """Validate image content against expectations"""
 
         validation_score = 0.0
@@ -524,32 +561,32 @@ class ContentValidator:
         extra_elements = []
 
         # Text content validation
-        if extracted_text and expected_content.get('required_text'):
+        if extracted_text and expected_content.get("required_text"):
             text_validation = await self._validate_text_content(
-                extracted_text, expected_content['required_text']
+                extracted_text, expected_content["required_text"]
             )
-            validation_score += text_validation['score'] * 0.4
-            content_matches.extend(text_validation['matches'])
-            content_mismatches.extend(text_validation['mismatches'])
-            missing_elements.extend(text_validation['missing'])
+            validation_score += text_validation["score"] * 0.4
+            content_matches.extend(text_validation["matches"])
+            content_mismatches.extend(text_validation["mismatches"])
+            missing_elements.extend(text_validation["missing"])
 
         # Visual element validation
-        if expected_content.get('visual_elements'):
+        if expected_content.get("visual_elements"):
             visual_validation = await self._validate_visual_elements(
-                image, expected_content['visual_elements']
+                image, expected_content["visual_elements"]
             )
-            validation_score += visual_validation['score'] * 0.3
-            content_matches.extend(visual_validation['matches'])
-            missing_elements.extend(visual_validation['missing'])
+            validation_score += visual_validation["score"] * 0.3
+            content_matches.extend(visual_validation["matches"])
+            missing_elements.extend(visual_validation["missing"])
 
         # Structure validation
-        if expected_content.get('structure'):
+        if expected_content.get("structure"):
             structure_validation = await self._validate_structure(
-                image, expected_content['structure']
+                image, expected_content["structure"]
             )
-            validation_score += structure_validation['score'] * 0.3
-            content_matches.extend(structure_validation['matches'])
-            missing_elements.extend(structure_validation['missing'])
+            validation_score += structure_validation["score"] * 0.3
+            content_matches.extend(structure_validation["matches"])
+            missing_elements.extend(structure_validation["missing"])
 
         is_valid = validation_score >= 0.7
 
@@ -559,11 +596,12 @@ class ContentValidator:
             content_matches=content_matches,
             content_mismatches=content_mismatches,
             missing_elements=missing_elements,
-            extra_elements=extra_elements
+            extra_elements=extra_elements,
         )
 
-    async def _validate_text_content(self, extracted_text: str,
-                                   required_text: List[str]) -> Dict[str, Any]:
+    async def _validate_text_content(
+        self, extracted_text: str, required_text: List[str]
+    ) -> Dict[str, Any]:
         """Validate required text content"""
 
         extracted_lower = extracted_text.lower()
@@ -581,14 +619,15 @@ class ContentValidator:
         score = len(matches) / len(required_text) if required_text else 1.0
 
         return {
-            'score': score,
-            'matches': matches,
-            'mismatches': mismatches,
-            'missing': missing
+            "score": score,
+            "matches": matches,
+            "mismatches": mismatches,
+            "missing": missing,
         }
 
-    async def _validate_visual_elements(self, image: Image.Image,
-                                      visual_elements: List[str]) -> Dict[str, Any]:
+    async def _validate_visual_elements(
+        self, image: Image.Image, visual_elements: List[str]
+    ) -> Dict[str, Any]:
         """Validate presence of visual elements using AI vision"""
 
         # Convert image to base64 for Bedrock
@@ -610,25 +649,20 @@ class ContentValidator:
         """
 
         try:
-            matches, missing = await self._call_vision_model(img_base64, prompt, visual_elements)
+            matches, missing = await self._call_vision_model(
+                img_base64, prompt, visual_elements
+            )
             score = len(matches) / len(visual_elements) if visual_elements else 1.0
 
-            return {
-                'score': score,
-                'matches': matches,
-                'missing': missing
-            }
+            return {"score": score, "matches": matches, "missing": missing}
 
         except Exception as e:
             logger.error(f"Visual element validation failed: {e}")
-            return {
-                'score': 0.5,
-                'matches': [],
-                'missing': visual_elements
-            }
+            return {"score": 0.5, "matches": [], "missing": visual_elements}
 
-    async def _validate_structure(self, image: Image.Image,
-                                structure_requirements: Dict[str, Any]) -> Dict[str, Any]:
+    async def _validate_structure(
+        self, image: Image.Image, structure_requirements: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Validate image structure and layout"""
 
         img_array = np.array(image)
@@ -638,42 +672,44 @@ class ContentValidator:
         missing = []
 
         # Check for layout elements
-        if 'has_header' in structure_requirements:
+        if "has_header" in structure_requirements:
             if await self._detect_header(gray):
-                matches.append('header')
+                matches.append("header")
             else:
-                missing.append('header')
+                missing.append("header")
 
-        if 'has_navigation' in structure_requirements:
+        if "has_navigation" in structure_requirements:
             if await self._detect_navigation(gray):
-                matches.append('navigation')
+                matches.append("navigation")
             else:
-                missing.append('navigation')
+                missing.append("navigation")
 
-        if 'has_main_content' in structure_requirements:
+        if "has_main_content" in structure_requirements:
             if await self._detect_main_content(gray):
-                matches.append('main_content')
+                matches.append("main_content")
             else:
-                missing.append('main_content')
+                missing.append("main_content")
 
         total_requirements = len(structure_requirements)
         score = len(matches) / total_requirements if total_requirements > 0 else 1.0
 
-        return {
-            'score': score,
-            'matches': matches,
-            'missing': missing
-        }
+        return {"score": score, "matches": matches, "missing": missing}
 
     async def _detect_header(self, gray: np.ndarray) -> bool:
         """Detect if image has a header section"""
         height, width = gray.shape
-        header_region = gray[:int(height * 0.15), :]
+        header_region = gray[: int(height * 0.15), :]
 
         # Look for horizontal lines or text in top region
         edges = cv2.Canny(header_region, 50, 150)
-        horizontal_lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=width//4,
-                                         minLineLength=width//3, maxLineGap=10)
+        horizontal_lines = cv2.HoughLinesP(
+            edges,
+            1,
+            np.pi / 180,
+            threshold=width // 4,
+            minLineLength=width // 3,
+            maxLineGap=10,
+        )
 
         return horizontal_lines is not None and len(horizontal_lines) > 0
 
@@ -682,21 +718,25 @@ class ContentValidator:
         height, width = gray.shape
 
         # Check left side for vertical navigation
-        left_region = gray[:, :int(width * 0.2)]
+        _left_region = gray[:, : int(width * 0.2)]
 
         # Check top for horizontal navigation
-        top_region = gray[:int(height * 0.2), :]
+        top_region = gray[: int(height * 0.2), :]
 
         # Look for repeated patterns (menu items)
         # This is a simplified detection
         edges = cv2.Canny(top_region, 50, 150)
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
 
         # Navigation typically has multiple similar-sized elements
         if len(contours) >= 3:
             areas = [cv2.contourArea(c) for c in contours]
             avg_area = np.mean(areas)
-            similar_areas = sum(1 for area in areas if abs(area - avg_area) < avg_area * 0.5)
+            similar_areas = sum(
+                1 for area in areas if abs(area - avg_area) < avg_area * 0.5
+            )
             return similar_areas >= 3
 
         return False
@@ -706,8 +746,9 @@ class ContentValidator:
         height, width = gray.shape
 
         # Define main content area (excluding likely header/footer/sidebar)
-        main_region = gray[int(height * 0.2):int(height * 0.8),
-                          int(width * 0.1):int(width * 0.9)]
+        main_region = gray[
+            int(height * 0.2) : int(height * 0.8), int(width * 0.1) : int(width * 0.9)
+        ]
 
         # Check for content density
         edges = cv2.Canny(main_region, 50, 150)
@@ -715,8 +756,9 @@ class ContentValidator:
 
         return content_density > 0.02  # Threshold for meaningful content
 
-    async def _call_vision_model(self, img_base64: str, prompt: str,
-                               elements: List[str]) -> Tuple[List[str], List[str]]:
+    async def _call_vision_model(
+        self, img_base64: str, prompt: str, elements: List[str]
+    ) -> Tuple[List[str], List[str]]:
         """Call Bedrock vision model for visual analysis"""
 
         try:
@@ -728,51 +770,47 @@ class ContentValidator:
                     {
                         "role": "user",
                         "content": [
-                            {
-                                "text": prompt
-                            },
+                            {"text": prompt},
                             {
                                 "image": {
                                     "format": "png",
-                                    "source": {
-                                        "bytes": img_base64
-                                    }
+                                    "source": {"bytes": img_base64},
                                 }
-                            }
-                        ]
+                            },
+                        ],
                     }
                 ],
-                "inferenceConfig": {
-                    "max_new_tokens": 1000,
-                    "temperature": 0.1
-                }
+                "inferenceConfig": {"max_new_tokens": 1000, "temperature": 0.1},
             }
 
             response = self.bedrock.invoke_model(
-                modelId=model_id,
-                body=json.dumps(body)
+                modelId=model_id, body=json.dumps(body)
             )
 
-            result = json.loads(response['body'].read())
-            response_text = result['output']['message']['content'][0]['text']
+            result = json.loads(response["body"].read())
+            response_text = result["output"]["message"]["content"][0]["text"]
 
             # Parse JSON response
             import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 analysis_result = json.loads(json_match.group())
-                found = analysis_result.get('found_elements', [])
-                missing = analysis_result.get('missing_elements', elements)
+                found = analysis_result.get("found_elements", [])
+                missing = analysis_result.get("missing_elements", elements)
                 return found, missing
             else:
                 # Fallback parsing
-                found = [elem for elem in elements if elem.lower() in response_text.lower()]
+                found = [
+                    elem for elem in elements if elem.lower() in response_text.lower()
+                ]
                 missing = [elem for elem in elements if elem not in found]
                 return found, missing
 
         except Exception as e:
             logger.error(f"Vision model call failed: {e}")
             return [], elements
+
 
 class ImageAnalysisEngine:
     """Main engine that orchestrates all image analysis tasks"""
@@ -788,7 +826,7 @@ class ImageAnalysisEngine:
         """Perform comprehensive image analysis"""
 
         start_time = datetime.utcnow()
-        request_id = f"img-analysis-{hashlib.md5(str(request.image_data).encode()).hexdigest()[:8]}"
+        request_id = f"img-analysis-{hashlib.md5(str(request.image_data).encode(), usedforsecurity=False).hexdigest()[:8]}"
 
         try:
             # Preprocess image
@@ -800,7 +838,7 @@ class ImageAnalysisEngine:
                 request_id=request_id,
                 image_type=request.image_type,
                 analysis_timestamp=start_time,
-                metadata={'preprocessing': preprocessing_metadata}
+                metadata={"preprocessing": preprocessing_metadata},
             )
 
             # Perform requested analysis tasks
@@ -813,17 +851,27 @@ class ImageAnalysisEngine:
                 )
 
             if AnalysisTask.CONTENT_VALIDATION in request.analysis_tasks:
-                expected_content = request.context.get('expected_content', {})
-                extracted_text = result.text_extraction.extracted_text if result.text_extraction else ""
-                result.content_validation = await self.content_validator.validate_content(
-                    image, expected_content, extracted_text
+                expected_content = request.context.get("expected_content", {})
+                extracted_text = (
+                    result.text_extraction.extracted_text
+                    if result.text_extraction
+                    else ""
+                )
+                result.content_validation = (
+                    await self.content_validator.validate_content(
+                        image, expected_content, extracted_text
+                    )
                 )
 
             if AnalysisTask.ACCESSIBILITY_CHECK in request.analysis_tasks:
-                result.accessibility_results = await self._perform_accessibility_check(image)
+                result.accessibility_results = await self._perform_accessibility_check(
+                    image
+                )
 
             if AnalysisTask.ERROR_DETECTION in request.analysis_tasks:
-                result.error_detection = await self._detect_errors(image, result.text_extraction)
+                result.error_detection = await self._detect_errors(
+                    image, result.text_extraction
+                )
 
             # Calculate overall confidence
             result.confidence = self._calculate_overall_confidence(result)
@@ -832,7 +880,9 @@ class ImageAnalysisEngine:
             end_time = datetime.utcnow()
             result.processing_time = (end_time - start_time).total_seconds()
 
-            logger.info(f"Image analysis completed: {request_id}, confidence: {result.confidence:.3f}")
+            logger.info(
+                f"Image analysis completed: {request_id}, confidence: {result.confidence:.3f}"
+            )
 
             return result
 
@@ -847,7 +897,7 @@ class ImageAnalysisEngine:
                 analysis_timestamp=start_time,
                 processing_time=(end_time - start_time).total_seconds(),
                 confidence=0.0,
-                metadata={'error': str(e)}
+                metadata={"error": str(e)},
             )
 
     async def _perform_accessibility_check(self, image: Image.Image) -> Dict[str, Any]:
@@ -863,7 +913,9 @@ class ImageAnalysisEngine:
         # Text size estimation
         gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
         edges = cv2.Canny(gray, 50, 150)
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
 
         if contours:
             avg_contour_area = np.mean([cv2.contourArea(c) for c in contours])
@@ -874,25 +926,28 @@ class ImageAnalysisEngine:
         # Color blindness check (simplified)
         r_channel = img_array[:, :, 0]
         g_channel = img_array[:, :, 1]
-        b_channel = img_array[:, :, 2]
+        _b_channel = img_array[:, :, 2]
 
         rg_diff = np.mean(np.abs(r_channel.astype(float) - g_channel.astype(float)))
-        colorblind_friendly = rg_diff > 30  # Sufficient difference for red-green colorblind
+        colorblind_friendly = (
+            rg_diff > 30
+        )  # Sufficient difference for red-green colorblind
 
         return {
-            'contrast_ratio': float(contrast_ratio),
-            'contrast_adequate': contrast_ratio > 0.15,
-            'text_size_adequate': text_size_adequate,
-            'colorblind_friendly': colorblind_friendly,
-            'overall_accessibility_score': (
-                (contrast_ratio > 0.15) * 0.4 +
-                text_size_adequate * 0.4 +
-                colorblind_friendly * 0.2
-            )
+            "contrast_ratio": float(contrast_ratio),
+            "contrast_adequate": contrast_ratio > 0.15,
+            "text_size_adequate": text_size_adequate,
+            "colorblind_friendly": colorblind_friendly,
+            "overall_accessibility_score": (
+                (contrast_ratio > 0.15) * 0.4
+                + text_size_adequate * 0.4
+                + colorblind_friendly * 0.2
+            ),
         }
 
-    async def _detect_errors(self, image: Image.Image,
-                           text_extraction: Optional[TextExtractionResult]) -> Dict[str, Any]:
+    async def _detect_errors(
+        self, image: Image.Image, text_extraction: Optional[TextExtractionResult]
+    ) -> Dict[str, Any]:
         """Detect common errors in documentation images"""
 
         errors = []
@@ -920,15 +975,15 @@ class ImageAnalysisEngine:
 
         # Check edges of image for cut-off content
         edge_regions = [
-            edges[:5, :],    # Top edge
-            edges[-5:, :],   # Bottom edge
-            edges[:, :5],    # Left edge
-            edges[:, -5:]    # Right edge
+            edges[:5, :],  # Top edge
+            edges[-5:, :],  # Bottom edge
+            edges[:, :5],  # Left edge
+            edges[:, -5:],  # Right edge
         ]
 
         for i, region in enumerate(edge_regions):
             if np.sum(region > 0) > region.size * 0.1:
-                edge_names = ['top', 'bottom', 'left', 'right']
+                edge_names = ["top", "bottom", "left", "right"]
                 warnings.append(f"Possible content cut-off at {edge_names[i]} edge")
 
         # Check for resolution issues
@@ -936,11 +991,15 @@ class ImageAnalysisEngine:
             warnings.append("Low resolution may affect readability")
 
         return {
-            'errors': errors,
-            'warnings': warnings,
-            'error_count': len(errors),
-            'warning_count': len(warnings),
-            'overall_health': 'good' if not errors and len(warnings) <= 1 else 'poor' if errors else 'fair'
+            "errors": errors,
+            "warnings": warnings,
+            "error_count": len(errors),
+            "warning_count": len(warnings),
+            "overall_health": (
+                "good"
+                if not errors and len(warnings) <= 1
+                else "poor" if errors else "fair"
+            ),
         }
 
     def _calculate_overall_confidence(self, result: ImageAnalysisResult) -> float:
@@ -958,14 +1017,18 @@ class ImageAnalysisEngine:
             confidences.append(result.content_validation.validation_score)
 
         if result.accessibility_results:
-            confidences.append(result.accessibility_results.get('overall_accessibility_score', 0.5))
+            confidences.append(
+                result.accessibility_results.get("overall_accessibility_score", 0.5)
+            )
 
         if confidences:
             return sum(confidences) / len(confidences)
         else:
             return 0.5  # Default confidence
 
-    async def batch_analyze_images(self, requests: List[ImageAnalysisRequest]) -> List[ImageAnalysisResult]:
+    async def batch_analyze_images(
+        self, requests: List[ImageAnalysisRequest]
+    ) -> List[ImageAnalysisResult]:
         """Analyze multiple images in batch"""
 
         # Process images concurrently with semaphore for resource control
@@ -986,20 +1049,27 @@ class ImageAnalysisEngine:
             else:
                 successful_results.append(result)
 
-        logger.info(f"Batch analyzed {len(successful_results)}/{len(requests)} images successfully")
+        logger.info(
+            f"Batch analyzed {len(successful_results)}/{len(requests)} images successfully"
+        )
         return successful_results
+
 
 # Integration with existing systems
 class DocumentImageAnalyzer:
     """Integrates image analysis with document management"""
 
-    def __init__(self, analysis_engine: ImageAnalysisEngine,
-                 crag_system: Optional[SelfCorrectiveRAG] = None):
+    def __init__(
+        self,
+        analysis_engine: ImageAnalysisEngine,
+        crag_system: Optional[SelfCorrectiveRAG] = None,
+    ):
         self.analysis_engine = analysis_engine
         self.crag_system = crag_system
 
-    async def analyze_document_images(self, document_id: str,
-                                    image_urls: List[str]) -> List[ImageAnalysisResult]:
+    async def analyze_document_images(
+        self, document_id: str, image_urls: List[str]
+    ) -> List[ImageAnalysisResult]:
         """Analyze all images in a document"""
 
         results = []
@@ -1016,9 +1086,9 @@ class DocumentImageAnalyzer:
                     analysis_tasks=[
                         AnalysisTask.TEXT_EXTRACTION,
                         AnalysisTask.QUALITY_ASSESSMENT,
-                        AnalysisTask.ACCESSIBILITY_CHECK
+                        AnalysisTask.ACCESSIBILITY_CHECK,
                     ],
-                    context={'document_id': document_id, 'image_url': url}
+                    context={"document_id": document_id, "image_url": url},
                 )
 
                 # Analyze image
@@ -1030,56 +1100,67 @@ class DocumentImageAnalyzer:
 
         return results
 
-    async def validate_documentation_screenshots(self, screenshots: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def validate_documentation_screenshots(
+        self, screenshots: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Validate documentation screenshots for quality and accuracy"""
 
         validation_results = []
 
         for screenshot in screenshots:
             request = ImageAnalysisRequest(
-                image_data=screenshot['data'],
+                image_data=screenshot["data"],
                 image_type=ImageType.SCREENSHOT,
                 analysis_tasks=[
                     AnalysisTask.QUALITY_ASSESSMENT,
                     AnalysisTask.CONTENT_VALIDATION,
-                    AnalysisTask.ERROR_DETECTION
+                    AnalysisTask.ERROR_DETECTION,
                 ],
                 context={
-                    'expected_content': screenshot.get('expected_content', {}),
-                    'validation_criteria': screenshot.get('criteria', {})
-                }
+                    "expected_content": screenshot.get("expected_content", {}),
+                    "validation_criteria": screenshot.get("criteria", {}),
+                },
             )
 
             result = await self.analysis_engine.analyze_image(request)
             validation_results.append(result)
 
         # Aggregate results
-        overall_quality = sum(r.quality_assessment.overall_score
-                            for r in validation_results
-                            if r.quality_assessment) / len(validation_results)
+        overall_quality = sum(
+            r.quality_assessment.overall_score
+            for r in validation_results
+            if r.quality_assessment
+        ) / len(validation_results)
 
         issues = []
         for result in validation_results:
             if result.quality_assessment:
                 issues.extend(result.quality_assessment.issues_detected)
             if result.error_detection:
-                issues.extend(result.error_detection.get('errors', []))
+                issues.extend(result.error_detection.get("errors", []))
 
         return {
-            'overall_quality': overall_quality,
-            'total_images': len(screenshots),
-            'passed_validation': sum(1 for r in validation_results
-                                   if r.quality_assessment and r.quality_assessment.overall_score > 0.7),
-            'common_issues': issues,
-            'detailed_results': validation_results
+            "overall_quality": overall_quality,
+            "total_images": len(screenshots),
+            "passed_validation": sum(
+                1
+                for r in validation_results
+                if r.quality_assessment and r.quality_assessment.overall_score > 0.7
+            ),
+            "common_issues": issues,
+            "detailed_results": validation_results,
         }
 
     async def _download_image(self, url: str) -> bytes:
         """Download image from URL (placeholder implementation)"""
         # In real implementation, use aiohttp or similar
         import urllib.request
-        with urllib.request.urlopen(url) as response:
+
+        with urllib.request.urlopen(
+            url
+        ) as response:  # nosec B310 - Internal URL validation performed by caller
             return response.read()
+
 
 # Example usage and testing
 async def main():
@@ -1090,7 +1171,7 @@ async def main():
     analysis_engine = ImageAnalysisEngine(model_config)
 
     # Example: Analyze a documentation screenshot
-    with open('example_screenshot.png', 'rb') as f:
+    with open("example_screenshot.png", "rb") as f:
         image_data = f.read()
 
     request = ImageAnalysisRequest(
@@ -1100,20 +1181,20 @@ async def main():
             AnalysisTask.TEXT_EXTRACTION,
             AnalysisTask.QUALITY_ASSESSMENT,
             AnalysisTask.CONTENT_VALIDATION,
-            AnalysisTask.ACCESSIBILITY_CHECK
+            AnalysisTask.ACCESSIBILITY_CHECK,
         ],
         context={
-            'expected_content': {
-                'required_text': ['API', 'Authentication', 'Examples'],
-                'visual_elements': ['header', 'navigation', 'code blocks']
+            "expected_content": {
+                "required_text": ["API", "Authentication", "Examples"],
+                "visual_elements": ["header", "navigation", "code blocks"],
             }
-        }
+        },
     )
 
     # Analyze image
     result = await analysis_engine.analyze_image(request)
 
-    print(f"Image Analysis Results:")
+    print("Image Analysis Results:")
     print(f"- Overall Confidence: {result.confidence:.3f}")
     print(f"- Processing Time: {result.processing_time:.2f}s")
 
@@ -1128,6 +1209,7 @@ async def main():
     if result.content_validation:
         print(f"- Content Valid: {result.content_validation.is_valid}")
         print(f"- Missing Elements: {result.content_validation.missing_elements}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

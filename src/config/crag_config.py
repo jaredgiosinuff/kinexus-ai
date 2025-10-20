@@ -2,23 +2,28 @@
 """
 Configuration management for Self-Corrective RAG (CRAG) system
 """
+import json
 import os
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
-import json
+from typing import Any, Dict, List, Optional
+
 
 class CRAGMode(Enum):
     """Operating modes for CRAG system"""
+
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
 
+
 class QualityProfile(Enum):
     """Predefined quality profiles"""
-    FAST = "fast"           # Fast processing, lower quality thresholds
-    BALANCED = "balanced"   # Balanced speed and quality
-    THOROUGH = "thorough"   # Highest quality, slower processing
+
+    FAST = "fast"  # Fast processing, lower quality thresholds
+    BALANCED = "balanced"  # Balanced speed and quality
+    THOROUGH = "thorough"  # Highest quality, slower processing
+
 
 @dataclass
 class CRAGSystemConfig:
@@ -45,26 +50,30 @@ class CRAGSystemConfig:
     enable_temporal_validation: bool = True
 
     # Quality metric weights
-    quality_weights: Dict[str, float] = field(default_factory=lambda: {
-        'relevance': 0.25,
-        'accuracy': 0.20,
-        'completeness': 0.15,
-        'coherence': 0.15,
-        'factual_consistency': 0.15,
-        'source_reliability': 0.05,
-        'temporal_validity': 0.05
-    })
+    quality_weights: Dict[str, float] = field(
+        default_factory=lambda: {
+            "relevance": 0.25,
+            "accuracy": 0.20,
+            "completeness": 0.15,
+            "coherence": 0.15,
+            "factual_consistency": 0.15,
+            "source_reliability": 0.05,
+            "temporal_validity": 0.05,
+        }
+    )
 
     # Correction settings
-    correction_strategies: List[str] = field(default_factory=lambda: [
-        'retrieve_more',
-        'refine_query',
-        'validate_sources',
-        'cross_reference',
-        'fact_check',
-        'synthesize_better',
-        'temporal_update'
-    ])
+    correction_strategies: List[str] = field(
+        default_factory=lambda: [
+            "retrieve_more",
+            "refine_query",
+            "validate_sources",
+            "cross_reference",
+            "fact_check",
+            "synthesize_better",
+            "temporal_update",
+        ]
+    )
 
     # Storage settings
     feedback_table: str = "kinexus-crag-feedback"
@@ -74,6 +83,7 @@ class CRAGSystemConfig:
     # AWS settings
     aws_region: str = "us-east-1"
     bedrock_region: str = "us-east-1"
+
 
 @dataclass
 class DocumentProcessingConfig:
@@ -89,23 +99,26 @@ class DocumentProcessingConfig:
     min_confidence_threshold: float = 0.6
 
     # Processing modes per document type
-    document_type_configs: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
-        'api_docs': {
-            'quality_threshold': 0.8,
-            'max_iterations': 2,
-            'preferred_corrections': ['fact_check', 'cross_reference']
-        },
-        'user_guides': {
-            'quality_threshold': 0.75,
-            'max_iterations': 3,
-            'preferred_corrections': ['completeness_check', 'clarity_improvement']
-        },
-        'technical_specs': {
-            'quality_threshold': 0.85,
-            'max_iterations': 2,
-            'preferred_corrections': ['accuracy_validation', 'technical_review']
+    document_type_configs: Dict[str, Dict[str, Any]] = field(
+        default_factory=lambda: {
+            "api_docs": {
+                "quality_threshold": 0.8,
+                "max_iterations": 2,
+                "preferred_corrections": ["fact_check", "cross_reference"],
+            },
+            "user_guides": {
+                "quality_threshold": 0.75,
+                "max_iterations": 3,
+                "preferred_corrections": ["completeness_check", "clarity_improvement"],
+            },
+            "technical_specs": {
+                "quality_threshold": 0.85,
+                "max_iterations": 2,
+                "preferred_corrections": ["accuracy_validation", "technical_review"],
+            },
         }
-    })
+    )
+
 
 @dataclass
 class PerformanceConfig:
@@ -129,11 +142,15 @@ class PerformanceConfig:
     enable_source_deduplication: bool = True
     enable_smart_chunking: bool = True
 
+
 class CRAGConfigManager:
     """Manages CRAG system configuration across environments"""
 
-    def __init__(self, mode: CRAGMode = CRAGMode.DEVELOPMENT,
-                 profile: QualityProfile = QualityProfile.BALANCED):
+    def __init__(
+        self,
+        mode: CRAGMode = CRAGMode.DEVELOPMENT,
+        profile: QualityProfile = QualityProfile.BALANCED,
+    ):
         self.mode = mode
         self.profile = profile
         self._config = self._load_config()
@@ -208,27 +225,31 @@ class CRAGConfigManager:
         """Apply environment variable overrides"""
 
         # Quality settings
-        if os.getenv('CRAG_QUALITY_THRESHOLD'):
-            config.quality_threshold = float(os.getenv('CRAG_QUALITY_THRESHOLD'))
+        if os.getenv("CRAG_QUALITY_THRESHOLD"):
+            config.quality_threshold = float(os.getenv("CRAG_QUALITY_THRESHOLD"))
 
-        if os.getenv('CRAG_MAX_ITERATIONS'):
-            config.max_iterations = int(os.getenv('CRAG_MAX_ITERATIONS'))
+        if os.getenv("CRAG_MAX_ITERATIONS"):
+            config.max_iterations = int(os.getenv("CRAG_MAX_ITERATIONS"))
 
         # Model settings
-        if os.getenv('CRAG_PRIMARY_MODEL'):
-            config.primary_model = os.getenv('CRAG_PRIMARY_MODEL')
+        if os.getenv("CRAG_PRIMARY_MODEL"):
+            config.primary_model = os.getenv("CRAG_PRIMARY_MODEL")
 
         # Feature flags
-        if os.getenv('CRAG_ENABLE_METRICS'):
-            config.enable_metrics_collection = os.getenv('CRAG_ENABLE_METRICS').lower() == 'true'
+        if os.getenv("CRAG_ENABLE_METRICS"):
+            config.enable_metrics_collection = (
+                os.getenv("CRAG_ENABLE_METRICS").lower() == "true"
+            )
 
-        if os.getenv('CRAG_ENABLE_LEARNING'):
-            config.enable_learning_feedback = os.getenv('CRAG_ENABLE_LEARNING').lower() == 'true'
+        if os.getenv("CRAG_ENABLE_LEARNING"):
+            config.enable_learning_feedback = (
+                os.getenv("CRAG_ENABLE_LEARNING").lower() == "true"
+            )
 
         # AWS settings
-        if os.getenv('AWS_DEFAULT_REGION'):
-            config.aws_region = os.getenv('AWS_DEFAULT_REGION')
-            config.bedrock_region = os.getenv('AWS_DEFAULT_REGION')
+        if os.getenv("AWS_DEFAULT_REGION"):
+            config.aws_region = os.getenv("AWS_DEFAULT_REGION")
+            config.bedrock_region = os.getenv("AWS_DEFAULT_REGION")
 
         return config
 
@@ -281,32 +302,33 @@ class CRAGConfigManager:
     def export_config(self, file_path: str) -> None:
         """Export current configuration to file"""
         config_dict = {
-            'mode': self.mode.value,
-            'profile': self.profile.value,
-            'system_config': self._config.__dict__,
-            'document_config': self.get_document_config().__dict__,
-            'performance_config': self.get_performance_config().__dict__
+            "mode": self.mode.value,
+            "profile": self.profile.value,
+            "system_config": self._config.__dict__,
+            "document_config": self.get_document_config().__dict__,
+            "performance_config": self.get_performance_config().__dict__,
         }
 
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             json.dump(config_dict, f, indent=2, default=str)
 
     def import_config(self, file_path: str) -> None:
         """Import configuration from file"""
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             config_dict = json.load(f)
 
         # Update mode and profile
-        if 'mode' in config_dict:
-            self.mode = CRAGMode(config_dict['mode'])
-        if 'profile' in config_dict:
-            self.profile = QualityProfile(config_dict['profile'])
+        if "mode" in config_dict:
+            self.mode = CRAGMode(config_dict["mode"])
+        if "profile" in config_dict:
+            self.profile = QualityProfile(config_dict["profile"])
 
         # Update system config
-        if 'system_config' in config_dict:
-            for key, value in config_dict['system_config'].items():
+        if "system_config" in config_dict:
+            for key, value in config_dict["system_config"].items():
                 if hasattr(self._config, key):
                     setattr(self._config, key, value)
+
 
 # Configuration validation
 class CRAGConfigValidator:
@@ -352,16 +374,17 @@ class CRAGConfigValidator:
         issues = []
 
         # Check AWS credentials
-        if not os.getenv('AWS_ACCESS_KEY_ID') and not os.getenv('AWS_PROFILE'):
+        if not os.getenv("AWS_ACCESS_KEY_ID") and not os.getenv("AWS_PROFILE"):
             issues.append("AWS credentials not configured")
 
         # Check required environment variables
-        required_vars = ['AWS_DEFAULT_REGION']
+        required_vars = ["AWS_DEFAULT_REGION"]
         for var in required_vars:
             if not os.getenv(var):
                 issues.append(f"Required environment variable {var} not set")
 
         return issues
+
 
 # Configuration factory
 class CRAGConfigFactory:
@@ -383,8 +406,11 @@ class CRAGConfigFactory:
         return CRAGConfigManager(CRAGMode.PRODUCTION, QualityProfile.THOROUGH)
 
     @staticmethod
-    def create_custom_config(mode: CRAGMode, profile: QualityProfile,
-                           overrides: Optional[Dict[str, Any]] = None) -> CRAGConfigManager:
+    def create_custom_config(
+        mode: CRAGMode,
+        profile: QualityProfile,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> CRAGConfigManager:
         """Create custom configuration"""
         config_manager = CRAGConfigManager(mode, profile)
 
@@ -392,6 +418,7 @@ class CRAGConfigFactory:
             config_manager.update_config(overrides)
 
         return config_manager
+
 
 # Example usage
 def main():
@@ -423,6 +450,7 @@ def main():
     # Export configuration
     config_manager.export_config("crag_config.json")
     print("\n📄 Configuration exported to crag_config.json")
+
 
 if __name__ == "__main__":
     main()

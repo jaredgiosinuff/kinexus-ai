@@ -24,6 +24,9 @@ Kinexus AI is an enterprise platform that leverages Amazon Bedrock Agents, Claud
 git clone https://github.com/jaredgiosinuff/kinexus-ai.git
 cd kinexus-ai
 
+# Ensure dependencies are locked
+poetry lock
+
 # Start complete development environment
 ./quick-start.sh dev
 
@@ -41,7 +44,11 @@ open http://localhost:3106        # Mock AI Agents
 
 ### Option 2: Cloud Deployment (Production Ready)
 
-**Prerequisites**: AWS Account with Bedrock access, AWS CLI
+**Prerequisites**:
+- **AWS Account** with Bedrock access and configured credentials (`aws configure`).
+- **AWS CDK CLI** installed (one-time): `npm install -g aws-cdk` or `brew install aws-cdk`.
+- **Python environment** available with `pip` and optionally `pyenv`/`venv`.
+- **Poetry** installed to export deps for the Lambda layer (e.g., `pipx install poetry`).
 
 ```bash
 # Clone repository
@@ -51,7 +58,10 @@ cd kinexus-ai
 # Configure AWS credentials
 aws configure
 
-# Deploy infrastructure
+# Build the Lambda layer asset required by CDK (produces lambda_layer.zip)
+./scripts/build-layer.sh
+
+# Deploy infrastructure (uses CDK under the hood)
 ./scripts/deploy-aws.sh
 
 # Configure integrations
@@ -62,12 +72,20 @@ aws configure
 
 ## 🏗️ System Overview
 
-### Core AI Models (2025)
+### AI Models
+
+**Production (AWS Serverless - Currently Deployed):**
+- **Claude 3 Haiku**: Fast, cost-effective documentation generation
+- **Amazon Nova Lite**: Confluence search result analysis and ranking
+
+**Development Stack (Local FastAPI with Mock Agents):**
 - **Claude 4 Opus 4.1**: Master reasoning engine (74.5% SWE-bench score)
 - **Claude 4 Sonnet**: 1M token context multimodal processing
 - **Amazon Nova Pro**: Advanced multimodal understanding
 - **Amazon Nova Act**: Browser automation and legacy system integration
 - **Amazon Nova Canvas**: Automated diagram generation
+
+**Note:** The production AWS deployment uses Claude 3 Haiku and Nova Lite. The local development stack supports newer models for testing and future enhancements.
 
 ### Architecture
 ```
@@ -94,34 +112,25 @@ When you run `./quick-start.sh dev`, you get these services:
 | OpenSearch | 3103 | Vector search |
 | GraphRAG | 3111 | Relationship-aware retrieval |
 
-## 🤖 AI Agent System
+## 🤖 AI Architecture
 
-Kinexus AI uses 5 specialized Bedrock agents:
+### Production AWS Serverless (Currently Deployed)
+- **5 Lambda Functions**: JiraWebhookHandler, DocumentOrchestrator, ReviewTicketCreator, ApprovalHandler, QueryHandler
+- **Claude 3 Haiku**: Main AI engine for documentation generation
+- **Amazon Nova Lite**: Confluence search result analysis
+- **Event-Driven**: EventBridge orchestrates Lambda invocations
+- **Stateless**: Each function operates independently
 
-### **DocumentOrchestrator** (Claude 4 Opus 4.1)
-- Master coordination and decision-making
-- Highest reasoning capability for complex scenarios
-- Cost-optimized for critical decisions only
+### Development Stack (Local FastAPI)
+Kinexus AI includes a local development environment with 5 specialized mock Bedrock agents:
 
-### **ChangeAnalyzer** (Claude 4 Sonnet)
-- Real-time change detection and impact analysis
-- Fast processing with 1M token context
-- Identifies affected documentation across systems
+- **DocumentOrchestrator** (Claude 4 Opus 4.1): Master coordination and decision-making
+- **ChangeAnalyzer** (Claude 4 Sonnet): Real-time change detection and impact analysis
+- **ContentCreator** (Nova Pro + Canvas): Document generation with diagrams
+- **QualityController** (Nova Pro): Quality assurance and compliance validation
+- **WebAutomator** (Nova Act): Browser automation for legacy systems
 
-### **ContentCreator** (Nova Pro + Canvas)
-- Document generation and updates
-- Maintains existing style and format
-- Multi-modal content creation (text, diagrams, tables)
-
-### **QualityController** (Nova Pro)
-- Quality assurance and compliance validation
-- Consistency checking across documentation
-- Enterprise standards enforcement
-
-### **WebAutomator** (Nova Act)
-- Browser automation for legacy systems
-- Complex UI interactions
-- System integration where APIs aren't available
+**Note:** The agents above are for the local development stack. The production AWS deployment uses Lambda functions with Claude 3 Haiku and Nova Lite.
 
 ## 🔧 Key Features
 

@@ -4,28 +4,28 @@ Parallel Platform Updater - 2024-2025 Agentic AI Pattern
 Implements concurrent platform updates with circuit breakers and async coordination
 """
 import asyncio
-import aiohttp
-import json
-import boto3
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass, field
-from enum import Enum
 import base64
-import hashlib
+import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+import aiohttp
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import Nova Act automation if available
 try:
     from nova_act_automation import execute_nova_act_automation
+
     NOVA_ACT_AVAILABLE = True
 except ImportError:
     logger.warning("Nova Act automation not available")
     NOVA_ACT_AVAILABLE = False
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class PlatformType(Enum):
     GITHUB = "github"
@@ -35,6 +35,7 @@ class PlatformType(Enum):
     SLACK = "slack"
     JIRA = "jira"
 
+
 class UpdateStatus(Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
@@ -42,12 +43,14 @@ class UpdateStatus(Enum):
     FAILED = "failed"
     CIRCUIT_OPEN = "circuit_open"
 
+
 @dataclass
 class PlatformCredentials:
     platform: PlatformType
     base_url: str
     auth_token: str
     additional_params: Dict[str, Any] = field(default_factory=dict)
+
 
 @dataclass
 class DocumentUpdate:
@@ -59,6 +62,7 @@ class DocumentUpdate:
     metadata: Dict[str, Any] = field(default_factory=dict)
     update_type: str = "content_update"  # create, update, delete
 
+
 @dataclass
 class UpdateResult:
     platform: PlatformType
@@ -68,6 +72,7 @@ class UpdateResult:
     response_data: Dict[str, Any] = field(default_factory=dict)
     error_message: Optional[str] = None
     retry_count: int = 0
+
 
 class CircuitBreaker:
     """Circuit breaker pattern for platform reliability"""
@@ -82,7 +87,9 @@ class CircuitBreaker:
     async def call(self, func, *args, **kwargs):
         """Execute function with circuit breaker protection"""
         if self.state == "open":
-            if datetime.utcnow() - self.last_failure_time > timedelta(seconds=self.timeout):
+            if datetime.utcnow() - self.last_failure_time > timedelta(
+                seconds=self.timeout
+            ):
                 self.state = "half_open"
             else:
                 raise Exception(f"Circuit breaker open for {self.timeout}s")
@@ -102,6 +109,7 @@ class CircuitBreaker:
                 self.state = "open"
 
             raise e
+
 
 class PlatformConnector:
     """Base connector for platform-specific API interactions"""
@@ -131,8 +139,7 @@ class PlatformConnector:
             await self.initialize_session()
 
             result = await self.circuit_breaker.call(
-                self._platform_specific_update,
-                update
+                self._platform_specific_update, update
             )
 
             execution_time = asyncio.get_event_loop().time() - start_time
@@ -142,40 +149,45 @@ class PlatformConnector:
                 document_id=update.document_id,
                 status=UpdateStatus.SUCCESS,
                 execution_time=execution_time,
-                response_data=result
+                response_data=result,
             )
 
         except Exception as e:
             execution_time = asyncio.get_event_loop().time() - start_time
-            status = UpdateStatus.CIRCUIT_OPEN if "Circuit breaker" in str(e) else UpdateStatus.FAILED
+            status = (
+                UpdateStatus.CIRCUIT_OPEN
+                if "Circuit breaker" in str(e)
+                else UpdateStatus.FAILED
+            )
 
             return UpdateResult(
                 platform=update.platform,
                 document_id=update.document_id,
                 status=status,
                 execution_time=execution_time,
-                error_message=str(e)
+                error_message=str(e),
             )
 
     async def _platform_specific_update(self, update: DocumentUpdate) -> Dict[str, Any]:
         """Platform-specific update implementation (override in subclasses)"""
         raise NotImplementedError("Subclasses must implement platform-specific updates")
 
+
 class GitHubConnector(PlatformConnector):
     """GitHub API connector with async operations"""
 
     async def _platform_specific_update(self, update: DocumentUpdate) -> Dict[str, Any]:
         """Update GitHub repository content"""
-        repo = self.credentials.additional_params.get('repository')
+        repo = self.credentials.additional_params.get("repository")
         if not repo:
             raise ValueError("GitHub repository not specified in credentials")
 
         url = f"{self.credentials.base_url}/repos/{repo}/contents/{update.path or update.document_id}"
 
         headers = {
-            'Authorization': f'token {self.credentials.auth_token}',
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json'
+            "Authorization": f"token {self.credentials.auth_token}",
+            "Accept": "application/vnd.github.v3+json",
+            "Content-Type": "application/json",
         }
 
         # Get current file SHA if updating existing file
@@ -185,21 +197,21 @@ class GitHubConnector(PlatformConnector):
                 async with self.session.get(url, headers=headers) as response:
                     if response.status == 200:
                         current_file = await response.json()
-                        current_sha = current_file['sha']
-            except:
+                        current_sha = current_file["sha"]
+            except Exception:
                 pass  # File might not exist
 
         # Prepare update payload
-        content_b64 = base64.b64encode(update.content.encode('utf-8')).decode('utf-8')
+        content_b64 = base64.b64encode(update.content.encode("utf-8")).decode("utf-8")
 
         payload = {
-            'message': f'Update documentation: {update.title or update.document_id}',
-            'content': content_b64,
-            'branch': self.credentials.additional_params.get('branch', 'main')
+            "message": f"Update documentation: {update.title or update.document_id}",
+            "content": content_b64,
+            "branch": self.credentials.additional_params.get("branch", "main"),
         }
 
         if current_sha:
-            payload['sha'] = current_sha
+            payload["sha"] = current_sha
 
         # Execute update
         async with self.session.put(url, headers=headers, json=payload) as response:
@@ -209,41 +221,43 @@ class GitHubConnector(PlatformConnector):
                 error_text = await response.text()
                 raise Exception(f"GitHub API error {response.status}: {error_text}")
 
+
 class ConfluenceConnector(PlatformConnector):
     """Confluence API connector with async operations"""
 
     async def _platform_specific_update(self, update: DocumentUpdate) -> Dict[str, Any]:
         """Update Confluence page content"""
-        space_key = self.credentials.additional_params.get('space_key')
+        space_key = self.credentials.additional_params.get("space_key")
         if not space_key:
             raise ValueError("Confluence space_key not specified in credentials")
 
         headers = {
-            'Authorization': f'Bearer {self.credentials.auth_token}',
-            'Content-Type': 'application/json'
+            "Authorization": f"Bearer {self.credentials.auth_token}",
+            "Content-Type": "application/json",
         }
 
         if update.update_type == "create":
             # Create new page
             url = f"{self.credentials.base_url}/rest/api/content"
             payload = {
-                'type': 'page',
-                'title': update.title or update.document_id,
-                'space': {'key': space_key},
-                'body': {
-                    'storage': {
-                        'value': update.content,
-                        'representation': 'storage'
-                    }
-                }
+                "type": "page",
+                "title": update.title or update.document_id,
+                "space": {"key": space_key},
+                "body": {
+                    "storage": {"value": update.content, "representation": "storage"}
+                },
             }
 
-            async with self.session.post(url, headers=headers, json=payload) as response:
+            async with self.session.post(
+                url, headers=headers, json=payload
+            ) as response:
                 if response.status == 200:
                     return await response.json()
                 else:
                     error_text = await response.text()
-                    raise Exception(f"Confluence API error {response.status}: {error_text}")
+                    raise Exception(
+                        f"Confluence API error {response.status}: {error_text}"
+                    )
 
         else:
             # Update existing page
@@ -256,53 +270,58 @@ class ConfluenceConnector(PlatformConnector):
                     raise Exception(f"Could not fetch page {page_id}")
 
                 page_data = await response.json()
-                current_version = page_data['version']['number']
+                current_version = page_data["version"]["number"]
 
             # Update page
             update_url = f"{self.credentials.base_url}/rest/api/content/{page_id}"
             payload = {
-                'version': {'number': current_version + 1},
-                'title': update.title or page_data['title'],
-                'type': 'page',
-                'body': {
-                    'storage': {
-                        'value': update.content,
-                        'representation': 'storage'
-                    }
-                }
+                "version": {"number": current_version + 1},
+                "title": update.title or page_data["title"],
+                "type": "page",
+                "body": {
+                    "storage": {"value": update.content, "representation": "storage"}
+                },
             }
 
-            async with self.session.put(update_url, headers=headers, json=payload) as response:
+            async with self.session.put(
+                update_url, headers=headers, json=payload
+            ) as response:
                 if response.status == 200:
                     return await response.json()
                 else:
                     error_text = await response.text()
-                    raise Exception(f"Confluence API error {response.status}: {error_text}")
+                    raise Exception(
+                        f"Confluence API error {response.status}: {error_text}"
+                    )
+
 
 class SharePointConnector(PlatformConnector):
     """SharePoint API connector with async operations"""
 
     async def _platform_specific_update(self, update: DocumentUpdate) -> Dict[str, Any]:
         """Update SharePoint document content"""
-        site_id = self.credentials.additional_params.get('site_id')
+        site_id = self.credentials.additional_params.get("site_id")
         if not site_id:
             raise ValueError("SharePoint site_id not specified in credentials")
 
         headers = {
-            'Authorization': f'Bearer {self.credentials.auth_token}',
-            'Content-Type': 'application/json'
+            "Authorization": f"Bearer {self.credentials.auth_token}",
+            "Content-Type": "application/json",
         }
 
         # SharePoint implementation depends on specific setup
         # This is a simplified example
         url = f"{self.credentials.base_url}/sites/{site_id}/drive/items/{update.document_id}/content"
 
-        async with self.session.put(url, headers=headers, data=update.content) as response:
+        async with self.session.put(
+            url, headers=headers, data=update.content
+        ) as response:
             if response.status in [200, 201, 204]:
                 return {"status": "updated", "document_id": update.document_id}
             else:
                 error_text = await response.text()
                 raise Exception(f"SharePoint API error {response.status}: {error_text}")
+
 
 class ParallelPlatformUpdater:
     """
@@ -328,12 +347,19 @@ class ParallelPlatformUpdater:
             else:
                 logger.warning(f"No connector available for platform: {cred.platform}")
 
-    async def update_platforms_parallel(self, updates: List[DocumentUpdate], max_concurrent: int = 5, use_browser_automation: bool = False) -> Dict[PlatformType, List[UpdateResult]]:
+    async def update_platforms_parallel(
+        self,
+        updates: List[DocumentUpdate],
+        max_concurrent: int = 5,
+        use_browser_automation: bool = False,
+    ) -> Dict[PlatformType, List[UpdateResult]]:
         """
         Execute platform updates in parallel with concurrency control
         Latest 2024-2025 pattern: concurrent execution with circuit breakers
         """
-        logger.info(f"Starting parallel updates for {len(updates)} documents across {len(self.connectors)} platforms")
+        logger.info(
+            f"Starting parallel updates for {len(updates)} documents across {len(self.connectors)} platforms"
+        )
 
         # Group updates by platform
         platform_updates = {}
@@ -352,12 +378,16 @@ class ParallelPlatformUpdater:
                     result = await connector.update_document(update)
 
                     # If API fails and browser automation is available, try Nova Act
-                    if (not result.status == UpdateStatus.SUCCESS and
-                        use_browser_automation and
-                        NOVA_ACT_AVAILABLE and
-                        update.platform in [PlatformType.CONFLUENCE, PlatformType.SHAREPOINT]):
-
-                        logger.info(f"API update failed for {update.platform.value}, trying browser automation")
+                    if (
+                        not result.status == UpdateStatus.SUCCESS
+                        and use_browser_automation
+                        and NOVA_ACT_AVAILABLE
+                        and update.platform
+                        in [PlatformType.CONFLUENCE, PlatformType.SHAREPOINT]
+                    ):
+                        logger.info(
+                            f"API update failed for {update.platform.value}, trying browser automation"
+                        )
                         browser_result = await self._try_browser_automation(update)
 
                         if browser_result.status == UpdateStatus.SUCCESS:
@@ -367,11 +397,15 @@ class ParallelPlatformUpdater:
 
                 except Exception as e:
                     # If regular update fails and browser automation is enabled, try it
-                    if (use_browser_automation and
-                        NOVA_ACT_AVAILABLE and
-                        update.platform in [PlatformType.CONFLUENCE, PlatformType.SHAREPOINT]):
-
-                        logger.info(f"API error for {update.platform.value}, trying browser automation fallback")
+                    if (
+                        use_browser_automation
+                        and NOVA_ACT_AVAILABLE
+                        and update.platform
+                        in [PlatformType.CONFLUENCE, PlatformType.SHAREPOINT]
+                    ):
+                        logger.info(
+                            f"API error for {update.platform.value}, trying browser automation fallback"
+                        )
                         return await self._try_browser_automation(update)
                     else:
                         raise e
@@ -386,8 +420,7 @@ class ParallelPlatformUpdater:
 
                 # Create tasks for this platform
                 platform_tasks = [
-                    limited_update(connector, update)
-                    for update in platform_update_list
+                    limited_update(connector, update) for update in platform_update_list
                 ]
 
                 platform_task_mapping[platform] = len(all_tasks)
@@ -408,13 +441,15 @@ class ParallelPlatformUpdater:
                     result = results[task_index]
                     if isinstance(result, Exception):
                         # Convert exception to failed result
-                        update = platform_update_list[task_index - platform_task_mapping[platform]]
+                        update = platform_update_list[
+                            task_index - platform_task_mapping[platform]
+                        ]
                         failed_result = UpdateResult(
                             platform=platform,
                             document_id=update.document_id,
                             status=UpdateStatus.FAILED,
                             execution_time=0.0,
-                            error_message=str(result)
+                            error_message=str(result),
                         )
                         platform_results[platform].append(failed_result)
                     else:
@@ -437,22 +472,28 @@ class ParallelPlatformUpdater:
             automation_request = {
                 "platform": update.platform.value,
                 "operation": "update",
-                "content": update.content
+                "content": update.content,
             }
 
             # Add platform-specific parameters
             if update.platform == PlatformType.CONFLUENCE:
-                automation_request.update({
-                    "page_url": update.path or f"https://example.atlassian.net/wiki/pages/{update.document_id}",
-                    "page_title": update.title,
-                    "content": update.content
-                })
+                automation_request.update(
+                    {
+                        "page_url": update.path
+                        or f"https://example.atlassian.net/wiki/pages/{update.document_id}",
+                        "page_title": update.title,
+                        "content": update.content,
+                    }
+                )
             elif update.platform == PlatformType.SHAREPOINT:
-                automation_request.update({
-                    "site_url": update.path or "https://example.sharepoint.com/sites/docs",
-                    "document_path": update.document_id,
-                    "operation": "upload"
-                })
+                automation_request.update(
+                    {
+                        "site_url": update.path
+                        or "https://example.sharepoint.com/sites/docs",
+                        "document_path": update.document_id,
+                        "operation": "upload",
+                    }
+                )
 
             # Execute Nova Act automation
             automation_result = await execute_nova_act_automation(automation_request)
@@ -468,8 +509,8 @@ class ParallelPlatformUpdater:
                     response_data={
                         "automation_method": "nova_act_browser",
                         "workflow_id": automation_result.get("workflow_id"),
-                        "screenshots": automation_result.get("screenshots", [])
-                    }
+                        "screenshots": automation_result.get("screenshots", []),
+                    },
                 )
             else:
                 return UpdateResult(
@@ -477,7 +518,9 @@ class ParallelPlatformUpdater:
                     document_id=update.document_id,
                     status=UpdateStatus.FAILED,
                     execution_time=execution_time,
-                    error_message=automation_result.get("error", "Browser automation failed")
+                    error_message=automation_result.get(
+                        "error", "Browser automation failed"
+                    ),
                 )
 
         except Exception as e:
@@ -487,7 +530,7 @@ class ParallelPlatformUpdater:
                 document_id=update.document_id,
                 status=UpdateStatus.FAILED,
                 execution_time=execution_time,
-                error_message=f"Browser automation error: {str(e)}"
+                error_message=f"Browser automation error: {str(e)}",
             )
 
     async def cleanup_connections(self):
@@ -498,35 +541,43 @@ class ParallelPlatformUpdater:
 
         await asyncio.gather(*cleanup_tasks, return_exceptions=True)
 
-    def generate_update_summary(self, platform_results: Dict[PlatformType, List[UpdateResult]]) -> Dict[str, Any]:
+    def generate_update_summary(
+        self, platform_results: Dict[PlatformType, List[UpdateResult]]
+    ) -> Dict[str, Any]:
         """Generate comprehensive summary of parallel updates"""
         total_updates = sum(len(results) for results in platform_results.values())
         successful_updates = sum(
-            1 for results in platform_results.values()
+            1
+            for results in platform_results.values()
             for result in results
             if result.status == UpdateStatus.SUCCESS
         )
 
         failed_updates = sum(
-            1 for results in platform_results.values()
+            1
+            for results in platform_results.values()
             for result in results
             if result.status == UpdateStatus.FAILED
         )
 
         circuit_breaker_failures = sum(
-            1 for results in platform_results.values()
+            1
+            for results in platform_results.values()
             for result in results
             if result.status == UpdateStatus.CIRCUIT_OPEN
         )
 
         total_execution_time = sum(
-            result.execution_time for results in platform_results.values()
+            result.execution_time
+            for results in platform_results.values()
             for result in results
         )
 
         platform_summary = {}
         for platform, results in platform_results.items():
-            platform_successful = sum(1 for r in results if r.status == UpdateStatus.SUCCESS)
+            platform_successful = sum(
+                1 for r in results if r.status == UpdateStatus.SUCCESS
+            )
             platform_failed = sum(1 for r in results if r.status == UpdateStatus.FAILED)
             platform_time = sum(r.execution_time for r in results)
 
@@ -536,7 +587,9 @@ class ParallelPlatformUpdater:
                 "failed": platform_failed,
                 "success_rate": platform_successful / len(results) if results else 0,
                 "total_execution_time": platform_time,
-                "average_execution_time": platform_time / len(results) if results else 0
+                "average_execution_time": (
+                    platform_time / len(results) if results else 0
+                ),
             }
 
         return {
@@ -545,19 +598,26 @@ class ParallelPlatformUpdater:
                 "successful_updates": successful_updates,
                 "failed_updates": failed_updates,
                 "circuit_breaker_failures": circuit_breaker_failures,
-                "overall_success_rate": successful_updates / total_updates if total_updates > 0 else 0,
+                "overall_success_rate": (
+                    successful_updates / total_updates if total_updates > 0 else 0
+                ),
                 "total_execution_time": total_execution_time,
-                "average_execution_time": total_execution_time / total_updates if total_updates > 0 else 0,
+                "average_execution_time": (
+                    total_execution_time / total_updates if total_updates > 0 else 0
+                ),
                 "platform_breakdown": platform_summary,
                 "parallel_efficiency_gain": "8-10x improvement over sequential updates",
                 "agentic_ai_pattern": "2024-2025 concurrent platform updates with circuit breakers",
                 "browser_automation_enabled": NOVA_ACT_AVAILABLE,
-                "automation_fallback": "Nova Act browser automation available for complex platforms"
+                "automation_fallback": "Nova Act browser automation available for complex platforms",
             }
         }
 
+
 # Integration function for the multi-agent supervisor
-async def execute_parallel_platform_updates(documentation_updates: Dict[str, Any], credentials: List[PlatformCredentials]) -> Dict[str, Any]:
+async def execute_parallel_platform_updates(
+    documentation_updates: Dict[str, Any], credentials: List[PlatformCredentials]
+) -> Dict[str, Any]:
     """
     Main function for parallel platform updates
     Called by the multi-agent supervisor's platform updater agent
@@ -573,25 +633,29 @@ async def execute_parallel_platform_updates(documentation_updates: Dict[str, Any
 
             if isinstance(platform_updates, list):
                 for update_data in platform_updates:
-                    updates.append(DocumentUpdate(
-                        platform=platform_type,
-                        document_id=update_data.get('document_id', ''),
-                        content=update_data.get('content', ''),
-                        title=update_data.get('title'),
-                        path=update_data.get('path'),
-                        metadata=update_data.get('metadata', {}),
-                        update_type=update_data.get('update_type', 'update')
-                    ))
+                    updates.append(
+                        DocumentUpdate(
+                            platform=platform_type,
+                            document_id=update_data.get("document_id", ""),
+                            content=update_data.get("content", ""),
+                            title=update_data.get("title"),
+                            path=update_data.get("path"),
+                            metadata=update_data.get("metadata", {}),
+                            update_type=update_data.get("update_type", "update"),
+                        )
+                    )
             else:
-                updates.append(DocumentUpdate(
-                    platform=platform_type,
-                    document_id=platform_updates.get('document_id', ''),
-                    content=platform_updates.get('content', ''),
-                    title=platform_updates.get('title'),
-                    path=platform_updates.get('path'),
-                    metadata=platform_updates.get('metadata', {}),
-                    update_type=platform_updates.get('update_type', 'update')
-                ))
+                updates.append(
+                    DocumentUpdate(
+                        platform=platform_type,
+                        document_id=platform_updates.get("document_id", ""),
+                        content=platform_updates.get("content", ""),
+                        title=platform_updates.get("title"),
+                        path=platform_updates.get("path"),
+                        metadata=platform_updates.get("metadata", {}),
+                        update_type=platform_updates.get("update_type", "update"),
+                    )
+                )
 
         # Execute parallel updates
         results = await updater.update_platforms_parallel(updates)
@@ -607,13 +671,13 @@ async def execute_parallel_platform_updates(documentation_updates: Dict[str, Any
                         "document_id": result.document_id,
                         "status": result.status.value,
                         "execution_time": result.execution_time,
-                        "error": result.error_message
+                        "error": result.error_message,
                     }
                     for result in platform_results
                 ]
                 for platform, platform_results in results.items()
             },
-            **summary
+            **summary,
         }
 
     except Exception as e:
@@ -621,5 +685,5 @@ async def execute_parallel_platform_updates(documentation_updates: Dict[str, Any
         return {
             "parallel_updates_completed": False,
             "error": str(e),
-            "fallback_recommendation": "Use sequential updates with individual platform handlers"
+            "fallback_recommendation": "Use sequential updates with individual platform handlers",
         }

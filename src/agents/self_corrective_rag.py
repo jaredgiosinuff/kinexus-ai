@@ -4,27 +4,34 @@ Self-Corrective RAG (CRAG) System for Kinexus AI
 Implements quality assessment and iterative improvement for RAG responses
 """
 import asyncio
+import hashlib
 import json
 import logging
-from typing import Dict, List, Any, Optional, Union, Tuple, Set
-from dataclasses import dataclass, field
-from enum import Enum
-import boto3
-from datetime import datetime
-import numpy as np
-import hashlib
 import re
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List
+
+import boto3
+
+from ..config.model_config import ModelConfigManager
 
 # Import existing components
-from .agentic_rag_system import AgenticRAGSystem, RAGQuery, RAGResult, RAGTaskType, RetrievalStrategy
-from .multi_agent_supervisor import MultiAgentSupervisor, BedrockAgent, AgentRole
-from .persistent_memory_system import PersistentMemorySystem
-from ..config.model_config import ModelConfigManager, ModelCapability
+from .agentic_rag_system import (
+    AgenticRAGSystem,
+    RAGQuery,
+    RAGResult,
+    RAGTaskType,
+    RetrievalStrategy,
+)
 
 logger = logging.getLogger(__name__)
 
+
 class QualityMetric(Enum):
     """Quality assessment metrics for RAG responses"""
+
     RELEVANCE = "relevance"
     ACCURACY = "accuracy"
     COMPLETENESS = "completeness"
@@ -33,8 +40,10 @@ class QualityMetric(Enum):
     SOURCE_RELIABILITY = "source_reliability"
     TEMPORAL_VALIDITY = "temporal_validity"
 
+
 class CorrectionAction(Enum):
     """Types of corrections that can be applied"""
+
     RETRIEVE_MORE = "retrieve_more"
     REFINE_QUERY = "refine_query"
     VALIDATE_SOURCES = "validate_sources"
@@ -43,9 +52,11 @@ class CorrectionAction(Enum):
     FACT_CHECK = "fact_check"
     SYNTHESIZE_BETTER = "synthesize_better"
 
+
 @dataclass
 class QualityAssessment:
     """Assessment of RAG response quality"""
+
     query_id: str
     timestamp: datetime
     scores: Dict[QualityMetric, float]
@@ -61,9 +72,11 @@ class QualityAssessment:
             score < threshold for score in self.scores.values()
         )
 
+
 @dataclass
 class CorrectionContext:
     """Context for applying corrections"""
+
     original_query: RAGQuery
     original_result: RAGResult
     assessment: QualityAssessment
@@ -75,9 +88,11 @@ class CorrectionContext:
         """Check if we can perform another correction iteration"""
         return self.iteration < self.max_iterations
 
+
 @dataclass
 class CRAGResult:
     """Enhanced result from Self-Corrective RAG"""
+
     final_result: RAGResult
     quality_assessment: QualityAssessment
     correction_iterations: int
@@ -86,14 +101,17 @@ class CRAGResult:
     total_processing_time: float
     confidence_evolution: List[float]
 
+
 class QualityAssessor:
     """Assesses quality of RAG responses and identifies improvement opportunities"""
 
     def __init__(self, model_config: ModelConfigManager):
         self.model_config = model_config
-        self.bedrock = boto3.client('bedrock-runtime')
+        self.bedrock = boto3.client("bedrock-runtime", region_name=model_config.region)
 
-    async def assess_quality(self, query: RAGQuery, result: RAGResult) -> QualityAssessment:
+    async def assess_quality(
+        self, query: RAGQuery, result: RAGResult
+    ) -> QualityAssessment:
         """Comprehensively assess the quality of a RAG response"""
         scores = {}
         issues = []
@@ -102,11 +120,19 @@ class QualityAssessor:
         # Assess each quality metric
         scores[QualityMetric.RELEVANCE] = await self._assess_relevance(query, result)
         scores[QualityMetric.ACCURACY] = await self._assess_accuracy(query, result)
-        scores[QualityMetric.COMPLETENESS] = await self._assess_completeness(query, result)
+        scores[QualityMetric.COMPLETENESS] = await self._assess_completeness(
+            query, result
+        )
         scores[QualityMetric.COHERENCE] = await self._assess_coherence(result)
-        scores[QualityMetric.FACTUAL_CONSISTENCY] = await self._assess_factual_consistency(result)
-        scores[QualityMetric.SOURCE_RELIABILITY] = await self._assess_source_reliability(result)
-        scores[QualityMetric.TEMPORAL_VALIDITY] = await self._assess_temporal_validity(result)
+        scores[QualityMetric.FACTUAL_CONSISTENCY] = (
+            await self._assess_factual_consistency(result)
+        )
+        scores[QualityMetric.SOURCE_RELIABILITY] = (
+            await self._assess_source_reliability(result)
+        )
+        scores[QualityMetric.TEMPORAL_VALIDITY] = await self._assess_temporal_validity(
+            result
+        )
 
         # Calculate overall score (weighted average)
         weights = {
@@ -116,7 +142,7 @@ class QualityAssessor:
             QualityMetric.COHERENCE: 0.15,
             QualityMetric.FACTUAL_CONSISTENCY: 0.15,
             QualityMetric.SOURCE_RELIABILITY: 0.05,
-            QualityMetric.TEMPORAL_VALIDITY: 0.05
+            QualityMetric.TEMPORAL_VALIDITY: 0.05,
         }
 
         overall_score = sum(scores[metric] * weights[metric] for metric in scores)
@@ -128,7 +154,9 @@ class QualityAssessor:
                 suggestions.extend(self._get_correction_suggestions(metric, score))
 
         # Generate assessment reasoning
-        reasoning = await self._generate_assessment_reasoning(query, result, scores, issues)
+        reasoning = await self._generate_assessment_reasoning(
+            query, result, scores, issues
+        )
 
         return QualityAssessment(
             query_id=result.query_id,
@@ -138,7 +166,7 @@ class QualityAssessor:
             confidence=result.confidence,
             issues_identified=issues,
             suggested_corrections=suggestions,
-            reasoning=reasoning
+            reasoning=reasoning,
         )
 
     async def _assess_relevance(self, query: RAGQuery, result: RAGResult) -> float:
@@ -165,7 +193,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5  # Default fallback
 
     async def _assess_accuracy(self, query: RAGQuery, result: RAGResult) -> float:
@@ -190,7 +218,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5
 
     async def _assess_completeness(self, query: RAGQuery, result: RAGResult) -> float:
@@ -214,7 +242,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5
 
     async def _assess_coherence(self, result: RAGResult) -> float:
@@ -237,7 +265,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5
 
     async def _assess_factual_consistency(self, result: RAGResult) -> float:
@@ -245,7 +273,7 @@ class QualityAssessor:
         if len(result.sources) < 2:
             return 1.0  # Cannot assess consistency with fewer than 2 sources
 
-        source_contents = [source.get('content', '') for source in result.sources]
+        source_contents = [source.get("content", "") for source in result.sources]
 
         prompt = f"""
         Assess the factual consistency across these sources on a scale of 0.0 to 1.0:
@@ -267,7 +295,7 @@ class QualityAssessor:
             response = await self._call_bedrock(prompt, max_tokens=10)
             score = float(response.strip())
             return max(0.0, min(1.0, score))
-        except:
+        except Exception:
             return 0.5
 
     async def _assess_source_reliability(self, result: RAGResult) -> float:
@@ -275,13 +303,20 @@ class QualityAssessor:
         if not result.sources:
             return 0.0
 
-        reliable_patterns = ['documentation', 'official', 'spec', 'guide', '.md', 'readme']
-        unreliable_patterns = ['blog', 'forum', 'comment', 'personal']
+        reliable_patterns = [
+            "documentation",
+            "official",
+            "spec",
+            "guide",
+            ".md",
+            "readme",
+        ]
+        unreliable_patterns = ["blog", "forum", "comment", "personal"]
 
         scores = []
         for source in result.sources:
-            source_title = source.get('title', '').lower()
-            source_path = source.get('path', '').lower()
+            source_title = source.get("title", "").lower()
+            source_path = source.get("path", "").lower()
 
             score = 0.5  # Default
 
@@ -304,11 +339,11 @@ class QualityAssessor:
         current_year = datetime.utcnow().year
 
         # Look for date mentions in sources
-        date_patterns = [r'\b(20\d{2})\b', r'\b(19\d{2})\b']
+        date_patterns = [r"\b(20\d{2})\b", r"\b(19\d{2})\b"]
 
         valid_scores = []
         for source in result.sources:
-            content = source.get('content', '') + ' ' + source.get('title', '')
+            content = source.get("content", "") + " " + source.get("title", "")
 
             # Find years mentioned
             years = []
@@ -334,33 +369,47 @@ class QualityAssessor:
 
         return sum(valid_scores) / len(valid_scores) if valid_scores else 0.7
 
-    def _get_correction_suggestions(self, metric: QualityMetric, score: float) -> List[CorrectionAction]:
+    def _get_correction_suggestions(
+        self, metric: QualityMetric, score: float
+    ) -> List[CorrectionAction]:
         """Get correction suggestions based on quality issues"""
         suggestions = []
 
         if metric == QualityMetric.RELEVANCE and score < 0.7:
-            suggestions.extend([CorrectionAction.REFINE_QUERY, CorrectionAction.RETRIEVE_MORE])
+            suggestions.extend(
+                [CorrectionAction.REFINE_QUERY, CorrectionAction.RETRIEVE_MORE]
+            )
 
         if metric == QualityMetric.ACCURACY and score < 0.7:
-            suggestions.extend([CorrectionAction.VALIDATE_SOURCES, CorrectionAction.FACT_CHECK])
+            suggestions.extend(
+                [CorrectionAction.VALIDATE_SOURCES, CorrectionAction.FACT_CHECK]
+            )
 
         if metric == QualityMetric.COMPLETENESS and score < 0.7:
-            suggestions.extend([CorrectionAction.RETRIEVE_MORE, CorrectionAction.CROSS_REFERENCE])
+            suggestions.extend(
+                [CorrectionAction.RETRIEVE_MORE, CorrectionAction.CROSS_REFERENCE]
+            )
 
         if metric == QualityMetric.COHERENCE and score < 0.7:
             suggestions.append(CorrectionAction.SYNTHESIZE_BETTER)
 
         if metric == QualityMetric.FACTUAL_CONSISTENCY and score < 0.7:
-            suggestions.extend([CorrectionAction.CROSS_REFERENCE, CorrectionAction.VALIDATE_SOURCES])
+            suggestions.extend(
+                [CorrectionAction.CROSS_REFERENCE, CorrectionAction.VALIDATE_SOURCES]
+            )
 
         if metric == QualityMetric.TEMPORAL_VALIDITY and score < 0.7:
             suggestions.append(CorrectionAction.TEMPORAL_UPDATE)
 
         return suggestions
 
-    async def _generate_assessment_reasoning(self, query: RAGQuery, result: RAGResult,
-                                           scores: Dict[QualityMetric, float],
-                                           issues: List[str]) -> str:
+    async def _generate_assessment_reasoning(
+        self,
+        query: RAGQuery,
+        result: RAGResult,
+        scores: Dict[QualityMetric, float],
+        issues: List[str],
+    ) -> str:
         """Generate human-readable reasoning for the assessment"""
         prompt = f"""
         Generate a brief assessment summary explaining the quality evaluation:
@@ -390,25 +439,20 @@ class QualityAssessor:
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": max_tokens,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                "messages": [{"role": "user", "content": prompt}],
             }
 
             response = self.bedrock.invoke_model(
-                modelId=model_id,
-                body=json.dumps(body)
+                modelId=model_id, body=json.dumps(body)
             )
 
-            result = json.loads(response['body'].read())
-            return result['content'][0]['text']
+            result = json.loads(response["body"].read())
+            return result["content"][0]["text"]
 
         except Exception as e:
             logger.error(f"Bedrock call failed: {e}")
             raise
+
 
 class CorrectionEngine:
     """Applies corrections to improve RAG responses"""
@@ -416,7 +460,7 @@ class CorrectionEngine:
     def __init__(self, rag_system: AgenticRAGSystem, model_config: ModelConfigManager):
         self.rag_system = rag_system
         self.model_config = model_config
-        self.bedrock = boto3.client('bedrock-runtime')
+        self.bedrock = boto3.client("bedrock-runtime", region_name=model_config.region)
 
     async def apply_corrections(self, context: CorrectionContext) -> RAGResult:
         """Apply corrections based on quality assessment"""
@@ -428,25 +472,37 @@ class CorrectionEngine:
 
             try:
                 if action == CorrectionAction.RETRIEVE_MORE:
-                    corrected_result = await self._retrieve_more_sources(context, corrected_result)
+                    corrected_result = await self._retrieve_more_sources(
+                        context, corrected_result
+                    )
 
                 elif action == CorrectionAction.REFINE_QUERY:
-                    corrected_result = await self._refine_query(context, corrected_result)
+                    corrected_result = await self._refine_query(
+                        context, corrected_result
+                    )
 
                 elif action == CorrectionAction.VALIDATE_SOURCES:
-                    corrected_result = await self._validate_sources(context, corrected_result)
+                    corrected_result = await self._validate_sources(
+                        context, corrected_result
+                    )
 
                 elif action == CorrectionAction.CROSS_REFERENCE:
-                    corrected_result = await self._cross_reference(context, corrected_result)
+                    corrected_result = await self._cross_reference(
+                        context, corrected_result
+                    )
 
                 elif action == CorrectionAction.FACT_CHECK:
                     corrected_result = await self._fact_check(context, corrected_result)
 
                 elif action == CorrectionAction.SYNTHESIZE_BETTER:
-                    corrected_result = await self._synthesize_better(context, corrected_result)
+                    corrected_result = await self._synthesize_better(
+                        context, corrected_result
+                    )
 
                 elif action == CorrectionAction.TEMPORAL_UPDATE:
-                    corrected_result = await self._temporal_update(context, corrected_result)
+                    corrected_result = await self._temporal_update(
+                        context, corrected_result
+                    )
 
                 context.correction_history.append(action)
                 logger.info(f"Applied correction: {action.value}")
@@ -457,15 +513,18 @@ class CorrectionEngine:
 
         return corrected_result
 
-    async def _retrieve_more_sources(self, context: CorrectionContext, result: RAGResult) -> RAGResult:
+    async def _retrieve_more_sources(
+        self, context: CorrectionContext, result: RAGResult
+    ) -> RAGResult:
         """Retrieve additional sources to improve completeness"""
         enhanced_query = RAGQuery(
             query_text=context.original_query.query_text,
             task_type=context.original_query.task_type,
             context=context.original_query.context,
             max_results=context.original_query.max_results * 2,  # Double the results
-            confidence_threshold=context.original_query.confidence_threshold * 0.8,  # Lower threshold
-            strategy=RetrievalStrategy.MULTI_HOP_REASONING
+            confidence_threshold=context.original_query.confidence_threshold
+            * 0.8,  # Lower threshold
+            strategy=RetrievalStrategy.MULTI_HOP_REASONING,
         )
 
         additional_result = await self.rag_system.process_query(enhanced_query)
@@ -477,15 +536,16 @@ class CorrectionEngine:
         seen_hashes = set()
 
         for source in combined_sources:
-            content_hash = hashlib.md5(source.get('content', '').encode()).hexdigest()
+            content_hash = hashlib.md5(
+                source.get("content", "").encode(), usedforsecurity=False
+            ).hexdigest()
             if content_hash not in seen_hashes:
                 unique_sources.append(source)
                 seen_hashes.add(content_hash)
 
         # Re-synthesize with more sources
         new_answer = await self._synthesize_with_sources(
-            context.original_query.query_text,
-            unique_sources
+            context.original_query.query_text, unique_sources
         )
 
         return RAGResult(
@@ -494,10 +554,12 @@ class CorrectionEngine:
             sources=unique_sources,
             confidence=min(result.confidence + 0.1, 1.0),
             processing_time=result.processing_time,
-            metadata={**result.metadata, 'correction': 'retrieve_more'}
+            metadata={**result.metadata, "correction": "retrieve_more"},
         )
 
-    async def _refine_query(self, context: CorrectionContext, result: RAGResult) -> RAGResult:
+    async def _refine_query(
+        self, context: CorrectionContext, result: RAGResult
+    ) -> RAGResult:
         """Refine the query to improve relevance"""
         refine_prompt = f"""
         The original query didn't retrieve sufficiently relevant results.
@@ -518,35 +580,46 @@ class CorrectionEngine:
             context=context.original_query.context,
             max_results=context.original_query.max_results,
             confidence_threshold=context.original_query.confidence_threshold,
-            strategy=RetrievalStrategy.SEMANTIC_ROUTING
+            strategy=RetrievalStrategy.SEMANTIC_ROUTING,
         )
 
         return await self.rag_system.process_query(refined_query)
 
-    async def _validate_sources(self, context: CorrectionContext, result: RAGResult) -> RAGResult:
+    async def _validate_sources(
+        self, context: CorrectionContext, result: RAGResult
+    ) -> RAGResult:
         """Validate and filter sources for reliability"""
         validated_sources = []
 
         for source in result.sources:
             # Simple validation based on content quality indicators
-            content = source.get('content', '')
-            title = source.get('title', '')
+            content = source.get("content", "")
+            title = source.get("title", "")
 
             # Score source reliability
             reliability_score = 0.5
 
             # Positive indicators
-            if any(indicator in title.lower() for indicator in ['documentation', 'guide', 'spec', 'official']):
+            if any(
+                indicator in title.lower()
+                for indicator in ["documentation", "guide", "spec", "official"]
+            ):
                 reliability_score += 0.3
 
             if len(content) > 200:  # Substantial content
                 reliability_score += 0.2
 
-            if any(indicator in content.lower() for indicator in ['example', 'tutorial', 'how to']):
+            if any(
+                indicator in content.lower()
+                for indicator in ["example", "tutorial", "how to"]
+            ):
                 reliability_score += 0.1
 
             # Negative indicators
-            if any(indicator in title.lower() for indicator in ['blog', 'personal', 'opinion']):
+            if any(
+                indicator in title.lower()
+                for indicator in ["blog", "personal", "opinion"]
+            ):
                 reliability_score -= 0.2
 
             if reliability_score >= 0.6:
@@ -557,8 +630,7 @@ class CorrectionEngine:
 
         # Re-synthesize with validated sources
         new_answer = await self._synthesize_with_sources(
-            context.original_query.query_text,
-            validated_sources
+            context.original_query.query_text, validated_sources
         )
 
         return RAGResult(
@@ -567,10 +639,12 @@ class CorrectionEngine:
             sources=validated_sources,
             confidence=result.confidence + 0.1,
             processing_time=result.processing_time,
-            metadata={**result.metadata, 'correction': 'validate_sources'}
+            metadata={**result.metadata, "correction": "validate_sources"},
         )
 
-    async def _cross_reference(self, context: CorrectionContext, result: RAGResult) -> RAGResult:
+    async def _cross_reference(
+        self, context: CorrectionContext, result: RAGResult
+    ) -> RAGResult:
         """Cross-reference information across sources"""
         if len(result.sources) < 2:
             return result  # Cannot cross-reference with fewer than 2 sources
@@ -592,7 +666,9 @@ class CorrectionEngine:
         4. Provides the most accurate synthesis
         """
 
-        cross_referenced_answer = await self._call_bedrock(cross_ref_prompt, max_tokens=500)
+        cross_referenced_answer = await self._call_bedrock(
+            cross_ref_prompt, max_tokens=500
+        )
 
         return RAGResult(
             query_id=result.query_id,
@@ -600,10 +676,12 @@ class CorrectionEngine:
             sources=result.sources,
             confidence=result.confidence + 0.15,
             processing_time=result.processing_time,
-            metadata={**result.metadata, 'correction': 'cross_reference'}
+            metadata={**result.metadata, "correction": "cross_reference"},
         )
 
-    async def _fact_check(self, context: CorrectionContext, result: RAGResult) -> RAGResult:
+    async def _fact_check(
+        self, context: CorrectionContext, result: RAGResult
+    ) -> RAGResult:
         """Perform fact-checking on the response"""
         fact_check_prompt = f"""
         Fact-check this response and correct any inaccuracies:
@@ -621,7 +699,9 @@ class CorrectionEngine:
         4. Ensures all facts are supported by the sources
         """
 
-        fact_checked_answer = await self._call_bedrock(fact_check_prompt, max_tokens=500)
+        fact_checked_answer = await self._call_bedrock(
+            fact_check_prompt, max_tokens=500
+        )
 
         return RAGResult(
             query_id=result.query_id,
@@ -629,10 +709,12 @@ class CorrectionEngine:
             sources=result.sources,
             confidence=result.confidence + 0.1,
             processing_time=result.processing_time,
-            metadata={**result.metadata, 'correction': 'fact_check'}
+            metadata={**result.metadata, "correction": "fact_check"},
         )
 
-    async def _synthesize_better(self, context: CorrectionContext, result: RAGResult) -> RAGResult:
+    async def _synthesize_better(
+        self, context: CorrectionContext, result: RAGResult
+    ) -> RAGResult:
         """Improve the synthesis and coherence of the response"""
         synthesis_prompt = f"""
         Improve the coherence and flow of this response:
@@ -657,10 +739,12 @@ class CorrectionEngine:
             sources=result.sources,
             confidence=result.confidence + 0.1,
             processing_time=result.processing_time,
-            metadata={**result.metadata, 'correction': 'synthesize_better'}
+            metadata={**result.metadata, "correction": "synthesize_better"},
         )
 
-    async def _temporal_update(self, context: CorrectionContext, result: RAGResult) -> RAGResult:
+    async def _temporal_update(
+        self, context: CorrectionContext, result: RAGResult
+    ) -> RAGResult:
         """Update response to reflect current/recent information"""
         current_year = datetime.utcnow().year
 
@@ -685,10 +769,12 @@ class CorrectionEngine:
             sources=result.sources,
             confidence=result.confidence,
             processing_time=result.processing_time,
-            metadata={**result.metadata, 'correction': 'temporal_update'}
+            metadata={**result.metadata, "correction": "temporal_update"},
         )
 
-    async def _synthesize_with_sources(self, query: str, sources: List[Dict[str, Any]]) -> str:
+    async def _synthesize_with_sources(
+        self, query: str, sources: List[Dict[str, Any]]
+    ) -> str:
         """Synthesize an answer from the given sources"""
         synthesis_prompt = f"""
         Based on the following sources, provide a comprehensive answer to this query:
@@ -711,25 +797,20 @@ class CorrectionEngine:
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": max_tokens,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                "messages": [{"role": "user", "content": prompt}],
             }
 
             response = self.bedrock.invoke_model(
-                modelId=model_id,
-                body=json.dumps(body)
+                modelId=model_id, body=json.dumps(body)
             )
 
-            result = json.loads(response['body'].read())
-            return result['content'][0]['text']
+            result = json.loads(response["body"].read())
+            return result["content"][0]["text"]
 
         except Exception as e:
             logger.error(f"Bedrock call failed: {e}")
             raise
+
 
 class SelfCorrectiveRAG:
     """Main Self-Corrective RAG system that orchestrates quality assessment and correction"""
@@ -765,9 +846,10 @@ class SelfCorrectiveRAG:
         best_score = assessment.overall_score
 
         # Iterative correction process
-        while (assessment.needs_correction(self.quality_threshold) and
-               iteration < self.max_iterations):
-
+        while (
+            assessment.needs_correction(self.quality_threshold)
+            and iteration < self.max_iterations
+        ):
             iteration += 1
             logger.info(f"Starting correction iteration {iteration}")
 
@@ -777,21 +859,27 @@ class SelfCorrectiveRAG:
                 original_result=current_result,
                 assessment=assessment,
                 iteration=iteration,
-                max_iterations=self.max_iterations
+                max_iterations=self.max_iterations,
             )
 
             # Apply corrections
             try:
-                corrected_result = await self.correction_engine.apply_corrections(correction_context)
+                corrected_result = await self.correction_engine.apply_corrections(
+                    correction_context
+                )
                 corrections_applied.extend(correction_context.correction_history)
 
                 # Re-assess quality
-                new_assessment = await self.quality_assessor.assess_quality(query, corrected_result)
+                new_assessment = await self.quality_assessor.assess_quality(
+                    query, corrected_result
+                )
                 confidence_evolution.append(corrected_result.confidence)
 
                 # Check for improvement
                 improvement = new_assessment.overall_score - assessment.overall_score
-                logger.info(f"Quality improvement in iteration {iteration}: {improvement:.3f}")
+                logger.info(
+                    f"Quality improvement in iteration {iteration}: {improvement:.3f}"
+                )
 
                 if improvement > self.improvement_threshold:
                     current_result = corrected_result
@@ -817,8 +905,10 @@ class SelfCorrectiveRAG:
         final_score = confidence_evolution[-1] if confidence_evolution else 0
         improvement_score = final_score - initial_score
 
-        logger.info(f"CRAG processing complete: {iteration} iterations, "
-                   f"improvement: {improvement_score:.3f}, time: {total_time:.2f}s")
+        logger.info(
+            f"CRAG processing complete: {iteration} iterations, "
+            f"improvement: {improvement_score:.3f}, time: {total_time:.2f}s"
+        )
 
         return CRAGResult(
             final_result=best_result,
@@ -827,7 +917,7 @@ class SelfCorrectiveRAG:
             corrections_applied=list(set(corrections_applied)),  # Remove duplicates
             improvement_score=improvement_score,
             total_processing_time=total_time,
-            confidence_evolution=confidence_evolution
+            confidence_evolution=confidence_evolution,
         )
 
     async def batch_process(self, queries: List[RAGQuery]) -> List[CRAGResult]:
@@ -847,7 +937,9 @@ class SelfCorrectiveRAG:
         # Filter out exceptions
         successful_results = [r for r in results if isinstance(r, CRAGResult)]
 
-        logger.info(f"Batch processed {len(successful_results)}/{len(queries)} queries successfully")
+        logger.info(
+            f"Batch processed {len(successful_results)}/{len(queries)} queries successfully"
+        )
         return successful_results
 
     def get_performance_metrics(self, results: List[CRAGResult]) -> Dict[str, Any]:
@@ -858,22 +950,28 @@ class SelfCorrectiveRAG:
         total_corrections = sum(len(r.corrections_applied) for r in results)
         avg_improvement = sum(r.improvement_score for r in results) / len(results)
         avg_iterations = sum(r.correction_iterations for r in results) / len(results)
-        avg_processing_time = sum(r.total_processing_time for r in results) / len(results)
+        avg_processing_time = sum(r.total_processing_time for r in results) / len(
+            results
+        )
 
         correction_frequency = {}
         for result in results:
             for correction in result.corrections_applied:
-                correction_frequency[correction.value] = correction_frequency.get(correction.value, 0) + 1
+                correction_frequency[correction.value] = (
+                    correction_frequency.get(correction.value, 0) + 1
+                )
 
         return {
-            'total_queries': len(results),
-            'total_corrections_applied': total_corrections,
-            'average_improvement_score': avg_improvement,
-            'average_iterations': avg_iterations,
-            'average_processing_time': avg_processing_time,
-            'correction_frequency': correction_frequency,
-            'success_rate': len([r for r in results if r.improvement_score > 0]) / len(results)
+            "total_queries": len(results),
+            "total_corrections_applied": total_corrections,
+            "average_improvement_score": avg_improvement,
+            "average_iterations": avg_iterations,
+            "average_processing_time": avg_processing_time,
+            "correction_frequency": correction_frequency,
+            "success_rate": len([r for r in results if r.improvement_score > 0])
+            / len(results),
         }
+
 
 # Example usage and testing
 async def main():
@@ -890,7 +988,7 @@ async def main():
                 sources=[{"title": "Test Doc", "content": "Test content"}],
                 confidence=0.6,  # Low confidence to trigger corrections
                 processing_time=1.0,
-                metadata={}
+                metadata={},
             )
 
     mock_rag = MockRAGSystem()
@@ -903,18 +1001,19 @@ async def main():
         query_text="How do I implement error handling in Python?",
         task_type=RAGTaskType.CODE_ANALYSIS,
         context={"language": "python"},
-        max_results=5
+        max_results=5,
     )
 
     # Process with CRAG
     result = await crag.process_query(test_query)
 
-    print(f"CRAG Result:")
+    print("CRAG Result:")
     print(f"- Final confidence: {result.final_result.confidence:.3f}")
     print(f"- Iterations: {result.correction_iterations}")
     print(f"- Corrections applied: {[c.value for c in result.corrections_applied]}")
     print(f"- Improvement: {result.improvement_score:.3f}")
     print(f"- Processing time: {result.total_processing_time:.2f}s")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

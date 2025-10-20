@@ -54,7 +54,15 @@ See: **[Deployment Guide](deployment.md)**
 
 ## 🎯 Key Features
 
-### **Autonomous AI Agents**
+### **Autonomous AI Systems**
+
+**Production (AWS Serverless):**
+- **Claude 3 Haiku**: Fast, accurate documentation generation
+- **Amazon Nova Lite**: Confluence search and content analysis
+- **Lambda Functions**: Stateless, event-driven architecture
+- **EventBridge**: Orchestrates workflow (ChangeDetected → DocumentGenerated → Published)
+
+**Development Stack (Local FastAPI with Mock Agents):**
 - **Claude 4 Opus 4.1**: Master reasoning engine (74.5% SWE-bench)
 - **Claude 4 Sonnet**: Fast processing with 1M token context
 - **Amazon Nova Pro/Act/Canvas**: Multimodal, agentic, and voice capabilities

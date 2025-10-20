@@ -1,42 +1,48 @@
-import jwt
-import boto3
-import bcrypt
 import secrets
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
+
+import bcrypt
+import boto3
+import jwt
+from jose import JWTError
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from jose import JWTError
-import json
-import logging
 
-from ..models.auth import User, AuthProvider, AuthConfig, UserRole
+from ..database import get_database_session
+from ..models.auth import AuthConfig, User
 from ..repositories.user_repository import UserRepository
 from ..services.logging_service import StructuredLogger
-from ..database import get_database_session
 
 logger = StructuredLogger("service.auth")
 
+
 class TokenData(BaseModel):
     """Token validation data."""
+
     user_id: str
     email: str
     is_admin: bool
     roles: List[str]
     exp: int
 
+
 class CognitoConfig(BaseModel):
     """AWS Cognito configuration."""
+
     user_pool_id: str
     client_id: str
     region: str
     jwt_secret: Optional[str] = None
 
+
 class LocalAuthConfig(BaseModel):
     """Local authentication configuration."""
+
     jwt_secret: str
     token_expiry_hours: int = 24
     require_email_verification: bool = False
+
 
 class AuthService:
     """Centralized authentication service supporting both Cognito and local auth."""
@@ -63,8 +69,8 @@ class AuthService:
                     config={
                         "jwt_secret": secrets.token_hex(32),
                         "token_expiry_hours": 24,
-                        "require_email_verification": False
-                    }
+                        "require_email_verification": False,
+                    },
                 )
                 self.db.add(self._current_config)
                 self.db.commit()
@@ -72,10 +78,7 @@ class AuthService:
         return self._current_config
 
     async def update_config(
-        self,
-        provider_type: str,
-        enabled: bool,
-        config: Dict[str, Any]
+        self, provider_type: str, enabled: bool, config: Dict[str, Any]
     ) -> None:
         """Update authentication configuration."""
         try:
@@ -104,10 +107,10 @@ class AuthService:
             self._cognito_client = None
             self._jwt_secret = None
 
-            logger.info("Auth configuration updated", {
-                "provider_type": provider_type,
-                "enabled": enabled
-            })
+            logger.info(
+                "Auth configuration updated",
+                {"provider_type": provider_type, "enabled": enabled},
+            )
 
         except Exception as e:
             self.db.rollback()
@@ -129,7 +132,9 @@ class AuthService:
         if "token_expiry_hours" not in config:
             config["token_expiry_hours"] = 24
 
-    async def authenticate_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
+    async def authenticate_user(
+        self, email: str, password: str
+    ) -> Optional[Dict[str, Any]]:
         """Authenticate a user using the current provider."""
         try:
             config = await self.get_current_config()
@@ -143,18 +148,20 @@ class AuthService:
                 return await self._authenticate_local(email, password, config.config)
 
         except Exception as e:
-            logger.error("Authentication failed", {
-                "email": email,
-                "provider": config.provider_type if 'config' in locals() else "unknown",
-                "error": str(e)
-            })
+            logger.error(
+                "Authentication failed",
+                {
+                    "email": email,
+                    "provider": (
+                        config.provider_type if "config" in locals() else "unknown"
+                    ),
+                    "error": str(e),
+                },
+            )
             raise
 
     async def _authenticate_cognito(
-        self,
-        email: str,
-        password: str,
-        config: Dict[str, Any]
+        self, email: str, password: str, config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Authenticate using AWS Cognito."""
         try:
@@ -162,29 +169,25 @@ class AuthService:
 
             if not self._cognito_client:
                 self._cognito_client = boto3.client(
-                    'cognito-idp',
-                    region_name=cognito_config.region
+                    "cognito-idp", region_name=cognito_config.region
                 )
 
             # Authenticate with Cognito
             response = self._cognito_client.admin_initiate_auth(
                 UserPoolId=cognito_config.user_pool_id,
                 ClientId=cognito_config.client_id,
-                AuthFlow='ADMIN_NO_SRP_AUTH',
-                AuthParameters={
-                    'USERNAME': email,
-                    'PASSWORD': password
-                }
+                AuthFlow="ADMIN_NO_SRP_AUTH",
+                AuthParameters={"USERNAME": email, "PASSWORD": password},
             )
 
             # Extract user information from Cognito response
-            access_token = response['AuthenticationResult']['AccessToken']
-            id_token = response['AuthenticationResult']['IdToken']
+            access_token = response["AuthenticationResult"]["AccessToken"]
+            id_token = response["AuthenticationResult"]["IdToken"]
 
             # Decode the ID token to get user info
             user_info = jwt.decode(
                 id_token,
-                options={"verify_signature": False}  # Cognito tokens are pre-verified
+                options={"verify_signature": False},  # Cognito tokens are pre-verified
             )
 
             # Sync user with local database
@@ -193,10 +196,10 @@ class AuthService:
             # Generate our own JWT for internal use
             token = self._generate_jwt_token(user, config)
 
-            logger.info("Cognito authentication successful", {
-                "user_id": user.id,
-                "email": user.email
-            })
+            logger.info(
+                "Cognito authentication successful",
+                {"user_id": user.id, "email": user.email},
+            )
 
             return {
                 "access_token": token,
@@ -206,26 +209,22 @@ class AuthService:
                     "email": user.email,
                     "name": user.name,
                     "is_admin": user.is_admin,
-                    "roles": [role.name for role in user.roles]
-                }
+                    "roles": [role.name for role in user.roles],
+                },
             }
 
         except Exception as e:
-            logger.error("Cognito authentication failed", {
-                "email": email,
-                "error": str(e)
-            })
+            logger.error(
+                "Cognito authentication failed", {"email": email, "error": str(e)}
+            )
             raise
 
     async def _authenticate_local(
-        self,
-        email: str,
-        password: str,
-        config: Dict[str, Any]
+        self, email: str, password: str, config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Authenticate using local credentials."""
         try:
-            local_config = LocalAuthConfig(**config)
+            _local_config = LocalAuthConfig(**config)
 
             # Find user in database
             user = await self.user_repo.get_by_email(email)
@@ -233,7 +232,9 @@ class AuthService:
                 raise ValueError("Invalid credentials")
 
             # Verify password
-            if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+            if not bcrypt.checkpw(
+                password.encode("utf-8"), user.password_hash.encode("utf-8")
+            ):
                 raise ValueError("Invalid credentials")
 
             # Check if user is active
@@ -243,10 +244,10 @@ class AuthService:
             # Generate JWT token
             token = self._generate_jwt_token(user, config)
 
-            logger.info("Local authentication successful", {
-                "user_id": user.id,
-                "email": user.email
-            })
+            logger.info(
+                "Local authentication successful",
+                {"user_id": user.id, "email": user.email},
+            )
 
             return {
                 "access_token": token,
@@ -256,23 +257,24 @@ class AuthService:
                     "email": user.email,
                     "name": user.name,
                     "is_admin": user.is_admin,
-                    "roles": [role.name for role in user.roles]
-                }
+                    "roles": [role.name for role in user.roles],
+                },
             }
 
         except Exception as e:
-            logger.error("Local authentication failed", {
-                "email": email,
-                "error": str(e)
-            })
+            logger.error(
+                "Local authentication failed", {"email": email, "error": str(e)}
+            )
             raise
 
-    async def _sync_cognito_user(self, cognito_user_info: Dict[str, Any], access_token: str) -> User:
+    async def _sync_cognito_user(
+        self, cognito_user_info: Dict[str, Any], access_token: str
+    ) -> User:
         """Sync Cognito user with local database."""
         try:
-            email = cognito_user_info.get('email')
-            name = cognito_user_info.get('name', email)
-            cognito_user_id = cognito_user_info.get('sub')
+            email = cognito_user_info.get("email")
+            name = cognito_user_info.get("name", email)
+            cognito_user_id = cognito_user_info.get("sub")
 
             # Check if user exists locally
             user = await self.user_repo.get_by_email(email)
@@ -284,12 +286,11 @@ class AuthService:
                     password_hash="",  # Not used for Cognito users
                     is_admin=False,
                     provider="cognito",
-                    provider_user_id=cognito_user_id
+                    provider_user_id=cognito_user_id,
                 )
-                logger.info("New Cognito user created", {
-                    "user_id": user.id,
-                    "email": email
-                })
+                logger.info(
+                    "New Cognito user created", {"user_id": user.id, "email": email}
+                )
             else:
                 # Update existing user
                 user.name = name
@@ -321,7 +322,7 @@ class AuthService:
                 "is_admin": user.is_admin,
                 "roles": [role.name for role in user.roles],
                 "exp": expiry.timestamp(),
-                "iat": datetime.utcnow().timestamp()
+                "iat": datetime.utcnow().timestamp(),
             }
 
             token = jwt.encode(payload, jwt_secret, algorithm="HS256")
@@ -366,11 +367,7 @@ class AuthService:
             raise
 
     async def create_local_user(
-        self,
-        email: str,
-        password: str,
-        name: str,
-        is_admin: bool = False
+        self, email: str, password: str, name: str, is_admin: bool = False
     ) -> User:
         """Create a new local user account."""
         try:
@@ -380,7 +377,9 @@ class AuthService:
                 raise ValueError("Local user creation not available in Cognito mode")
 
             # Hash password
-            password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            password_hash = bcrypt.hashpw(
+                password.encode("utf-8"), bcrypt.gensalt()
+            ).decode("utf-8")
 
             # Create user
             user = await self.user_repo.create_user(
@@ -388,25 +387,25 @@ class AuthService:
                 name=name,
                 password_hash=password_hash,
                 is_admin=is_admin,
-                provider="local"
+                provider="local",
             )
 
-            logger.info("Local user created", {
-                "user_id": user.id,
-                "email": email,
-                "is_admin": is_admin
-            })
+            logger.info(
+                "Local user created",
+                {"user_id": user.id, "email": email, "is_admin": is_admin},
+            )
 
             return user
 
         except Exception as e:
-            logger.error("Failed to create local user", {
-                "email": email,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to create local user", {"email": email, "error": str(e)}
+            )
             raise
 
-    async def change_password(self, user_id: str, old_password: str, new_password: str) -> bool:
+    async def change_password(
+        self, user_id: str, old_password: str, new_password: str
+    ) -> bool:
         """Change user password (local auth only)."""
         try:
             config = await self.get_current_config()
@@ -419,23 +418,28 @@ class AuthService:
                 raise ValueError("User not found")
 
             # Verify old password
-            if not bcrypt.checkpw(old_password.encode('utf-8'), user.password_hash.encode('utf-8')):
+            if not bcrypt.checkpw(
+                old_password.encode("utf-8"), user.password_hash.encode("utf-8")
+            ):
                 raise ValueError("Invalid current password")
 
             # Hash new password
-            new_password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            new_password_hash = bcrypt.hashpw(
+                new_password.encode("utf-8"), bcrypt.gensalt()
+            ).decode("utf-8")
 
             # Update user
-            await self.user_repo.update_user(user_id, {"password_hash": new_password_hash})
+            await self.user_repo.update_user(
+                user_id, {"password_hash": new_password_hash}
+            )
 
             logger.info("Password changed", {"user_id": user_id})
             return True
 
         except Exception as e:
-            logger.error("Failed to change password", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to change password", {"user_id": user_id, "error": str(e)}
+            )
             raise
 
     async def refresh_token(self, refresh_token: str) -> Dict[str, Any]:
@@ -451,19 +455,14 @@ class AuthService:
                 user = await self.verify_token(refresh_token)
                 new_token = self._generate_jwt_token(user, config.config)
 
-                return {
-                    "access_token": new_token,
-                    "token_type": "bearer"
-                }
+                return {"access_token": new_token, "token_type": "bearer"}
 
         except Exception as e:
             logger.error("Token refresh failed", {"error": str(e)})
             raise
 
     async def _refresh_cognito_token(
-        self,
-        refresh_token: str,
-        config: Dict[str, Any]
+        self, refresh_token: str, config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Refresh Cognito token."""
         try:
@@ -471,26 +470,23 @@ class AuthService:
 
             if not self._cognito_client:
                 self._cognito_client = boto3.client(
-                    'cognito-idp',
-                    region_name=cognito_config.region
+                    "cognito-idp", region_name=cognito_config.region
                 )
 
             response = self._cognito_client.admin_initiate_auth(
                 UserPoolId=cognito_config.user_pool_id,
                 ClientId=cognito_config.client_id,
-                AuthFlow='REFRESH_TOKEN_AUTH',
-                AuthParameters={
-                    'REFRESH_TOKEN': refresh_token
-                }
+                AuthFlow="REFRESH_TOKEN_AUTH",
+                AuthParameters={"REFRESH_TOKEN": refresh_token},
             )
 
-            access_token = response['AuthenticationResult']['AccessToken']
-            id_token = response['AuthenticationResult']['IdToken']
+            access_token = response["AuthenticationResult"]["AccessToken"]
+            id_token = response["AuthenticationResult"]["IdToken"]
 
             return {
                 "access_token": access_token,
                 "id_token": id_token,
-                "token_type": "bearer"
+                "token_type": "bearer",
             }
 
         except Exception as e:
@@ -515,10 +511,7 @@ class AuthService:
             return True
 
         except Exception as e:
-            logger.error("Logout failed", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error("Logout failed", {"user_id": user_id, "error": str(e)})
             raise
 
     async def get_user_permissions(self, user_id: str) -> List[str]:
@@ -535,10 +528,9 @@ class AuthService:
             return list(permissions)
 
         except Exception as e:
-            logger.error("Failed to get user permissions", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get user permissions", {"user_id": user_id, "error": str(e)}
+            )
             raise
 
     async def check_permission(self, user_id: str, permission: str) -> bool:
@@ -548,11 +540,10 @@ class AuthService:
             return permission in permissions or await self.is_admin(user_id)
 
         except Exception as e:
-            logger.error("Permission check failed", {
-                "user_id": user_id,
-                "permission": permission,
-                "error": str(e)
-            })
+            logger.error(
+                "Permission check failed",
+                {"user_id": user_id, "permission": permission, "error": str(e)},
+            )
             return False
 
     async def is_admin(self, user_id: str) -> bool:
@@ -562,8 +553,5 @@ class AuthService:
             return user.is_admin if user else False
 
         except Exception as e:
-            logger.error("Admin check failed", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error("Admin check failed", {"user_id": user_id, "error": str(e)})
             return False

@@ -94,6 +94,20 @@ class KinexusAIMVPStack(Stack):
         )
 
         # Jira Webhook Handler Lambda
+        jira_env = {
+            "CHANGES_TABLE": self.changes_table.table_name,
+            "EVENT_BUS": self.event_bus.event_bus_name,
+        }
+        # Add Jira/Confluence credentials from GitHub secrets via CDK context
+        if self.node.try_get_context("jira_base_url"):
+            jira_env["JIRA_BASE_URL"] = self.node.try_get_context("jira_base_url")
+        if self.node.try_get_context("jira_email"):
+            jira_env["JIRA_EMAIL"] = self.node.try_get_context("jira_email")
+        if self.node.try_get_context("jira_api_token"):
+            jira_env["JIRA_API_TOKEN"] = self.node.try_get_context("jira_api_token")
+        if self.node.try_get_context("confluence_url"):
+            jira_env["CONFLUENCE_URL"] = self.node.try_get_context("confluence_url")
+
         self.jira_webhook_handler = lambda_.Function(
             self, "JiraWebhookHandler",
             runtime=lambda_.Runtime.PYTHON_3_11,
@@ -101,15 +115,28 @@ class KinexusAIMVPStack(Stack):
             handler="jira_webhook_handler.lambda_handler",
             timeout=Duration.seconds(30),
             memory_size=512,
-            environment={
-                "CHANGES_TABLE": self.changes_table.table_name,
-                "EVENT_BUS": self.event_bus.event_bus_name
-            },
+            environment=jira_env,
             layers=[self.lambda_layer],
             log_retention=logs.RetentionDays.ONE_WEEK
         )
 
         # Document Orchestrator Lambda
+        orchestrator_env = {
+            "CHANGES_TABLE": self.changes_table.table_name,
+            "DOCUMENTS_TABLE": self.documents_table.table_name,
+            "DOCUMENTS_BUCKET": self.documents_bucket.bucket_name,
+            "EVENT_BUS": self.event_bus.event_bus_name
+        }
+        # Add Jira/Confluence credentials from GitHub secrets via CDK context
+        if self.node.try_get_context("jira_base_url"):
+            orchestrator_env["JIRA_BASE_URL"] = self.node.try_get_context("jira_base_url")
+        if self.node.try_get_context("jira_email"):
+            orchestrator_env["JIRA_EMAIL"] = self.node.try_get_context("jira_email")
+        if self.node.try_get_context("jira_api_token"):
+            orchestrator_env["JIRA_API_TOKEN"] = self.node.try_get_context("jira_api_token")
+        if self.node.try_get_context("confluence_url"):
+            orchestrator_env["CONFLUENCE_URL"] = self.node.try_get_context("confluence_url")
+
         self.document_orchestrator = lambda_.Function(
             self, "DocumentOrchestrator",
             runtime=lambda_.Runtime.PYTHON_3_11,
@@ -117,12 +144,7 @@ class KinexusAIMVPStack(Stack):
             handler="document_orchestrator.lambda_handler",
             timeout=Duration.minutes(5),
             memory_size=1024,
-            environment={
-                "CHANGES_TABLE": self.changes_table.table_name,
-                "DOCUMENTS_TABLE": self.documents_table.table_name,
-                "DOCUMENTS_BUCKET": self.documents_bucket.bucket_name,
-                "EVENT_BUS": self.event_bus.event_bus_name
-            },
+            environment=orchestrator_env,
             layers=[self.lambda_layer],
             log_retention=logs.RetentionDays.ONE_WEEK
         )
@@ -155,7 +177,7 @@ class KinexusAIMVPStack(Stack):
             event_bus=self.event_bus,
             event_pattern={
                 "source": ["kinexus.github", "kinexus.jira"],
-                "detail-type": ["ChangeDetected"]
+                "detail_type": ["ChangeDetected"]
             },
             targets=[targets.LambdaFunction(self.document_orchestrator)]
         )
@@ -189,6 +211,53 @@ class KinexusAIMVPStack(Stack):
             apigateway.LambdaIntegration(self.jira_webhook_handler)
         )
 
+        # Review Ticket Creator Lambda
+        self.review_ticket_creator = lambda_.Function(
+            self, "ReviewTicketCreator",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            code=lambda_.Code.from_asset("src/lambdas"),
+            handler="review_ticket_creator.lambda_handler",
+            timeout=Duration.seconds(60),
+            memory_size=512,
+            environment={
+                **orchestrator_env,  # Inherit Jira credentials
+                "JIRA_PROJECT_KEY": "TOAST",
+            },
+            layers=[self.lambda_layer],
+            log_retention=logs.RetentionDays.ONE_WEEK
+        )
+
+        # Approval Handler Lambda
+        self.approval_handler = lambda_.Function(
+            self, "ApprovalHandler",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            code=lambda_.Code.from_asset("src/lambdas"),
+            handler="approval_handler.lambda_handler",
+            timeout=Duration.seconds(90),
+            memory_size=512,
+            environment=orchestrator_env,  # Inherit all Jira/Confluence credentials
+            layers=[self.lambda_layer],
+            log_retention=logs.RetentionDays.ONE_WEEK
+        )
+
+        # Grant permissions for new Lambdas
+        self.documents_table.grant_read_write_data(self.review_ticket_creator)
+        self.documents_table.grant_read_write_data(self.approval_handler)
+        self.documents_bucket.grant_read_write(self.review_ticket_creator)
+        self.documents_bucket.grant_read_write(self.approval_handler)
+        self.event_bus.grant_put_events_to(self.approval_handler)
+
+        # EventBridge Rule to trigger review ticket creator after document generation
+        events.Rule(
+            self, "DocumentGeneratedRule",
+            event_bus=self.event_bus,
+            event_pattern={
+                "source": ["kinexus.orchestrator"],
+                "detail_type": ["DocumentGenerated"]
+            },
+            targets=[targets.LambdaFunction(self.review_ticket_creator)]
+        )
+
         # Documents API endpoints
         documents_resource = self.api.root.add_resource("documents")
         documents_resource.add_method(
@@ -196,29 +265,36 @@ class KinexusAIMVPStack(Stack):
             apigateway.LambdaIntegration(self.document_orchestrator)
         )
 
+        # Approval webhook endpoint (separate from main Jira webhook)
+        approval_resource = webhooks_resource.add_resource("approval")
+        approval_resource.add_method(
+            "POST",
+            apigateway.LambdaIntegration(self.approval_handler)
+        )
+
         # Output important values
         from aws_cdk import CfnOutput
 
         CfnOutput(
-            self, "APIEndpoint",
+            self, "APIEndpointOutput",
             value=self.api.url,
             description="API Gateway endpoint URL"
         )
 
         CfnOutput(
-            self, "GitHubWebhookURL",
+            self, "GitHubWebhookURLOutput",
             value=f"{self.api.url}webhooks/github",
             description="GitHub webhook URL"
         )
 
         CfnOutput(
-            self, "JiraWebhookURL",
+            self, "JiraWebhookURLOutput",
             value=f"{self.api.url}webhooks/jira",
             description="Jira webhook URL"
         )
 
         CfnOutput(
-            self, "DocumentsBucket",
+            self, "DocumentsBucketNameOutput",
             value=self.documents_bucket.bucket_name,
             description="S3 bucket for documents"
         )

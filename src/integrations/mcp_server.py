@@ -7,33 +7,39 @@ import asyncio
 import json
 import logging
 import uuid
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional, Union, Callable
-from dataclasses import dataclass, asdict
 from enum import Enum
+from typing import Any, Callable, Dict, List
+
 import boto3
-from botocore.exceptions import ClientError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class MCPMessageType(Enum):
     """MCP message types following specification"""
+
     REQUEST = "request"
     RESPONSE = "response"
     NOTIFICATION = "notification"
 
+
 class MCPResourceType(Enum):
     """MCP resource types"""
+
     DOCUMENT = "document"
     KNOWLEDGE_BASE = "knowledge_base"
     PLATFORM = "platform"
     TOOL = "tool"
 
+
 @dataclass
 class MCPResource:
     """MCP Resource definition"""
+
     uri: str
     name: str
     description: str
@@ -45,17 +51,21 @@ class MCPResource:
         if self.metadata is None:
             self.metadata = {}
 
+
 @dataclass
 class MCPTool:
     """MCP Tool definition"""
+
     name: str
     description: str
     input_schema: Dict[str, Any]
     handler: Callable = None
 
+
 @dataclass
 class MCPPrompt:
     """MCP Prompt definition"""
+
     name: str
     description: str
     template: str
@@ -65,9 +75,11 @@ class MCPPrompt:
         if self.arguments is None:
             self.arguments = []
 
+
 @dataclass
 class MCPMessage:
     """MCP Message structure"""
+
     id: str
     message_type: MCPMessageType
     method: str
@@ -79,13 +91,16 @@ class MCPMessage:
         if self.params is None:
             self.params = {}
 
+
 class MCPServer:
     """
     Model Context Protocol Server for Kinexus AI
     Implements MCP specification for tool and resource integration
     """
 
-    def __init__(self, server_name: str = "kinexus-ai-mcp-server", version: str = "1.0.0"):
+    def __init__(
+        self, server_name: str = "kinexus-ai-mcp-server", version: str = "1.0.0"
+    ):
         self.server_name = server_name
         self.version = version
         self.resources: Dict[str, MCPResource] = {}
@@ -94,9 +109,9 @@ class MCPServer:
         self.clients: Dict[str, Dict[str, Any]] = {}
 
         # AWS clients
-        self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-        self.bedrock_runtime = boto3.client('bedrock-runtime', region_name='us-east-1')
-        self.s3 = boto3.client('s3', region_name='us-east-1')
+        self.dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        self.bedrock_runtime = boto3.client("bedrock-runtime", region_name="us-east-1")
+        self.s3 = boto3.client("s3", region_name="us-east-1")
 
         # Initialize server capabilities
         self._initialize_server()
@@ -120,123 +135,134 @@ class MCPServer:
         """Register core Kinexus AI tools with MCP"""
 
         # Document Analysis Tool
-        self.register_tool(MCPTool(
-            name="analyze_document_changes",
-            description="Analyze document changes and generate update recommendations",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "change_data": {
-                        "type": "object",
-                        "description": "Repository change data from webhooks"
+        self.register_tool(
+            MCPTool(
+                name="analyze_document_changes",
+                description="Analyze document changes and generate update recommendations",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "change_data": {
+                            "type": "object",
+                            "description": "Repository change data from webhooks",
+                        },
+                        "analysis_depth": {
+                            "type": "string",
+                            "enum": ["shallow", "standard", "deep"],
+                            "default": "standard",
+                            "description": "Depth of analysis to perform",
+                        },
                     },
-                    "analysis_depth": {
-                        "type": "string",
-                        "enum": ["shallow", "standard", "deep"],
-                        "default": "standard",
-                        "description": "Depth of analysis to perform"
-                    }
+                    "required": ["change_data"],
                 },
-                "required": ["change_data"]
-            },
-            handler=self._handle_analyze_document_changes
-        ))
+                handler=self._handle_analyze_document_changes,
+            )
+        )
 
         # Documentation Update Tool
-        self.register_tool(MCPTool(
-            name="update_documentation",
-            description="Update documentation across multiple platforms",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "updates": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "platform": {"type": "string"},
-                                "location": {"type": "string"},
-                                "content": {"type": "string"},
-                                "update_type": {"type": "string", "enum": ["create", "update", "delete"]}
-                            }
-                        }
+        self.register_tool(
+            MCPTool(
+                name="update_documentation",
+                description="Update documentation across multiple platforms",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "updates": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "platform": {"type": "string"},
+                                    "location": {"type": "string"},
+                                    "content": {"type": "string"},
+                                    "update_type": {
+                                        "type": "string",
+                                        "enum": ["create", "update", "delete"],
+                                    },
+                                },
+                            },
+                        },
+                        "validation_required": {"type": "boolean", "default": True},
                     },
-                    "validation_required": {
-                        "type": "boolean",
-                        "default": True
-                    }
+                    "required": ["updates"],
                 },
-                "required": ["updates"]
-            },
-            handler=self._handle_update_documentation
-        ))
+                handler=self._handle_update_documentation,
+            )
+        )
 
         # Knowledge Retrieval Tool
-        self.register_tool(MCPTool(
-            name="retrieve_knowledge",
-            description="Retrieve relevant knowledge from documentation repositories",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query for knowledge retrieval"
+        self.register_tool(
+            MCPTool(
+                name="retrieve_knowledge",
+                description="Retrieve relevant knowledge from documentation repositories",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search query for knowledge retrieval",
+                        },
+                        "sources": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Specific knowledge sources to search",
+                        },
+                        "retrieval_method": {
+                            "type": "string",
+                            "enum": ["semantic", "keyword", "hybrid"],
+                            "default": "semantic",
+                        },
                     },
-                    "sources": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Specific knowledge sources to search"
-                    },
-                    "retrieval_method": {
-                        "type": "string",
-                        "enum": ["semantic", "keyword", "hybrid"],
-                        "default": "semantic"
-                    }
+                    "required": ["query"],
                 },
-                "required": ["query"]
-            },
-            handler=self._handle_retrieve_knowledge
-        ))
+                handler=self._handle_retrieve_knowledge,
+            )
+        )
 
     def _register_core_resources(self):
         """Register core Kinexus AI resources with MCP"""
 
         # Documentation Knowledge Base
-        self.register_resource(MCPResource(
-            uri="kinexus://knowledge-base/documentation",
-            name="Documentation Knowledge Base",
-            description="Centralized knowledge base of all documentation",
-            mime_type="application/json",
-            resource_type=MCPResourceType.KNOWLEDGE_BASE,
-            metadata={
-                "total_documents": 0,
-                "last_updated": datetime.now(timezone.utc).isoformat(),
-                "supported_formats": ["markdown", "html", "confluence", "notion"]
-            }
-        ))
+        self.register_resource(
+            MCPResource(
+                uri="kinexus://knowledge-base/documentation",
+                name="Documentation Knowledge Base",
+                description="Centralized knowledge base of all documentation",
+                mime_type="application/json",
+                resource_type=MCPResourceType.KNOWLEDGE_BASE,
+                metadata={
+                    "total_documents": 0,
+                    "last_updated": datetime.now(timezone.utc).isoformat(),
+                    "supported_formats": ["markdown", "html", "confluence", "notion"],
+                },
+            )
+        )
 
         # GitHub Integration Resource
-        self.register_resource(MCPResource(
-            uri="kinexus://platform/github",
-            name="GitHub Integration",
-            description="GitHub repository integration for documentation management",
-            mime_type="application/json",
-            resource_type=MCPResourceType.PLATFORM,
-            metadata={
-                "api_version": "v4",
-                "capabilities": ["read", "write", "webhook"],
-                "rate_limits": {"graphql": 5000, "rest": 5000}
-            }
-        ))
+        self.register_resource(
+            MCPResource(
+                uri="kinexus://platform/github",
+                name="GitHub Integration",
+                description="GitHub repository integration for documentation management",
+                mime_type="application/json",
+                resource_type=MCPResourceType.PLATFORM,
+                metadata={
+                    "api_version": "v4",
+                    "capabilities": ["read", "write", "webhook"],
+                    "rate_limits": {"graphql": 5000, "rest": 5000},
+                },
+            )
+        )
 
     def _register_core_prompts(self):
         """Register core prompts for documentation tasks"""
 
         # Document Analysis Prompt
-        self.register_prompt(MCPPrompt(
-            name="analyze_code_changes",
-            description="Analyze code changes to determine documentation updates needed",
-            template="""
+        self.register_prompt(
+            MCPPrompt(
+                name="analyze_code_changes",
+                description="Analyze code changes to determine documentation updates needed",
+                template="""
 You are a documentation analyst for Kinexus AI. Analyze the following code changes and determine what documentation updates are needed.
 
 Code Changes:
@@ -253,11 +279,20 @@ Please provide:
 
 Response format: JSON with structured recommendations
 """,
-            arguments=[
-                {"name": "changes", "description": "Code changes to analyze", "required": True},
-                {"name": "repository_info", "description": "Repository context information", "required": True}
-            ]
-        ))
+                arguments=[
+                    {
+                        "name": "changes",
+                        "description": "Code changes to analyze",
+                        "required": True,
+                    },
+                    {
+                        "name": "repository_info",
+                        "description": "Repository context information",
+                        "required": True,
+                    },
+                ],
+            )
+        )
 
     def register_tool(self, tool: MCPTool):
         """Register a tool with the MCP server"""
@@ -298,8 +333,8 @@ Response format: JSON with structured recommendations
                     method=request.method,
                     error={
                         "code": -32601,
-                        "message": f"Method not found: {request.method}"
-                    }
+                        "message": f"Method not found: {request.method}",
+                    },
                 )
         except Exception as e:
             logger.error(f"Error handling MCP request: {str(e)}")
@@ -307,10 +342,7 @@ Response format: JSON with structured recommendations
                 id=request.id,
                 message_type=MCPMessageType.RESPONSE,
                 method=request.method,
-                error={
-                    "code": -32603,
-                    "message": f"Internal error: {str(e)}"
-                }
+                error={"code": -32603, "message": f"Internal error: {str(e)}"},
             )
 
     async def _handle_tools_list(self, request: MCPMessage) -> MCPMessage:
@@ -319,7 +351,7 @@ Response format: JSON with structured recommendations
             {
                 "name": tool.name,
                 "description": tool.description,
-                "inputSchema": tool.input_schema
+                "inputSchema": tool.input_schema,
             }
             for tool in self.tools.values()
         ]
@@ -328,7 +360,7 @@ Response format: JSON with structured recommendations
             id=request.id,
             message_type=MCPMessageType.RESPONSE,
             method=request.method,
-            result={"tools": tools_list}
+            result={"tools": tools_list},
         )
 
     async def _handle_tools_call(self, request: MCPMessage) -> MCPMessage:
@@ -341,10 +373,7 @@ Response format: JSON with structured recommendations
                 id=request.id,
                 message_type=MCPMessageType.RESPONSE,
                 method=request.method,
-                error={
-                    "code": -32602,
-                    "message": f"Tool not found: {tool_name}"
-                }
+                error={"code": -32602, "message": f"Tool not found: {tool_name}"},
             )
 
         tool = self.tools[tool_name]
@@ -355,7 +384,7 @@ Response format: JSON with structured recommendations
                     id=request.id,
                     message_type=MCPMessageType.RESPONSE,
                     method=request.method,
-                    result={"content": [{"type": "text", "text": json.dumps(result)}]}
+                    result={"content": [{"type": "text", "text": json.dumps(result)}]},
                 )
             except Exception as e:
                 return MCPMessage(
@@ -364,8 +393,8 @@ Response format: JSON with structured recommendations
                     method=request.method,
                     error={
                         "code": -32603,
-                        "message": f"Tool execution error: {str(e)}"
-                    }
+                        "message": f"Tool execution error: {str(e)}",
+                    },
                 )
 
     async def _handle_resources_list(self, request: MCPMessage) -> MCPMessage:
@@ -375,7 +404,7 @@ Response format: JSON with structured recommendations
                 "uri": resource.uri,
                 "name": resource.name,
                 "description": resource.description,
-                "mimeType": resource.mime_type
+                "mimeType": resource.mime_type,
             }
             for resource in self.resources.values()
         ]
@@ -384,7 +413,7 @@ Response format: JSON with structured recommendations
             id=request.id,
             message_type=MCPMessageType.RESPONSE,
             method=request.method,
-            result={"resources": resources_list}
+            result={"resources": resources_list},
         )
 
     async def _handle_resources_read(self, request: MCPMessage) -> MCPMessage:
@@ -396,10 +425,7 @@ Response format: JSON with structured recommendations
                 id=request.id,
                 message_type=MCPMessageType.RESPONSE,
                 method=request.method,
-                error={
-                    "code": -32602,
-                    "message": f"Resource not found: {uri}"
-                }
+                error={"code": -32602, "message": f"Resource not found: {uri}"},
             )
 
         resource = self.resources[uri]
@@ -416,20 +442,17 @@ Response format: JSON with structured recommendations
                         {
                             "uri": resource.uri,
                             "mimeType": resource.mime_type,
-                            "text": content
+                            "text": content,
                         }
                     ]
-                }
+                },
             )
         except Exception as e:
             return MCPMessage(
                 id=request.id,
                 message_type=MCPMessageType.RESPONSE,
                 method=request.method,
-                error={
-                    "code": -32603,
-                    "message": f"Error reading resource: {str(e)}"
-                }
+                error={"code": -32603, "message": f"Error reading resource: {str(e)}"},
             )
 
     async def _handle_prompts_list(self, request: MCPMessage) -> MCPMessage:
@@ -438,7 +461,7 @@ Response format: JSON with structured recommendations
             {
                 "name": prompt.name,
                 "description": prompt.description,
-                "arguments": prompt.arguments
+                "arguments": prompt.arguments,
             }
             for prompt in self.prompts.values()
         ]
@@ -447,7 +470,7 @@ Response format: JSON with structured recommendations
             id=request.id,
             message_type=MCPMessageType.RESPONSE,
             method=request.method,
-            result={"prompts": prompts_list}
+            result={"prompts": prompts_list},
         )
 
     async def _handle_prompts_get(self, request: MCPMessage) -> MCPMessage:
@@ -460,10 +483,7 @@ Response format: JSON with structured recommendations
                 id=request.id,
                 message_type=MCPMessageType.RESPONSE,
                 method=request.method,
-                error={
-                    "code": -32602,
-                    "message": f"Prompt not found: {prompt_name}"
-                }
+                error={"code": -32602, "message": f"Prompt not found: {prompt_name}"},
             )
 
         prompt = self.prompts[prompt_name]
@@ -478,17 +498,16 @@ Response format: JSON with structured recommendations
                 "messages": [
                     {
                         "role": "user",
-                        "content": {
-                            "type": "text",
-                            "text": rendered_template
-                        }
+                        "content": {"type": "text", "text": rendered_template},
                     }
-                ]
-            }
+                ],
+            },
         )
 
     # Tool Handler Implementations
-    async def _handle_analyze_document_changes(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_analyze_document_changes(
+        self, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Handle document change analysis"""
         change_data = arguments.get("change_data", {})
         analysis_depth = arguments.get("analysis_depth", "standard")
@@ -506,17 +525,19 @@ Response format: JSON with structured recommendations
                 "analysis_result": result,
                 "analysis_depth": analysis_depth,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "mcp_processed": True
+                "mcp_processed": True,
             }
         except Exception as e:
             logger.error(f"Error in document analysis: {str(e)}")
             return {
                 "error": str(e),
                 "fallback_analysis": "Basic change detection completed",
-                "analysis_depth": analysis_depth
+                "analysis_depth": analysis_depth,
             }
 
-    async def _handle_update_documentation(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_update_documentation(
+        self, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Handle documentation updates across platforms"""
         updates = arguments.get("updates", [])
         validation_required = arguments.get("validation_required", True)
@@ -531,21 +552,25 @@ Response format: JSON with structured recommendations
                 results.append(result)
             except Exception as e:
                 logger.error(f"Error processing update: {str(e)}")
-                results.append({
-                    "platform": update.get("platform"),
-                    "location": update.get("location"),
-                    "success": False,
-                    "error": str(e)
-                })
+                results.append(
+                    {
+                        "platform": update.get("platform"),
+                        "location": update.get("location"),
+                        "success": False,
+                        "error": str(e),
+                    }
+                )
 
         return {
             "updates_processed": len(results),
             "successful_updates": len([r for r in results if r.get("success", False)]),
             "results": results,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    async def _handle_retrieve_knowledge(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_retrieve_knowledge(
+        self, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Handle knowledge retrieval from documentation"""
         query = arguments.get("query")
         sources = arguments.get("sources", [])
@@ -569,17 +594,19 @@ Response format: JSON with structured recommendations
                 "sources_searched": sources if sources else ["all"],
                 "results": results,
                 "result_count": len(results),
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         except Exception as e:
             logger.error(f"Error in knowledge retrieval: {str(e)}")
             return {
                 "query": query,
                 "error": str(e),
-                "fallback_result": "Knowledge retrieval service temporarily unavailable"
+                "fallback_result": "Knowledge retrieval service temporarily unavailable",
             }
 
-    async def _process_single_update(self, update: Dict[str, Any], validation_required: bool) -> Dict[str, Any]:
+    async def _process_single_update(
+        self, update: Dict[str, Any], validation_required: bool
+    ) -> Dict[str, Any]:
         """Process a single documentation update"""
         platform = update.get("platform")
         location = update.get("location")
@@ -597,7 +624,7 @@ Response format: JSON with structured recommendations
                     "platform": platform,
                     "location": location,
                     "success": False,
-                    "error": f"Content validation failed: {validation_result['error']}"
+                    "error": f"Content validation failed: {validation_result['error']}",
                 }
 
         # Simulate successful update
@@ -607,7 +634,7 @@ Response format: JSON with structured recommendations
             "update_type": update_type,
             "success": True,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "mcp_processed": True
+            "mcp_processed": True,
         }
 
     async def _validate_content(self, content: str, platform: str) -> Dict[str, Any]:
@@ -625,21 +652,25 @@ Response format: JSON with structured recommendations
         """Read content for a specific resource"""
         if resource.resource_type == MCPResourceType.KNOWLEDGE_BASE:
             # Return knowledge base statistics
-            return json.dumps({
-                "type": "knowledge_base",
-                "uri": resource.uri,
-                "metadata": resource.metadata,
-                "last_accessed": datetime.now(timezone.utc).isoformat()
-            })
+            return json.dumps(
+                {
+                    "type": "knowledge_base",
+                    "uri": resource.uri,
+                    "metadata": resource.metadata,
+                    "last_accessed": datetime.now(timezone.utc).isoformat(),
+                }
+            )
         elif resource.resource_type == MCPResourceType.PLATFORM:
             # Return platform integration status
-            return json.dumps({
-                "type": "platform_integration",
-                "uri": resource.uri,
-                "status": "active",
-                "capabilities": resource.metadata.get("capabilities", []),
-                "last_checked": datetime.now(timezone.utc).isoformat()
-            })
+            return json.dumps(
+                {
+                    "type": "platform_integration",
+                    "uri": resource.uri,
+                    "status": "active",
+                    "capabilities": resource.metadata.get("capabilities", []),
+                    "last_checked": datetime.now(timezone.utc).isoformat(),
+                }
+            )
         else:
             return json.dumps({"type": "generic_resource", "uri": resource.uri})
 
@@ -652,14 +683,15 @@ Response format: JSON with structured recommendations
             "capabilities": {
                 "tools": {"listChanged": True},
                 "resources": {"subscribe": True, "listChanged": True},
-                "prompts": {"listChanged": True}
+                "prompts": {"listChanged": True},
             },
             "serverInfo": {
                 "name": self.server_name,
                 "version": self.version,
-                "description": "Kinexus AI Model Context Protocol Server"
-            }
+                "description": "Kinexus AI Model Context Protocol Server",
+            },
         }
+
 
 # Standalone server for testing
 async def run_mcp_server():
@@ -672,15 +704,16 @@ async def run_mcp_server():
 
     # Test tools list
     test_request = MCPMessage(
-        id=str(uuid.uuid4()),
-        message_type=MCPMessageType.REQUEST,
-        method="tools/list"
+        id=str(uuid.uuid4()), message_type=MCPMessageType.REQUEST, method="tools/list"
     )
 
     response = await server.handle_request(test_request)
-    logger.info(f"Tools list response: {json.dumps(asdict(response), indent=2, default=str)}")
+    logger.info(
+        f"Tools list response: {json.dumps(asdict(response), indent=2, default=str)}"
+    )
 
     return server
+
 
 if __name__ == "__main__":
     asyncio.run(run_mcp_server())

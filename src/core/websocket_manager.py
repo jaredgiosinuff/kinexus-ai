@@ -8,14 +8,12 @@ Manages WebSocket connections for real-time notifications about:
 - System-wide notifications
 """
 
-import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Set, Optional, Any
-from uuid import UUID
+from typing import Any, Dict, Optional, Set
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 from pydantic import BaseModel
 
 from core.services.metrics_service import metrics_service
@@ -25,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class NotificationMessage(BaseModel):
     """Structure for WebSocket notification messages."""
+
     type: str  # 'review_created', 'review_assigned', 'review_approved', etc.
     data: Dict[str, Any]
     timestamp: str
@@ -33,6 +32,7 @@ class NotificationMessage(BaseModel):
 
 class ConnectionInfo(BaseModel):
     """Information about a WebSocket connection."""
+
     user_id: str
     user_email: str
     user_role: str
@@ -54,11 +54,7 @@ class WebSocketManager:
         self.room_subscriptions: Dict[str, Set[WebSocket]] = {}
 
     async def connect(
-        self,
-        websocket: WebSocket,
-        user_id: str,
-        user_email: str,
-        user_role: str
+        self, websocket: WebSocket, user_id: str, user_email: str, user_role: str
     ) -> bool:
         """
         Accept a WebSocket connection and register the user.
@@ -81,7 +77,7 @@ class WebSocketManager:
                 user_email=user_email,
                 user_role=user_role,
                 connected_at=datetime.utcnow(),
-                last_ping=datetime.utcnow()
+                last_ping=datetime.utcnow(),
             )
 
             # Register connection
@@ -102,15 +98,18 @@ class WebSocketManager:
             await self._subscribe_to_default_rooms(websocket, user_role)
 
             # Send welcome message
-            await self.send_personal_message(websocket, {
-                "type": "connection_established",
-                "data": {
-                    "user_id": user_id,
-                    "connected_at": connection_info.connected_at.isoformat(),
-                    "active_connections": len(self.active_connections)
+            await self.send_personal_message(
+                websocket,
+                {
+                    "type": "connection_established",
+                    "data": {
+                        "user_id": user_id,
+                        "connected_at": connection_info.connected_at.isoformat(),
+                        "active_connections": len(self.active_connections),
+                    },
+                    "timestamp": datetime.utcnow().isoformat(),
                 },
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            )
 
             logger.info(f"WebSocket connected: {user_email} ({user_role})")
             return True
@@ -149,11 +148,17 @@ class WebSocketManager:
 
         # Update metrics
         try:
-            metrics_service.websocket_connections.labels(user_role=connection_info.user_role).dec()
+            metrics_service.websocket_connections.labels(
+                user_role=connection_info.user_role
+            ).dec()
         except Exception:  # pragma: no cover
-            logger.exception("Failed to update websocket connection metric on disconnect")
+            logger.exception(
+                "Failed to update websocket connection metric on disconnect"
+            )
 
-    async def send_personal_message(self, websocket: WebSocket, message: Dict[str, Any]):
+    async def send_personal_message(
+        self, websocket: WebSocket, message: Dict[str, Any]
+    ):
         """
         Send a message to a specific WebSocket connection.
 
@@ -241,8 +246,7 @@ class WebSocketManager:
         """Increment Prometheus counters for WebSocket traffic."""
         try:
             metrics_service.websocket_messages.labels(
-                message_type=message_type,
-                direction=direction
+                message_type=message_type, direction=direction
             ).inc()
         except Exception:  # pragma: no cover
             logger.exception("Failed to record websocket message metric")
@@ -261,11 +265,14 @@ class WebSocketManager:
         self.room_subscriptions[room].add(websocket)
 
         # Send confirmation
-        await self.send_personal_message(websocket, {
-            "type": "room_subscribed",
-            "data": {"room": room},
-            "timestamp": datetime.utcnow().isoformat()
-        })
+        await self.send_personal_message(
+            websocket,
+            {
+                "type": "room_subscribed",
+                "data": {"room": room},
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
 
     async def unsubscribe_from_room(self, websocket: WebSocket, room: str):
         """
@@ -279,11 +286,14 @@ class WebSocketManager:
             self.room_subscriptions[room].discard(websocket)
 
         # Send confirmation
-        await self.send_personal_message(websocket, {
-            "type": "room_unsubscribed",
-            "data": {"room": room},
-            "timestamp": datetime.utcnow().isoformat()
-        })
+        await self.send_personal_message(
+            websocket,
+            {
+                "type": "room_unsubscribed",
+                "data": {"room": room},
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
 
     async def handle_ping(self, websocket: WebSocket):
         """
@@ -295,11 +305,10 @@ class WebSocketManager:
         if websocket in self.active_connections:
             self.active_connections[websocket].last_ping = datetime.utcnow()
 
-        await self.send_personal_message(websocket, {
-            "type": "pong",
-            "data": {},
-            "timestamp": datetime.utcnow().isoformat()
-        })
+        await self.send_personal_message(
+            websocket,
+            {"type": "pong", "data": {}, "timestamp": datetime.utcnow().isoformat()},
+        )
 
     async def get_connection_stats(self) -> Dict[str, Any]:
         """
@@ -317,7 +326,7 @@ class WebSocketManager:
             "total_connections": len(self.active_connections),
             "unique_users": len(self.user_connections),
             "rooms": len(self.room_subscriptions),
-            "connections_by_role": role_counts
+            "connections_by_role": role_counts,
         }
 
     async def _subscribe_to_default_rooms(self, websocket: WebSocket, user_role: str):
@@ -355,16 +364,18 @@ class NotificationService:
         message = {
             "type": "review_created",
             "data": review_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
         await self.ws_manager.broadcast_to_room("reviews", message)
 
-    async def notify_review_assigned(self, review_data: Dict[str, Any], assignee_id: str):
+    async def notify_review_assigned(
+        self, review_data: Dict[str, Any], assignee_id: str
+    ):
         """Notify about a review being assigned."""
         message = {
             "type": "review_assigned",
             "data": review_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         # Notify the assignee personally
@@ -378,7 +389,7 @@ class NotificationService:
         message = {
             "type": "review_completed",
             "data": review_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
         await self.ws_manager.broadcast_to_room("reviews", message)
 
@@ -387,7 +398,7 @@ class NotificationService:
         message = {
             "type": "queue_update",
             "data": queue_stats,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
         await self.ws_manager.broadcast_to_room("reviews", message)
 
@@ -396,7 +407,7 @@ class NotificationService:
         message = {
             "type": "system_alert",
             "data": alert_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
         await self.ws_manager.broadcast_to_all(message)
 
@@ -405,7 +416,7 @@ class NotificationService:
         message = {
             "type": "user_mentioned",
             "data": mention_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
         await self.ws_manager.send_to_user(user_id, message)
 

@@ -1,10 +1,12 @@
-import aiohttp
-import json
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
 import asyncio
+import json
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import aiohttp
 
 from .base_integration import BaseIntegration, SyncResult, TestResult
+
 
 class MondayIntegration(BaseIntegration):
     """Monday.com integration for project management data."""
@@ -22,7 +24,7 @@ class MondayIntegration(BaseIntegration):
             if not self.validate_config(self.required_config_fields):
                 return TestResult(
                     success=False,
-                    message="Invalid configuration: missing required fields"
+                    message="Invalid configuration: missing required fields",
                 )
 
             # Test query to get user information
@@ -44,9 +46,11 @@ class MondayIntegration(BaseIntegration):
                     self.api_base_url,
                     json={"query": query},
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
-                    response_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                    response_time = (
+                        datetime.utcnow() - start_time
+                    ).total_seconds() * 1000
 
                     if response.status == 200:
                         data = await response.json()
@@ -55,7 +59,7 @@ class MondayIntegration(BaseIntegration):
                             return TestResult(
                                 success=False,
                                 message=f"API error: {data['errors'][0]['message']}",
-                                response_time_ms=response_time
+                                response_time_ms=response_time,
                             )
 
                         user_data = data.get("data", {}).get("me", {})
@@ -65,28 +69,22 @@ class MondayIntegration(BaseIntegration):
                             details={
                                 "user_id": user_data.get("id"),
                                 "user_name": user_data.get("name"),
-                                "user_email": user_data.get("email")
+                                "user_email": user_data.get("email"),
                             },
-                            response_time_ms=response_time
+                            response_time_ms=response_time,
                         )
                     else:
                         error_text = await response.text()
                         return TestResult(
                             success=False,
                             message=f"HTTP {response.status}: {error_text}",
-                            response_time_ms=response_time
+                            response_time_ms=response_time,
                         )
 
         except asyncio.TimeoutError:
-            return TestResult(
-                success=False,
-                message="Connection timeout"
-            )
+            return TestResult(success=False, message="Connection timeout")
         except Exception as e:
-            return TestResult(
-                success=False,
-                message=f"Connection failed: {str(e)}"
-            )
+            return TestResult(success=False, message=f"Connection failed: {str(e)}")
 
     async def sync(self) -> SyncResult:
         """Sync data from Monday.com boards."""
@@ -97,7 +95,7 @@ class MondayIntegration(BaseIntegration):
             if not self.validate_config(self.required_config_fields):
                 return SyncResult(
                     success=False,
-                    error_message="Invalid configuration: missing required fields"
+                    error_message="Invalid configuration: missing required fields",
                 )
 
             boards = self.integration.config.get("boards", [])
@@ -117,10 +115,9 @@ class MondayIntegration(BaseIntegration):
                     total_failed += result.records_failed
 
                 except Exception as e:
-                    self.logger.error("Failed to sync board", {
-                        "board_id": board_id,
-                        "error": str(e)
-                    })
+                    self.logger.error(
+                        "Failed to sync board", {"board_id": board_id, "error": str(e)}
+                    )
                     total_failed += 1
 
             duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
@@ -131,10 +128,7 @@ class MondayIntegration(BaseIntegration):
                 records_added=total_added,
                 records_updated=total_updated,
                 records_failed=total_failed,
-                metadata={
-                    "boards_synced": len(boards),
-                    "duration_ms": duration_ms
-                }
+                metadata={"boards_synced": len(boards), "duration_ms": duration_ms},
             )
 
             self.log_sync_complete(result, duration_ms)
@@ -142,15 +136,12 @@ class MondayIntegration(BaseIntegration):
 
         except Exception as e:
             error_message = f"Sync failed: {str(e)}"
-            self.logger.error("Monday.com sync failed", {
-                "integration_id": self.integration.id,
-                "error": str(e)
-            })
-
-            return SyncResult(
-                success=False,
-                error_message=error_message
+            self.logger.error(
+                "Monday.com sync failed",
+                {"integration_id": self.integration.id, "error": str(e)},
             )
+
+            return SyncResult(success=False, error_message=error_message)
 
     async def _sync_board(self, board_id: int, columns: List[str]) -> SyncResult:
         """Sync items from a specific board."""
@@ -158,7 +149,7 @@ class MondayIntegration(BaseIntegration):
             # Build GraphQL query for board items
             column_filter = ""
             if columns:
-                column_filter = f'columns: {json.dumps(columns)}'
+                column_filter = f"columns: {json.dumps(columns)}"
 
             query = f"""
             query {{
@@ -230,16 +221,19 @@ class MondayIntegration(BaseIntegration):
                     self.api_base_url,
                     json={"query": query},
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=60)
+                    timeout=aiohttp.ClientTimeout(total=60),
                 ) as response:
-
                     if response.status != 200:
-                        raise Exception(f"API request failed with status {response.status}")
+                        raise Exception(
+                            f"API request failed with status {response.status}"
+                        )
 
                     data = await response.json()
 
                     if "errors" in data:
-                        raise Exception(f"GraphQL error: {data['errors'][0]['message']}")
+                        raise Exception(
+                            f"GraphQL error: {data['errors'][0]['message']}"
+                        )
 
                     boards_data = data.get("data", {}).get("boards", [])
 
@@ -262,11 +256,14 @@ class MondayIntegration(BaseIntegration):
                             updated += 1
 
                         except Exception as e:
-                            self.logger.error("Failed to process item", {
-                                "board_id": board_id,
-                                "item_id": item.get("id"),
-                                "error": str(e)
-                            })
+                            self.logger.error(
+                                "Failed to process item",
+                                {
+                                    "board_id": board_id,
+                                    "item_id": item.get("id"),
+                                    "error": str(e),
+                                },
+                            )
                             failed += 1
 
             return SyncResult(
@@ -274,14 +271,13 @@ class MondayIntegration(BaseIntegration):
                 records_processed=processed,
                 records_added=added,
                 records_updated=updated,
-                records_failed=failed
+                records_failed=failed,
             )
 
         except Exception as e:
-            self.logger.error("Failed to sync board", {
-                "board_id": board_id,
-                "error": str(e)
-            })
+            self.logger.error(
+                "Failed to sync board", {"board_id": board_id, "error": str(e)}
+            )
             raise
 
     async def _process_item(self, board_id: int, item_data: Dict[str, Any]):
@@ -313,7 +309,7 @@ class MondayIntegration(BaseIntegration):
                         "title": column_title,
                         "text": value_text,
                         "raw_value": value_raw,
-                        "type": column_value.get("type")
+                        "type": column_value.get("type"),
                     }
 
             # Extract subitems
@@ -322,7 +318,7 @@ class MondayIntegration(BaseIntegration):
                 subitem_data = {
                     "id": subitem.get("id"),
                     "name": subitem.get("name"),
-                    "column_values": {}
+                    "column_values": {},
                 }
 
                 for sub_column_value in subitem.get("column_values", []):
@@ -331,7 +327,7 @@ class MondayIntegration(BaseIntegration):
                         subitem_data["column_values"][sub_column_id] = {
                             "text": sub_column_value.get("text"),
                             "raw_value": sub_column_value.get("value"),
-                            "type": sub_column_value.get("type")
+                            "type": sub_column_value.get("type"),
                         }
 
                 subitems.append(subitem_data)
@@ -340,16 +336,18 @@ class MondayIntegration(BaseIntegration):
             updates = []
             for update in item_data.get("updates", []):
                 update_creator = update.get("creator", {})
-                updates.append({
-                    "id": update.get("id"),
-                    "body": update.get("body"),
-                    "created_at": update.get("created_at"),
-                    "creator_name": update_creator.get("name"),
-                    "creator_id": update_creator.get("id")
-                })
+                updates.append(
+                    {
+                        "id": update.get("id"),
+                        "body": update.get("body"),
+                        "created_at": update.get("created_at"),
+                        "creator_name": update_creator.get("name"),
+                        "creator_id": update_creator.get("id"),
+                    }
+                )
 
             # Create document data structure
-            document_data = {
+            _document_data = {
                 "source": "monday.com",
                 "source_id": f"monday_{board_id}_{item_id}",
                 "title": item_name,
@@ -364,23 +362,26 @@ class MondayIntegration(BaseIntegration):
                     "updated_at": updated_at,
                     "column_values": column_values,
                     "subitems": subitems,
-                    "updates": updates[:5]  # Limit to recent 5 updates
+                    "updates": updates[:5],  # Limit to recent 5 updates
                 },
                 "tags": self._extract_tags(column_values),
                 "last_modified": updated_at,
-                "integration_id": self.integration.id
+                "integration_id": self.integration.id,
             }
 
             # Here you would typically save to your document management system
             # For now, we'll just log the processed item
-            self.logger.debug("Item processed", {
-                "board_id": board_id,
-                "item_id": item_id,
-                "item_name": item_name,
-                "column_count": len(column_values),
-                "subitem_count": len(subitems),
-                "update_count": len(updates)
-            })
+            self.logger.debug(
+                "Item processed",
+                {
+                    "board_id": board_id,
+                    "item_id": item_id,
+                    "item_name": item_name,
+                    "column_count": len(column_values),
+                    "subitem_count": len(subitems),
+                    "update_count": len(updates),
+                },
+            )
 
             # In a real implementation, you would:
             # 1. Check if document already exists
@@ -389,14 +390,15 @@ class MondayIntegration(BaseIntegration):
             # 4. Trigger any necessary workflows
 
         except Exception as e:
-            self.logger.error("Failed to process Monday.com item", {
-                "board_id": board_id,
-                "item_id": item_data.get("id"),
-                "error": str(e)
-            })
+            self.logger.error(
+                "Failed to process Monday.com item",
+                {"board_id": board_id, "item_id": item_data.get("id"), "error": str(e)},
+            )
             raise
 
-    def _format_item_content(self, item_data: Dict[str, Any], column_values: Dict[str, Any]) -> str:
+    def _format_item_content(
+        self, item_data: Dict[str, Any], column_values: Dict[str, Any]
+    ) -> str:
         """Format item data into readable content."""
         content_parts = []
 
@@ -468,15 +470,15 @@ class MondayIntegration(BaseIntegration):
             event = payload.get("event", {})
             pulse_id = event.get("pulseId")
             board_id = event.get("boardId")
-            user_id = event.get("userId")
+            _user_id = event.get("userId")
 
             # Check if this board is in our configuration
             configured_boards = self.integration.config.get("boards", [])
             if board_id and board_id not in configured_boards:
-                self.logger.debug("Webhook for unconfigured board", {
-                    "board_id": board_id,
-                    "pulse_id": pulse_id
-                })
+                self.logger.debug(
+                    "Webhook for unconfigured board",
+                    {"board_id": board_id, "pulse_id": pulse_id},
+                )
                 return True  # Not an error, just not relevant
 
             # Handle different event types
@@ -489,22 +491,26 @@ class MondayIntegration(BaseIntegration):
             elif event_type == "create_update":
                 await self._handle_update_created(board_id, pulse_id, payload)
             else:
-                self.logger.warning("Unhandled webhook event type", {
-                    "event_type": event_type,
-                    "board_id": board_id,
-                    "pulse_id": pulse_id
-                })
+                self.logger.warning(
+                    "Unhandled webhook event type",
+                    {
+                        "event_type": event_type,
+                        "board_id": board_id,
+                        "pulse_id": pulse_id,
+                    },
+                )
 
             return True
 
         except Exception as e:
-            self.logger.error("Failed to process webhook", {
-                "event_type": event_type,
-                "error": str(e)
-            })
+            self.logger.error(
+                "Failed to process webhook", {"event_type": event_type, "error": str(e)}
+            )
             return False
 
-    async def _handle_item_created(self, board_id: int, pulse_id: int, payload: Dict[str, Any]):
+    async def _handle_item_created(
+        self, board_id: int, pulse_id: int, payload: Dict[str, Any]
+    ):
         """Handle item creation webhook."""
         try:
             # Fetch the full item data
@@ -512,19 +518,19 @@ class MondayIntegration(BaseIntegration):
             if item_data:
                 await self._process_item(board_id, item_data)
 
-            self.logger.info("Item created via webhook", {
-                "board_id": board_id,
-                "pulse_id": pulse_id
-            })
+            self.logger.info(
+                "Item created via webhook", {"board_id": board_id, "pulse_id": pulse_id}
+            )
 
         except Exception as e:
-            self.logger.error("Failed to handle item creation", {
-                "board_id": board_id,
-                "pulse_id": pulse_id,
-                "error": str(e)
-            })
+            self.logger.error(
+                "Failed to handle item creation",
+                {"board_id": board_id, "pulse_id": pulse_id, "error": str(e)},
+            )
 
-    async def _handle_item_updated(self, board_id: int, pulse_id: int, payload: Dict[str, Any]):
+    async def _handle_item_updated(
+        self, board_id: int, pulse_id: int, payload: Dict[str, Any]
+    ):
         """Handle item update webhook."""
         try:
             # Fetch the updated item data
@@ -532,19 +538,19 @@ class MondayIntegration(BaseIntegration):
             if item_data:
                 await self._process_item(board_id, item_data)
 
-            self.logger.info("Item updated via webhook", {
-                "board_id": board_id,
-                "pulse_id": pulse_id
-            })
+            self.logger.info(
+                "Item updated via webhook", {"board_id": board_id, "pulse_id": pulse_id}
+            )
 
         except Exception as e:
-            self.logger.error("Failed to handle item update", {
-                "board_id": board_id,
-                "pulse_id": pulse_id,
-                "error": str(e)
-            })
+            self.logger.error(
+                "Failed to handle item update",
+                {"board_id": board_id, "pulse_id": pulse_id, "error": str(e)},
+            )
 
-    async def _handle_item_deleted(self, board_id: int, pulse_id: int, payload: Dict[str, Any]):
+    async def _handle_item_deleted(
+        self, board_id: int, pulse_id: int, payload: Dict[str, Any]
+    ):
         """Handle item deletion webhook."""
         try:
             # Mark the document as deleted in our system
@@ -555,20 +561,20 @@ class MondayIntegration(BaseIntegration):
             # 2. Mark it as deleted or remove it
             # 3. Update any related data
 
-            self.logger.info("Item deleted via webhook", {
-                "board_id": board_id,
-                "pulse_id": pulse_id,
-                "source_id": source_id
-            })
+            self.logger.info(
+                "Item deleted via webhook",
+                {"board_id": board_id, "pulse_id": pulse_id, "source_id": source_id},
+            )
 
         except Exception as e:
-            self.logger.error("Failed to handle item deletion", {
-                "board_id": board_id,
-                "pulse_id": pulse_id,
-                "error": str(e)
-            })
+            self.logger.error(
+                "Failed to handle item deletion",
+                {"board_id": board_id, "pulse_id": pulse_id, "error": str(e)},
+            )
 
-    async def _handle_update_created(self, board_id: int, pulse_id: int, payload: Dict[str, Any]):
+    async def _handle_update_created(
+        self, board_id: int, pulse_id: int, payload: Dict[str, Any]
+    ):
         """Handle update/comment creation webhook."""
         try:
             # Fetch the updated item data to get the new comment
@@ -576,19 +582,20 @@ class MondayIntegration(BaseIntegration):
             if item_data:
                 await self._process_item(board_id, item_data)
 
-            self.logger.info("Update created via webhook", {
-                "board_id": board_id,
-                "pulse_id": pulse_id
-            })
+            self.logger.info(
+                "Update created via webhook",
+                {"board_id": board_id, "pulse_id": pulse_id},
+            )
 
         except Exception as e:
-            self.logger.error("Failed to handle update creation", {
-                "board_id": board_id,
-                "pulse_id": pulse_id,
-                "error": str(e)
-            })
+            self.logger.error(
+                "Failed to handle update creation",
+                {"board_id": board_id, "pulse_id": pulse_id, "error": str(e)},
+            )
 
-    async def _fetch_item_data(self, board_id: int, pulse_id: int) -> Optional[Dict[str, Any]]:
+    async def _fetch_item_data(
+        self, board_id: int, pulse_id: int
+    ) -> Optional[Dict[str, Any]]:
         """Fetch detailed item data from Monday.com API."""
         try:
             query = f"""
@@ -646,34 +653,38 @@ class MondayIntegration(BaseIntegration):
                     self.api_base_url,
                     json={"query": query},
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
-
                     if response.status != 200:
-                        self.logger.error("Failed to fetch item data", {
-                            "board_id": board_id,
-                            "pulse_id": pulse_id,
-                            "status": response.status
-                        })
+                        self.logger.error(
+                            "Failed to fetch item data",
+                            {
+                                "board_id": board_id,
+                                "pulse_id": pulse_id,
+                                "status": response.status,
+                            },
+                        )
                         return None
 
                     data = await response.json()
 
                     if "errors" in data:
-                        self.logger.error("GraphQL error fetching item", {
-                            "board_id": board_id,
-                            "pulse_id": pulse_id,
-                            "errors": data["errors"]
-                        })
+                        self.logger.error(
+                            "GraphQL error fetching item",
+                            {
+                                "board_id": board_id,
+                                "pulse_id": pulse_id,
+                                "errors": data["errors"],
+                            },
+                        )
                         return None
 
                     items = data.get("data", {}).get("items", [])
                     return items[0] if items else None
 
         except Exception as e:
-            self.logger.error("Exception fetching item data", {
-                "board_id": board_id,
-                "pulse_id": pulse_id,
-                "error": str(e)
-            })
+            self.logger.error(
+                "Exception fetching item data",
+                {"board_id": board_id, "pulse_id": pulse_id, "error": str(e)},
+            )
             return None

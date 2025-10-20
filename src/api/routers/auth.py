@@ -5,18 +5,23 @@ Handles user login, token generation, and user management endpoints.
 """
 
 from datetime import datetime, timedelta
-from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
-from api.dependencies import get_db, get_current_active_user, get_client_ip, get_user_agent, require_admin
-from database.models import User, UserRole, AuditLog
+from api.dependencies import (
+    get_client_ip,
+    get_current_active_user,
+    get_db,
+    get_user_agent,
+    require_admin,
+)
 from core.config import settings
+from database.models import AuditLog, User, UserRole
 
 router = APIRouter()
 
@@ -27,6 +32,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Pydantic models
 class Token(BaseModel):
     """Token response model."""
+
     access_token: str
     token_type: str
     expires_in: int
@@ -34,6 +40,7 @@ class Token(BaseModel):
 
 class UserResponse(BaseModel):
     """User response model (without sensitive data)."""
+
     id: str
     email: str
     first_name: str
@@ -49,6 +56,7 @@ class UserResponse(BaseModel):
 
 class UserCreate(BaseModel):
     """User creation model."""
+
     email: EmailStr
     password: str
     first_name: str
@@ -58,6 +66,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     """User update model."""
+
     first_name: str = None
     last_name: str = None
     role: UserRole = None
@@ -66,6 +75,7 @@ class UserUpdate(BaseModel):
 
 class PasswordChange(BaseModel):
     """Password change model."""
+
     current_password: str
     new_password: str
 
@@ -94,10 +104,14 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.utcnow() + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
 
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+    )
     return encoded_jwt
 
 
@@ -105,7 +119,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
 async def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Authenticate user and return access token.
@@ -131,7 +145,7 @@ async def login(
             resource_id=None,
             audit_metadata={"email": form_data.username},
             ip_address=get_client_ip(request),
-            user_agent=get_user_agent(request)
+            user_agent=get_user_agent(request),
         )
         db.add(audit_log)
         db.commit()
@@ -145,15 +159,13 @@ async def login(
     # Check if user is active
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account is disabled"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User account is disabled"
         )
 
     # Create access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id)},
-        expires_delta=access_token_expires
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
 
     # Update last login and log successful login
@@ -165,7 +177,7 @@ async def login(
         resource_type="user",
         resource_id=user.id,
         ip_address=get_client_ip(request),
-        user_agent=get_user_agent(request)
+        user_agent=get_user_agent(request),
     )
     db.add(audit_log)
     db.commit()
@@ -173,14 +185,12 @@ async def login(
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     }
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(
-    current_user: User = Depends(get_current_active_user)
-):
+async def get_current_user_info(current_user: User = Depends(get_current_active_user)):
     """
     Get current user information.
 
@@ -198,7 +208,7 @@ async def update_current_user(
     user_update: UserUpdate,
     request: Request,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Update current user information.
@@ -216,7 +226,7 @@ async def update_current_user(
     old_values = {
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
-        "role": current_user.role.value if current_user.role else None
+        "role": current_user.role.value if current_user.role else None,
     }
 
     # Update fields
@@ -226,7 +236,7 @@ async def update_current_user(
             # Only admins can change their own role
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only administrators can change user roles"
+                detail="Only administrators can change user roles",
             )
         setattr(current_user, field, value)
 
@@ -239,7 +249,7 @@ async def update_current_user(
         old_values=old_values,
         new_values=update_data,
         ip_address=get_client_ip(request),
-        user_agent=get_user_agent(request)
+        user_agent=get_user_agent(request),
     )
     db.add(audit_log)
     db.commit()
@@ -252,7 +262,7 @@ async def change_password(
     password_change: PasswordChange,
     request: Request,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Change current user's password.
@@ -267,10 +277,12 @@ async def change_password(
         dict: Success message
     """
     # Verify current password
-    if not verify_password(password_change.current_password, current_user.password_hash):
+    if not verify_password(
+        password_change.current_password, current_user.password_hash
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect"
+            detail="Current password is incorrect",
         )
 
     # Update password
@@ -283,7 +295,7 @@ async def change_password(
         resource_type="user",
         resource_id=current_user.id,
         ip_address=get_client_ip(request),
-        user_agent=get_user_agent(request)
+        user_agent=get_user_agent(request),
     )
     db.add(audit_log)
     db.commit()
@@ -296,7 +308,7 @@ async def create_user(
     user_create: UserCreate,
     request: Request,
     current_user: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Create a new user (admin only).
@@ -313,11 +325,13 @@ async def create_user(
     from uuid import uuid4
 
     # Check if user already exists
-    existing_user = db.query(User).filter(User.email == user_create.email.lower()).first()
+    existing_user = (
+        db.query(User).filter(User.email == user_create.email.lower()).first()
+    )
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this email already exists"
+            detail="User with this email already exists",
         )
 
     # Create new user
@@ -328,7 +342,7 @@ async def create_user(
         first_name=user_create.first_name,
         last_name=user_create.last_name,
         role=user_create.role,
-        is_active=True
+        is_active=True,
     )
 
     db.add(new_user)
@@ -343,10 +357,10 @@ async def create_user(
             "email": new_user.email,
             "first_name": new_user.first_name,
             "last_name": new_user.last_name,
-            "role": new_user.role.value
+            "role": new_user.role.value,
         },
         ip_address=get_client_ip(request),
-        user_agent=get_user_agent(request)
+        user_agent=get_user_agent(request),
     )
     db.add(audit_log)
     db.commit()
@@ -358,7 +372,7 @@ async def create_user(
 async def logout(
     request: Request,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Logout current user (invalidate token on client side).
@@ -378,7 +392,7 @@ async def logout(
         resource_type="user",
         resource_id=current_user.id,
         ip_address=get_client_ip(request),
-        user_agent=get_user_agent(request)
+        user_agent=get_user_agent(request),
     )
     db.add(audit_log)
     db.commit()

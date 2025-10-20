@@ -5,8 +5,14 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Install dependencies first (for better caching)
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci
+# Copy manifest and any lockfiles if present
+COPY frontend/package*.json ./
+# Use npm ci if a lockfile exists; otherwise fall back to npm install
+RUN if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then \
+      npm ci; \
+    else \
+      npm install --no-audit --no-fund; \
+    fi
 
 # Copy source code
 COPY frontend/ .

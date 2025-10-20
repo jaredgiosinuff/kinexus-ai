@@ -28,6 +28,11 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Portable titlecase helper (capitalize first letter, lowercase rest)
+titlecase() {
+    printf "%s" "$1" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}'
+}
+
 # Function to show usage
 usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -267,9 +272,13 @@ get_outputs() {
 
     local stack_name
     if [[ "$DEPLOYMENT_TYPE" == "production" ]]; then
-        stack_name="KinexusAIProductionStack-${ENVIRONMENT^}"
+        local env_titled
+        env_titled="$(titlecase "$ENVIRONMENT")"
+        stack_name="KinexusAIProductionStack-${env_titled}"
     else
-        stack_name="KinexusAIMVPStack-${ENVIRONMENT^}"
+        local env_titled
+        env_titled="$(titlecase "$ENVIRONMENT")"
+        stack_name="KinexusAIMVPStack-${env_titled}"
     fi
 
     local aws_opts=""

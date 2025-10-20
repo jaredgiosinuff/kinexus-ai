@@ -2,12 +2,12 @@
 Confluence Client for Document Management
 Manages documents that live in Confluence spaces
 """
-import base64
-import json
-from typing import Dict, Any, Optional, List
+
+from datetime import datetime
+from typing import Dict, List, Optional
+
 import httpx
 import structlog
-from datetime import datetime
 
 logger = structlog.get_logger()
 
@@ -24,13 +24,15 @@ class ConfluenceClient:
     - For production: use OAuth 2.0 instead of basic auth per Atlassian security requirements
     """
 
-    def __init__(self, base_url: str, username: str, api_token: str, cloud_id: str = None):
-        self.base_url = base_url.rstrip('/')
+    def __init__(
+        self, base_url: str, username: str, api_token: str, cloud_id: str = None
+    ):
+        self.base_url = base_url.rstrip("/")
         self.cloud_id = cloud_id
         self.auth = (username, api_token)
         self.headers = {
             "Accept": "application/json",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         # Use scoped API endpoint if cloud_id provided (2025 requirement)
@@ -44,17 +46,12 @@ class ConfluenceClient:
         Get page content and metadata by page ID.
         """
         url = f"{self.api_base}/rest/api/content/{page_id}"
-        params = {
-            "expand": "body.storage,version,ancestors,space"
-        }
+        params = {"expand": "body.storage,version,ancestors,space"}
 
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
-                    url,
-                    auth=self.auth,
-                    headers=self.headers,
-                    params=params
+                    url, auth=self.auth, headers=self.headers, params=params
                 )
                 if response.status_code == 200:
                     return response.json()
@@ -74,19 +71,12 @@ class ConfluenceClient:
         Example CQL: 'space = "DEV" and text ~ "payment api"'
         """
         url = f"{self.api_base}/rest/api/content/search"
-        params = {
-            "cql": cql,
-            "limit": limit,
-            "expand": "body.storage,version"
-        }
+        params = {"cql": cql, "limit": limit, "expand": "body.storage,version"}
 
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
-                    url,
-                    auth=self.auth,
-                    headers=self.headers,
-                    params=params
+                    url, auth=self.auth, headers=self.headers, params=params
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -98,8 +88,9 @@ class ConfluenceClient:
                 logger.error(f"Error searching pages: {e}")
                 return []
 
-    async def update_page(self, page_id: str, new_content: str,
-                         update_message: str, current_version: int) -> Dict:
+    async def update_page(
+        self, page_id: str, new_content: str, update_message: str, current_version: int
+    ) -> Dict:
         """
         Update an existing Confluence page.
         This is the PRIMARY operation - we update docs where they live.
@@ -114,35 +105,34 @@ class ConfluenceClient:
         data = {
             "version": {
                 "number": current_version + 1,
-                "message": f"AI Update: {update_message}"
+                "message": f"AI Update: {update_message}",
             },
             "title": current_page["title"],
             "type": "page",
-            "body": {
-                "storage": {
-                    "value": new_content,
-                    "representation": "storage"
-                }
-            }
+            "body": {"storage": {"value": new_content, "representation": "storage"}},
         }
 
         async with httpx.AsyncClient() as client:
             response = await client.put(
-                url,
-                auth=self.auth,
-                headers=self.headers,
-                json=data
+                url, auth=self.auth, headers=self.headers, json=data
             )
 
             if response.status_code == 200:
                 logger.info(f"Updated Confluence page {page_id}")
                 return response.json()
             else:
-                logger.error(f"Failed to update page: {response.status_code} - {response.text}")
+                logger.error(
+                    f"Failed to update page: {response.status_code} - {response.text}"
+                )
                 raise Exception(f"Failed to update page: {response.status_code}")
 
-    async def update_page_section(self, page_id: str, section_heading: str,
-                                 new_section_content: str, update_reason: str) -> Dict:
+    async def update_page_section(
+        self,
+        page_id: str,
+        section_heading: str,
+        new_section_content: str,
+        update_reason: str,
+    ) -> Dict:
         """
         Update a specific section within a Confluence page.
         Preserves all other content.
@@ -151,30 +141,29 @@ class ConfluenceClient:
         page_data = await self.get_page_by_id(page_id)
         if not page_data:
             logger.warning(f"Page {page_id} not found")
-            return {'error': 'Page not found'}
+            return {"error": "Page not found"}
 
-        current_content = page_data['body']['storage']['value']
-        current_version = page_data['version']['number']
+        current_content = page_data["body"]["storage"]["value"]
+        current_version = page_data["version"]["number"]
 
         # Parse and update the section
         # Confluence uses a different markup, we need to handle HTML-like structure
         updated_content = self._update_html_section(
-            current_content,
-            section_heading,
-            new_section_content
+            current_content, section_heading, new_section_content
         )
 
         # Add update note
         timestamp = datetime.utcnow().isoformat()
-        update_note = f'<p><em>Last updated by Kinexus AI on {timestamp}: {update_reason}</em></p>'
+        update_note = f"<p><em>Last updated by Kinexus AI on {timestamp}: {update_reason}</em></p>"
 
         # If there's already an update note, replace it
         if "Last updated by Kinexus AI" in updated_content:
             import re
+
             updated_content = re.sub(
-                r'<p><em>Last updated by Kinexus AI.*?</em></p>',
+                r"<p><em>Last updated by Kinexus AI.*?</em></p>",
                 update_note,
-                updated_content
+                updated_content,
             )
         else:
             # Add at the bottom
@@ -185,34 +174,36 @@ class ConfluenceClient:
             page_id=page_id,
             new_content=updated_content,
             update_message=f"Update {section_heading} - {update_reason}",
-            current_version=current_version
+            current_version=current_version,
         )
 
         return {
-            'status': 'updated',
-            'page_id': page_id,
-            'section': section_heading,
-            'version': result.get('version', {}).get('number')
+            "status": "updated",
+            "page_id": page_id,
+            "section": section_heading,
+            "version": result.get("version", {}).get("number"),
         }
 
-    def _update_html_section(self, html_content: str, section_heading: str,
-                            new_content: str) -> str:
+    def _update_html_section(
+        self, html_content: str, section_heading: str, new_content: str
+    ) -> str:
         """
         Update a section in HTML content (Confluence storage format).
         """
         # This is simplified - in production, use a proper HTML parser
-        lines = html_content.split('\n')
+        lines = html_content.split("\n")
         updated_lines = []
         in_section = False
         section_level = 0
 
         for line in lines:
             # Detect section start (h1, h2, h3, etc.)
-            if section_heading in line and '<h' in line:
+            if section_heading in line and "<h" in line:
                 in_section = True
                 # Extract heading level
                 import re
-                match = re.match(r'<h(\d)>', line)
+
+                match = re.match(r"<h(\d)>", line)
                 if match:
                     section_level = int(match.group(1))
                 updated_lines.append(line)
@@ -221,9 +212,10 @@ class ConfluenceClient:
                 continue
 
             # Detect section end
-            if in_section and '<h' in line:
+            if in_section and "<h" in line:
                 import re
-                match = re.match(r'<h(\d)>', line)
+
+                match = re.match(r"<h(\d)>", line)
                 if match:
                     current_level = int(match.group(1))
                     if current_level <= section_level:
@@ -233,10 +225,11 @@ class ConfluenceClient:
             if not in_section:
                 updated_lines.append(line)
 
-        return '\n'.join(updated_lines)
+        return "\n".join(updated_lines)
 
-    async def create_page(self, space_key: str, title: str, content: str,
-                         parent_id: Optional[str] = None) -> Dict:
+    async def create_page(
+        self, space_key: str, title: str, content: str, parent_id: Optional[str] = None
+    ) -> Dict:
         """
         Create a new page in Confluence.
         This is SECONDARY - only when explicitly permitted and needed.
@@ -247,18 +240,10 @@ class ConfluenceClient:
             "type": "page",
             "title": title,
             "space": {"key": space_key},
-            "body": {
-                "storage": {
-                    "value": content,
-                    "representation": "storage"
-                }
-            },
+            "body": {"storage": {"value": content, "representation": "storage"}},
             "metadata": {
-                "labels": [
-                    {"name": "kinexus-ai-managed"},
-                    {"name": "auto-generated"}
-                ]
-            }
+                "labels": [{"name": "kinexus-ai-managed"}, {"name": "auto-generated"}]
+            },
         }
 
         # Add parent if specified
@@ -267,10 +252,7 @@ class ConfluenceClient:
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                url,
-                auth=self.auth,
-                headers=self.headers,
-                json=data
+                url, auth=self.auth, headers=self.headers, json=data
             )
 
             if response.status_code in [200, 201]:
@@ -280,12 +262,14 @@ class ConfluenceClient:
                 logger.error(f"Failed to create page: {response.status_code}")
                 raise Exception(f"Failed to create page: {response.status_code}")
 
-    async def find_related_pages(self, keywords: List[str], space_key: Optional[str] = None) -> List[Dict]:
+    async def find_related_pages(
+        self, keywords: List[str], space_key: Optional[str] = None
+    ) -> List[Dict]:
         """
         Find pages that might need updating based on keywords.
         """
         # Build CQL query
-        text_conditions = ' OR '.join([f'text ~ "{keyword}"' for keyword in keywords])
+        text_conditions = " OR ".join([f'text ~ "{keyword}"' for keyword in keywords])
 
         if space_key:
             cql = f'space = "{space_key}" AND ({text_conditions})'
@@ -296,12 +280,12 @@ class ConfluenceClient:
 
         # Score relevance based on keyword matches
         for page in pages:
-            content = page.get('body', {}).get('storage', {}).get('value', '').lower()
+            content = page.get("body", {}).get("storage", {}).get("value", "").lower()
             score = sum(1 for keyword in keywords if keyword.lower() in content)
-            page['relevance_score'] = score
+            page["relevance_score"] = score
 
         # Sort by relevance
-        pages.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+        pages.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
 
         return pages
 
@@ -324,7 +308,7 @@ class ConfluenceDocumentManager:
         keywords = self._extract_keywords(change_data)
 
         # Find related pages
-        space_key = change_data.get('confluence_space')  # Could be configured per repo
+        space_key = change_data.get("confluence_space")  # Could be configured per repo
         related_pages = await self.client.find_related_pages(keywords, space_key)
 
         logger.info(f"Found {len(related_pages)} related pages for update")
@@ -333,20 +317,22 @@ class ConfluenceDocumentManager:
         for page in related_pages[:5]:  # Limit to top 5 most relevant
             try:
                 # Determine what needs updating
-                update_strategy = await self._determine_update_strategy(page, change_data)
+                update_strategy = await self._determine_update_strategy(
+                    page, change_data
+                )
 
-                if update_strategy['needs_update']:
-                    result = await self._apply_update(page, update_strategy, change_data)
+                if update_strategy["needs_update"]:
+                    result = await self._apply_update(
+                        page, update_strategy, change_data
+                    )
                     results.append(result)
                 else:
                     logger.debug(f"Page {page['id']} doesn't need updates")
             except Exception as e:
                 logger.error(f"Failed to update page {page['id']}: {e}")
-                results.append({
-                    'page_id': page['id'],
-                    'status': 'error',
-                    'error': str(e)
-                })
+                results.append(
+                    {"page_id": page["id"], "status": "error", "error": str(e)}
+                )
 
         return results
 
@@ -357,21 +343,21 @@ class ConfluenceDocumentManager:
         keywords = []
 
         # From file paths
-        if 'files_changed' in change_data:
-            for file in change_data['files_changed']:
+        if "files_changed" in change_data:
+            for file in change_data["files_changed"]:
                 # Extract meaningful parts from file path
-                parts = file.split('/')
-                keywords.extend([p for p in parts if not p.startswith('.')])
+                parts = file.split("/")
+                keywords.extend([p for p in parts if not p.startswith(".")])
 
         # From commit messages
-        if 'commit_message' in change_data:
+        if "commit_message" in change_data:
             # Extract significant words (simple approach)
-            words = change_data['commit_message'].split()
+            words = change_data["commit_message"].split()
             keywords.extend([w for w in words if len(w) > 3])
 
         # From function/class names if available
-        if 'code_entities' in change_data:
-            keywords.extend(change_data['code_entities'])
+        if "code_entities" in change_data:
+            keywords.extend(change_data["code_entities"])
 
         return list(set(keywords))  # Unique keywords
 
@@ -382,32 +368,34 @@ class ConfluenceDocumentManager:
         # This would use AI to analyze the page and determine updates
         # For now, simplified logic
 
-        content = page.get('body', {}).get('storage', {}).get('value', '')
+        content = page.get("body", {}).get("storage", {}).get("value", "")
 
         strategy = {
-            'needs_update': False,
-            'sections_to_update': [],
-            'update_type': None
+            "needs_update": False,
+            "sections_to_update": [],
+            "update_type": None,
         }
 
         # Check if page mentions changed files
-        for file in change_data.get('files_changed', []):
+        for file in change_data.get("files_changed", []):
             if file in content:
-                strategy['needs_update'] = True
-                strategy['update_type'] = 'code_reference'
-                strategy['sections_to_update'].append('Code Examples')
+                strategy["needs_update"] = True
+                strategy["update_type"] = "code_reference"
+                strategy["sections_to_update"].append("Code Examples")
                 break
 
         # Check if it's API documentation
-        if 'api' in page.get('title', '').lower():
-            if any('api' in f for f in change_data.get('files_changed', [])):
-                strategy['needs_update'] = True
-                strategy['update_type'] = 'api_update'
-                strategy['sections_to_update'].append('API Reference')
+        if "api" in page.get("title", "").lower():
+            if any("api" in f for f in change_data.get("files_changed", [])):
+                strategy["needs_update"] = True
+                strategy["update_type"] = "api_update"
+                strategy["sections_to_update"].append("API Reference")
 
         return strategy
 
-    async def _apply_update(self, page: Dict, strategy: Dict, change_data: Dict) -> Dict:
+    async def _apply_update(
+        self, page: Dict, strategy: Dict, change_data: Dict
+    ) -> Dict:
         """
         Apply the determined updates to the page.
         """
@@ -429,13 +417,17 @@ class ConfluenceDocumentManager:
         """
 
         # Update the first section that needs updating
-        section = strategy['sections_to_update'][0] if strategy['sections_to_update'] else 'Updates'
+        section = (
+            strategy["sections_to_update"][0]
+            if strategy["sections_to_update"]
+            else "Updates"
+        )
 
         result = await self.client.update_page_section(
-            page_id=page['id'],
+            page_id=page["id"],
             section_heading=section,
             new_section_content=update_content,
-            update_reason=f"Code change: {change_data.get('commit_message', 'Update')}"
+            update_reason=f"Code change: {change_data.get('commit_message', 'Update')}",
         )
 
         return result
@@ -450,10 +442,10 @@ class ConfluenceDocumentManager:
 
         if not existing:
             logger.info(f"No documentation found for {repo} in space {space_key}")
-            return {'status': 'no_docs', 'action': 'would_create'}
+            return {"status": "no_docs", "action": "would_create"}
 
         return {
-            'status': 'docs_exist',
-            'page_id': existing[0]['id'],
-            'title': existing[0]['title']
+            "status": "docs_exist",
+            "page_id": existing[0]["id"],
+            "title": existing[0]["title"],
         }

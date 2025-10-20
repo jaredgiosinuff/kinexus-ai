@@ -77,7 +77,9 @@ def _parse_document_id(document_id: str) -> UUID:
     try:
         return UUID(document_id)
     except ValueError as exc:  # pragma: no cover - validated by FastAPI in practice
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid document ID") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid document ID"
+        ) from exc
 
 
 @router.get("/", response_model=List[DocumentListItem])
@@ -87,7 +89,7 @@ async def get_documents(
     search: Optional[str] = Query(None, description="Search title or path"),
     limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(require_reviewer),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Return a list of documents with optional filtering."""
     query = db.query(Document)
@@ -98,10 +100,14 @@ async def get_documents(
         query = query.filter(Document.document_type == document_type)
     if search:
         pattern = f"%{search}%"
-        query = query.filter(or_(Document.title.ilike(pattern), Document.path.ilike(pattern)))
+        query = query.filter(
+            or_(Document.title.ilike(pattern), Document.path.ilike(pattern))
+        )
 
     documents = (
-        query.order_by(Document.updated_at.desc().nullslast(), Document.created_at.desc())
+        query.order_by(
+            Document.updated_at.desc().nullslast(), Document.created_at.desc()
+        )
         .limit(limit)
         .all()
     )
@@ -113,21 +119,21 @@ async def get_documents(
 async def get_document(
     document_id: str,
     current_user: User = Depends(require_reviewer),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Return metadata for a specific document including its latest version."""
     doc_uuid = _parse_document_id(document_id)
-    document = (
-        db.query(Document)
-        .filter(Document.id == doc_uuid)
-        .first()
-    )
+    document = db.query(Document).filter(Document.id == doc_uuid).first()
 
     if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+        )
 
     latest_version = document.latest_version
-    latest_detail = DocumentVersionDetail.from_orm(latest_version) if latest_version else None
+    latest_detail = (
+        DocumentVersionDetail.from_orm(latest_version) if latest_version else None
+    )
 
     return DocumentDetail(
         id=str(document.id),
@@ -142,7 +148,7 @@ async def get_document(
         created_at=document.created_at,
         updated_at=document.updated_at,
         latest_version=latest_detail,
-        version_count=len(document.versions)
+        version_count=len(document.versions),
     )
 
 
@@ -150,7 +156,7 @@ async def get_document(
 async def get_document_versions(
     document_id: str,
     current_user: User = Depends(require_reviewer),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Return all versions for a document ordered by newest first."""
     doc_uuid = _parse_document_id(document_id)
@@ -165,7 +171,9 @@ async def get_document_versions(
         # Validate document existence before returning empty list
         document_exists = db.query(Document.id).filter(Document.id == doc_uuid).first()
         if not document_exists:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+            )
         return []
 
     return [DocumentVersionDetail.from_orm(version) for version in versions]
@@ -177,34 +185,45 @@ async def get_document_diff(
     version_from: int = Query(..., ge=1),
     version_to: int = Query(..., ge=1),
     current_user: User = Depends(require_reviewer),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Return a unified diff between two document versions."""
     if version_from == version_to:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Versions must be different")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Versions must be different"
+        )
 
     doc_uuid = _parse_document_id(document_id)
 
     version_a = (
         db.query(DocumentVersion)
-        .filter(DocumentVersion.document_id == doc_uuid, DocumentVersion.version == version_from)
+        .filter(
+            DocumentVersion.document_id == doc_uuid,
+            DocumentVersion.version == version_from,
+        )
         .first()
     )
     version_b = (
         db.query(DocumentVersion)
-        .filter(DocumentVersion.document_id == doc_uuid, DocumentVersion.version == version_to)
+        .filter(
+            DocumentVersion.document_id == doc_uuid,
+            DocumentVersion.version == version_to,
+        )
         .first()
     )
 
     if not version_a or not version_b:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or both versions not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or both versions not found",
+        )
 
     diff_lines = difflib.unified_diff(
         version_a.content.splitlines(),
         version_b.content.splitlines(),
         fromfile=f"v{version_from}",
         tofile=f"v{version_to}",
-        lineterm=""
+        lineterm="",
     )
 
     diff_text = "\n".join(diff_lines)
@@ -213,5 +232,5 @@ async def get_document_diff(
         "document_id": document_id,
         "version_from": version_from,
         "version_to": version_to,
-        "diff": diff_text
+        "diff": diff_text,
     }

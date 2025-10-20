@@ -3,19 +3,21 @@
 MCP Configuration Management for Kinexus AI
 Manages MCP server connections and tool registrations
 """
-import os
 import json
-import yaml
 import logging
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict
-from pathlib import Path
+import os
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class MCPServerConfig:
     """MCP Server configuration"""
+
     name: str
     url: str
     transport: str = "http"
@@ -31,6 +33,7 @@ class MCPServerConfig:
             self.capabilities = []
         if self.metadata is None:
             self.metadata = {}
+
 
 class MCPConfigManager:
     """
@@ -52,7 +55,7 @@ class MCPConfigManager:
             ".kinexus/mcp-config.yaml",
             "config/mcp-config.yaml",
             "/etc/kinexus/mcp-config.yaml",
-            os.path.expanduser("~/.kinexus/mcp-config.yaml")
+            os.path.expanduser("~/.kinexus/mcp-config.yaml"),
         ]
 
         for path in possible_paths:
@@ -93,14 +96,16 @@ class MCPConfigManager:
         try:
             # Load from file if it exists
             if os.path.exists(self.config_path):
-                with open(self.config_path, 'r') as f:
-                    if self.config_path.endswith('.yaml') or self.config_path.endswith('.yml'):
+                with open(self.config_path, "r") as f:
+                    if self.config_path.endswith(".yaml") or self.config_path.endswith(
+                        ".yml"
+                    ):
                         config_data = yaml.safe_load(f)
                     else:
                         config_data = json.load(f)
 
                 # Parse server configurations
-                servers = config_data.get('mcp_servers', [])
+                servers = config_data.get("mcp_servers", [])
                 for server_config in servers:
                     server = MCPServerConfig(**server_config)
                     self.server_configs[server.name] = server
@@ -113,11 +118,11 @@ class MCPConfigManager:
                         setattr(self.server_configs[server_name], key, value)
                 else:
                     # Create new server config from environment
-                    if 'url' in overrides:  # URL is required
+                    if "url" in overrides:  # URL is required
                         server = MCPServerConfig(
                             name=server_name,
-                            url=overrides['url'],
-                            **{k: v for k, v in overrides.items() if k != 'url'}
+                            url=overrides["url"],
+                            **{k: v for k, v in overrides.items() if k != "url"},
                         )
                         self.server_configs[server_name] = server
 
@@ -142,8 +147,8 @@ class MCPConfigManager:
                 "capabilities": ["tools", "resources", "prompts"],
                 "metadata": {
                     "description": "Claude Desktop MCP server",
-                    "provider": "Anthropic"
-                }
+                    "provider": "Anthropic",
+                },
             },
             {
                 "name": "kinexus-local",
@@ -153,9 +158,9 @@ class MCPConfigManager:
                 "capabilities": ["tools", "resources"],
                 "metadata": {
                     "description": "Kinexus AI local MCP server",
-                    "provider": "Kinexus AI"
-                }
-            }
+                    "provider": "Kinexus AI",
+                },
+            },
         ]
 
         for config in defaults:
@@ -213,12 +218,14 @@ class MCPConfigManager:
                 "description": "Kinexus AI MCP Server Configuration",
                 "mcp_servers": [
                     asdict(server) for server in self.server_configs.values()
-                ]
+                ],
             }
 
             # Save to file
-            with open(self.config_path, 'w') as f:
-                if self.config_path.endswith('.yaml') or self.config_path.endswith('.yml'):
+            with open(self.config_path, "w") as f:
+                if self.config_path.endswith(".yaml") or self.config_path.endswith(
+                    ".yml"
+                ):
                     yaml.dump(config_data, f, default_flow_style=False, indent=2)
                 else:
                     json.dump(config_data, f, indent=2)
@@ -236,15 +243,11 @@ class MCPConfigManager:
             "valid": True,
             "warnings": [],
             "errors": [],
-            "server_results": {}
+            "server_results": {},
         }
 
         for server_name, server in self.server_configs.items():
-            server_validation = {
-                "valid": True,
-                "warnings": [],
-                "errors": []
-            }
+            server_validation = {"valid": True, "warnings": [], "errors": []}
 
             # Validate required fields
             if not server.url:
@@ -252,12 +255,18 @@ class MCPConfigManager:
                 server_validation["valid"] = False
 
             # Validate URL format
-            if server.url and not (server.url.startswith('http://') or server.url.startswith('https://')):
-                server_validation["warnings"].append("URL should start with http:// or https://")
+            if server.url and not (
+                server.url.startswith("http://") or server.url.startswith("https://")
+            ):
+                server_validation["warnings"].append(
+                    "URL should start with http:// or https://"
+                )
 
             # Validate transport
             if server.transport not in ["http", "websocket", "stdio"]:
-                server_validation["errors"].append(f"Invalid transport: {server.transport}")
+                server_validation["errors"].append(
+                    f"Invalid transport: {server.transport}"
+                )
                 server_validation["valid"] = False
 
             # Validate timeout
@@ -268,13 +277,16 @@ class MCPConfigManager:
 
             if not server_validation["valid"]:
                 validation_results["valid"] = False
-                validation_results["errors"].extend([
-                    f"{server_name}: {error}" for error in server_validation["errors"]
-                ])
+                validation_results["errors"].extend(
+                    [f"{server_name}: {error}" for error in server_validation["errors"]]
+                )
 
-            validation_results["warnings"].extend([
-                f"{server_name}: {warning}" for warning in server_validation["warnings"]
-            ])
+            validation_results["warnings"].extend(
+                [
+                    f"{server_name}: {warning}"
+                    for warning in server_validation["warnings"]
+                ]
+            )
 
         return validation_results
 
@@ -291,10 +303,10 @@ class MCPConfigManager:
                 server.name: {
                     "enabled": server.enabled,
                     "transport": server.transport,
-                    "capabilities": server.capabilities
+                    "capabilities": server.capabilities,
                 }
                 for server in self.server_configs.values()
-            }
+            },
         }
 
     def create_sample_config(self, output_path: str) -> bool:
@@ -315,8 +327,8 @@ class MCPConfigManager:
                         "metadata": {
                             "description": "Claude Desktop MCP server",
                             "provider": "Anthropic",
-                            "documentation": "https://docs.claude.com/mcp"
-                        }
+                            "documentation": "https://docs.claude.com/mcp",
+                        },
                     },
                     {
                         "name": "github-integration",
@@ -330,14 +342,14 @@ class MCPConfigManager:
                         "metadata": {
                             "description": "GitHub MCP integration",
                             "provider": "GitHub",
-                            "documentation": "https://docs.github.com/mcp"
-                        }
-                    }
-                ]
+                            "documentation": "https://docs.github.com/mcp",
+                        },
+                    },
+                ],
             }
 
-            with open(output_path, 'w') as f:
-                if output_path.endswith('.yaml') or output_path.endswith('.yml'):
+            with open(output_path, "w") as f:
+                if output_path.endswith(".yaml") or output_path.endswith(".yml"):
                     yaml.dump(sample_config, f, default_flow_style=False, indent=2)
                 else:
                     json.dump(sample_config, f, indent=2)
@@ -349,8 +361,10 @@ class MCPConfigManager:
             logger.error(f"Error creating sample configuration: {str(e)}")
             return False
 
+
 # Global configuration instance
 _config_manager = None
+
 
 def get_mcp_config() -> MCPConfigManager:
     """Get global MCP configuration manager instance"""
@@ -358,6 +372,7 @@ def get_mcp_config() -> MCPConfigManager:
     if _config_manager is None:
         _config_manager = MCPConfigManager()
     return _config_manager
+
 
 # Example usage
 if __name__ == "__main__":

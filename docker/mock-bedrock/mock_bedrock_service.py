@@ -2,20 +2,22 @@
 Mock Bedrock Service for Local Development
 Simulates AWS Bedrock Agents and Models for cost-free local development
 """
+
 import json
 import uuid
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
+import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import structlog
 
 logger = structlog.get_logger()
 
 app = FastAPI(
     title="Mock Bedrock Service",
     description="Local development mock for AWS Bedrock Agents and Models",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Mock agent definitions
@@ -25,37 +27,38 @@ MOCK_AGENTS = {
         "agentName": "DocumentOrchestrator",
         "description": "Master coordination agent",
         "modelId": "anthropic.claude-4-opus-4.1",
-        "capabilities": ["reasoning", "coordination", "decision_making"]
+        "capabilities": ["reasoning", "coordination", "decision_making"],
     },
     "change-analyzer": {
         "agentId": "mock-analyzer-001",
         "agentName": "ChangeAnalyzer",
         "description": "Real-time change detection agent",
         "modelId": "anthropic.claude-4-sonnet",
-        "capabilities": ["change_detection", "impact_analysis"]
+        "capabilities": ["change_detection", "impact_analysis"],
     },
     "content-creator": {
         "agentId": "mock-creator-001",
         "agentName": "ContentCreator",
         "description": "Content generation agent",
         "modelId": "amazon.nova-pro-v1:0",
-        "capabilities": ["content_generation", "multimodal"]
+        "capabilities": ["content_generation", "multimodal"],
     },
     "quality-controller": {
         "agentId": "mock-quality-001",
         "agentName": "QualityController",
         "description": "Quality assurance agent",
         "modelId": "amazon.nova-pro-v1:0",
-        "capabilities": ["quality_assessment", "compliance_checking"]
+        "capabilities": ["quality_assessment", "compliance_checking"],
     },
     "web-automator": {
         "agentId": "mock-automator-001",
         "agentName": "WebAutomator",
         "description": "Browser automation agent",
         "modelId": "amazon.nova-act-v1:0",
-        "capabilities": ["web_automation", "form_submission"]
-    }
+        "capabilities": ["web_automation", "form_submission"],
+    },
 }
+
 
 # Request/Response Models
 class InvokeAgentRequest(BaseModel):
@@ -65,10 +68,12 @@ class InvokeAgentRequest(BaseModel):
     inputText: str
     enableTrace: bool = False
 
+
 class AgentResponse(BaseModel):
     sessionId: str
     completion: str
     trace: Optional[Dict] = None
+
 
 class InvokeModelRequest(BaseModel):
     modelId: str
@@ -76,12 +81,15 @@ class InvokeModelRequest(BaseModel):
     accept: str = "application/json"
     body: str
 
+
 class ModelResponse(BaseModel):
     contentType: str
     body: str
 
+
 # Mock conversation storage
 conversations: Dict[str, List[Dict]] = {}
+
 
 @app.get("/")
 async def root():
@@ -95,14 +103,16 @@ async def root():
             "amazon.nova-pro-v1:0",
             "amazon.nova-act-v1:0",
             "amazon.nova-canvas-v1:0",
-            "amazon.nova-sonic-v1:0"
-        ]
+            "amazon.nova-sonic-v1:0",
+        ],
     }
+
 
 @app.get("/agents")
 async def list_agents():
     """List all available mock agents"""
     return {"agents": MOCK_AGENTS}
+
 
 @app.post("/agents/{agent_id}/invoke")
 async def invoke_agent(agent_id: str, request: InvokeAgentRequest):
@@ -118,22 +128,28 @@ async def invoke_agent(agent_id: str, request: InvokeAgentRequest):
         conversations[request.sessionId] = []
 
     # Add user input to conversation
-    conversations[request.sessionId].append({
-        "role": "user",
-        "content": request.inputText,
-        "timestamp": datetime.utcnow().isoformat()
-    })
+    conversations[request.sessionId].append(
+        {
+            "role": "user",
+            "content": request.inputText,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )
 
     # Generate mock response based on agent type
-    mock_response = generate_agent_response(agent_id, request.inputText, conversations[request.sessionId])
+    mock_response = generate_agent_response(
+        agent_id, request.inputText, conversations[request.sessionId]
+    )
 
     # Add agent response to conversation
-    conversations[request.sessionId].append({
-        "role": "assistant",
-        "content": mock_response,
-        "timestamp": datetime.utcnow().isoformat(),
-        "agent": agent_id
-    })
+    conversations[request.sessionId].append(
+        {
+            "role": "assistant",
+            "content": mock_response,
+            "timestamp": datetime.utcnow().isoformat(),
+            "agent": agent_id,
+        }
+    )
 
     # Generate trace if requested
     trace = None
@@ -145,19 +161,18 @@ async def invoke_agent(agent_id: str, request: InvokeAgentRequest):
                 f"Analyzing input: {request.inputText[:50]}...",
                 f"Using {agent['modelId']} for processing",
                 f"Applying {agent['capabilities']} capabilities",
-                "Generating response based on agent specialization"
+                "Generating response based on agent specialization",
             ],
             "confidence_score": 0.87,
-            "processing_time_ms": 234
+            "processing_time_ms": 234,
         }
 
     logger.info("Agent invoked", agent_id=agent_id, session=request.sessionId)
 
     return AgentResponse(
-        sessionId=request.sessionId,
-        completion=mock_response,
-        trace=trace
+        sessionId=request.sessionId, completion=mock_response, trace=trace
     )
+
 
 @app.post("/models/{model_id}/invoke")
 async def invoke_model(model_id: str, request: InvokeModelRequest):
@@ -173,21 +188,23 @@ async def invoke_model(model_id: str, request: InvokeModelRequest):
         response_body = {
             "completion": mock_response,
             "stop_reason": "end_turn",
-            "stop": None
+            "stop": None,
         }
 
         logger.info("Model invoked", model_id=model_id)
 
         return ModelResponse(
-            contentType="application/json",
-            body=json.dumps(response_body)
+            contentType="application/json", body=json.dumps(response_body)
         )
 
     except Exception as e:
         logger.error("Model invocation failed", error=str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
-def generate_agent_response(agent_id: str, input_text: str, conversation_history: List[Dict]) -> str:
+
+def generate_agent_response(
+    agent_id: str, input_text: str, conversation_history: List[Dict]
+) -> str:
     """Generate contextual responses based on agent specialization"""
 
     agent = MOCK_AGENTS[agent_id]
@@ -204,6 +221,7 @@ def generate_agent_response(agent_id: str, input_text: str, conversation_history
         return generate_automator_response(input_text)
     else:
         return f"Mock response from {agent['agentName']}: Processed '{input_text[:50]}...' using {agent['modelId']}"
+
 
 def generate_orchestrator_response(input_text: str) -> str:
     """Generate responses for DocumentOrchestrator agent"""
@@ -240,6 +258,7 @@ def generate_orchestrator_response(input_text: str) -> str:
 **Status**: Initiating agent workflow..."""
 
     return f"DocumentOrchestrator analyzing: {input_text[:100]}... Coordinating multi-agent response."
+
 
 def generate_analyzer_response(input_text: str) -> str:
     """Generate responses for ChangeAnalyzer agent"""
@@ -280,6 +299,7 @@ def generate_analyzer_response(input_text: str) -> str:
 **Urgency**: Medium (affects user onboarding flow)"""
 
     return f"ChangeAnalyzer processing: {input_text[:100]}... Analyzing impact and dependencies."
+
 
 def generate_creator_response(input_text: str) -> str:
     """Generate responses for ContentCreator agent"""
@@ -347,6 +367,7 @@ The new Advanced Document Search feature allows users to perform semantic search
 
     return f"ContentCreator generating documentation for: {input_text[:100]}..."
 
+
 def generate_quality_response(input_text: str) -> str:
     """Generate responses for QualityController agent"""
     return """**Quality Assessment Report**
@@ -372,6 +393,7 @@ def generate_quality_response(input_text: str) -> str:
 
 **Approval Status**: Approved with minor revisions"""
 
+
 def generate_automator_response(input_text: str) -> str:
     """Generate responses for WebAutomator agent"""
     return """**Web Automation Task Complete**
@@ -393,6 +415,7 @@ def generate_automator_response(input_text: str) -> str:
 **Performance**: Page load time improved by 15%
 
 **Next Actions**: Monitor for 24h, no further action required"""
+
 
 def generate_model_response(model_id: str, prompt: str) -> str:
     """Generate responses for direct model invocation"""
@@ -417,6 +440,7 @@ def generate_model_response(model_id: str, prompt: str) -> str:
 
     return f"Mock AI response for {model_id}: {prompt[:100]}..."
 
+
 @app.get("/conversations/{session_id}")
 async def get_conversation(session_id: str):
     """Get conversation history for a session"""
@@ -426,8 +450,9 @@ async def get_conversation(session_id: str):
     return {
         "sessionId": session_id,
         "messages": conversations[session_id],
-        "total_messages": len(conversations[session_id])
+        "total_messages": len(conversations[session_id]),
     }
+
 
 @app.delete("/conversations/{session_id}")
 async def delete_conversation(session_id: str):
@@ -438,15 +463,18 @@ async def delete_conversation(session_id: str):
 
     raise HTTPException(status_code=404, detail="Session not found")
 
+
 @app.get("/health")
 async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "active_sessions": len(conversations),
-        "agents_available": len(MOCK_AGENTS)
+        "agents_available": len(MOCK_AGENTS),
     }
+
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8001)

@@ -4,23 +4,24 @@ Amazon Nova Pro Integration for Kinexus AI
 Provides image analysis capabilities for documentation validation
 """
 import asyncio
+import base64
 import json
 import logging
-import base64
-import boto3
-from typing import Dict, List, Any, Optional, Union
+import os
 from dataclasses import dataclass
 from enum import Enum
-import io
-from PIL import Image
-import os
+from typing import Any, Dict, List, Optional, Union
+
+import boto3
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class ImageType(Enum):
     """Types of images we can analyze"""
+
     DIAGRAM = "diagram"
     CHART = "chart"
     SCREENSHOT = "screenshot"
@@ -29,9 +30,11 @@ class ImageType(Enum):
     UI_MOCKUP = "ui_mockup"
     UNKNOWN = "unknown"
 
+
 @dataclass
 class ImageAnalysisResult:
     """Result of image analysis"""
+
     image_type: ImageType
     confidence: float
     description: str
@@ -44,6 +47,7 @@ class ImageAnalysisResult:
         if self.metadata is None:
             self.metadata = {}
 
+
 class NovaProImageAnalyzer:
     """
     Amazon Nova Pro integration for image analysis in documentation
@@ -52,7 +56,7 @@ class NovaProImageAnalyzer:
 
     def __init__(self, region: str = "us-east-1"):
         self.region = region
-        self.bedrock_runtime = boto3.client('bedrock-runtime', region_name=region)
+        self.bedrock_runtime = boto3.client("bedrock-runtime", region_name=region)
 
         # Nova Pro model configuration
         self.nova_pro_model_id = "amazon.nova-pro-v1:0"
@@ -60,10 +64,11 @@ class NovaProImageAnalyzer:
 
         # Image processing settings
         self.max_image_size = 4 * 1024 * 1024  # 4MB limit
-        self.supported_formats = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+        self.supported_formats = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
 
-    async def analyze_documentation_image(self, image_data: Union[str, bytes],
-                                       context: Optional[Dict[str, Any]] = None) -> ImageAnalysisResult:
+    async def analyze_documentation_image(
+        self, image_data: Union[str, bytes], context: Optional[Dict[str, Any]] = None
+    ) -> ImageAnalysisResult:
         """
         Analyze an image from documentation for accuracy and type classification
 
@@ -83,20 +88,35 @@ class NovaProImageAnalyzer:
 
             # Validate image size
             if len(image_bytes) > self.max_image_size:
-                raise ValueError(f"Image size {len(image_bytes)} exceeds limit {self.max_image_size}")
+                raise ValueError(
+                    f"Image size {len(image_bytes)} exceeds limit {self.max_image_size}"
+                )
 
             # Classify image type first
             image_type = await self._classify_image_type(image_bytes, context)
 
             # Perform detailed analysis based on type
-            if image_type in [ImageType.DIAGRAM, ImageType.CHART, ImageType.FLOWCHART, ImageType.ARCHITECTURE]:
-                result = await self._analyze_technical_diagram(image_bytes, image_type, context)
+            if image_type in [
+                ImageType.DIAGRAM,
+                ImageType.CHART,
+                ImageType.FLOWCHART,
+                ImageType.ARCHITECTURE,
+            ]:
+                result = await self._analyze_technical_diagram(
+                    image_bytes, image_type, context
+                )
             elif image_type in [ImageType.SCREENSHOT, ImageType.UI_MOCKUP]:
-                result = await self._analyze_ui_documentation(image_bytes, image_type, context)
+                result = await self._analyze_ui_documentation(
+                    image_bytes, image_type, context
+                )
             else:
-                result = await self._perform_general_analysis(image_bytes, image_type, context)
+                result = await self._perform_general_analysis(
+                    image_bytes, image_type, context
+                )
 
-            logger.info(f"Image analysis completed: {image_type.value} with confidence {result.confidence}")
+            logger.info(
+                f"Image analysis completed: {image_type.value} with confidence {result.confidence}"
+            )
             return result
 
         except Exception as e:
@@ -105,15 +125,16 @@ class NovaProImageAnalyzer:
                 image_type=ImageType.UNKNOWN,
                 confidence=0.0,
                 description=f"Analysis failed: {str(e)}",
-                metadata={"error": str(e)}
+                metadata={"error": str(e)},
             )
 
-    async def _classify_image_type(self, image_bytes: bytes,
-                                 context: Optional[Dict[str, Any]]) -> ImageType:
+    async def _classify_image_type(
+        self, image_bytes: bytes, context: Optional[Dict[str, Any]]
+    ) -> ImageType:
         """Classify the type of image using Nova Pro"""
         try:
             # Convert image to base64 for API
-            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
             # Build classification prompt
             classification_prompt = """
@@ -134,14 +155,14 @@ Format: category_name|confidence_score
             response = await self._call_nova_pro(
                 prompt=classification_prompt,
                 image_base64=image_base64,
-                use_lite_model=True  # Use lite model for quick classification
+                use_lite_model=True,  # Use lite model for quick classification
             )
 
             # Parse response
-            if '|' in response:
-                category, confidence_str = response.strip().split('|', 1)
+            if "|" in response:
+                category, confidence_str = response.strip().split("|", 1)
                 try:
-                    confidence = float(confidence_str)
+                    _confidence = float(confidence_str)
                     return ImageType(category.lower())
                 except (ValueError, KeyError):
                     logger.warning(f"Invalid classification response: {response}")
@@ -152,11 +173,14 @@ Format: category_name|confidence_score
             logger.error(f"Error classifying image type: {str(e)}")
             return ImageType.UNKNOWN
 
-    async def _analyze_technical_diagram(self, image_bytes: bytes,
-                                       image_type: ImageType,
-                                       context: Optional[Dict[str, Any]]) -> ImageAnalysisResult:
+    async def _analyze_technical_diagram(
+        self,
+        image_bytes: bytes,
+        image_type: ImageType,
+        context: Optional[Dict[str, Any]],
+    ) -> ImageAnalysisResult:
         """Analyze technical diagrams for accuracy and completeness"""
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
         analysis_prompt = f"""
 You are analyzing a {image_type.value} from technical documentation. Please provide:
@@ -197,21 +221,23 @@ Respond in JSON format with the following structure:
             return ImageAnalysisResult(
                 image_type=image_type,
                 confidence=confidence,
-                description=analysis_data.get("description", "Technical diagram analyzed"),
+                description=analysis_data.get(
+                    "description", "Technical diagram analyzed"
+                ),
                 extracted_text=analysis_data.get("extracted_text"),
                 accuracy_assessment={
                     "accuracy_score": analysis_data.get("accuracy_score"),
                     "clarity_score": analysis_data.get("clarity_score"),
-                    "completeness_score": analysis_data.get("completeness_score")
+                    "completeness_score": analysis_data.get("completeness_score"),
                 },
                 validation_results={
                     "issues": analysis_data.get("validation_issues", []),
-                    "recommendations": analysis_data.get("recommendations", [])
+                    "recommendations": analysis_data.get("recommendations", []),
                 },
                 metadata={
                     "components": analysis_data.get("components", []),
-                    "relationships": analysis_data.get("relationships", "")
-                }
+                    "relationships": analysis_data.get("relationships", ""),
+                },
             )
 
         except json.JSONDecodeError:
@@ -220,14 +246,17 @@ Respond in JSON format with the following structure:
                 image_type=image_type,
                 confidence=0.5,
                 description="Technical diagram analyzed with parsing issues",
-                metadata={"parsing_error": True}
+                metadata={"parsing_error": True},
             )
 
-    async def _analyze_ui_documentation(self, image_bytes: bytes,
-                                      image_type: ImageType,
-                                      context: Optional[Dict[str, Any]]) -> ImageAnalysisResult:
+    async def _analyze_ui_documentation(
+        self,
+        image_bytes: bytes,
+        image_type: ImageType,
+        context: Optional[Dict[str, Any]],
+    ) -> ImageAnalysisResult:
         """Analyze UI screenshots and mockups"""
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
         ui_prompt = f"""
 Analyze this {image_type.value} for UI documentation purposes:
@@ -261,30 +290,35 @@ Respond in JSON format:
             return ImageAnalysisResult(
                 image_type=image_type,
                 confidence=confidence,
-                description=ui_data.get("layout_description", "UI documentation analyzed"),
+                description=ui_data.get(
+                    "layout_description", "UI documentation analyzed"
+                ),
                 extracted_text=ui_data.get("extracted_text"),
                 validation_results={
                     "accessibility_notes": ui_data.get("accessibility_notes", []),
-                    "missing_elements": ui_data.get("missing_elements", [])
+                    "missing_elements": ui_data.get("missing_elements", []),
                 },
                 metadata={
                     "ui_elements": ui_data.get("ui_elements", []),
-                    "clarity_assessment": ui_data.get("clarity_assessment", "")
-                }
+                    "clarity_assessment": ui_data.get("clarity_assessment", ""),
+                },
             )
 
         except json.JSONDecodeError:
             return ImageAnalysisResult(
                 image_type=image_type,
                 confidence=0.5,
-                description="UI documentation analyzed with parsing issues"
+                description="UI documentation analyzed with parsing issues",
             )
 
-    async def _perform_general_analysis(self, image_bytes: bytes,
-                                      image_type: ImageType,
-                                      context: Optional[Dict[str, Any]]) -> ImageAnalysisResult:
+    async def _perform_general_analysis(
+        self,
+        image_bytes: bytes,
+        image_type: ImageType,
+        context: Optional[Dict[str, Any]],
+    ) -> ImageAnalysisResult:
         """Perform general image analysis"""
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
         general_prompt = f"""
 Analyze this image for documentation purposes:
@@ -306,18 +340,19 @@ Provide a clear, concise analysis focusing on documentation value.
                 image_type=image_type,
                 confidence=0.7,  # Default confidence for general analysis
                 description=response,
-                metadata={"analysis_type": "general"}
+                metadata={"analysis_type": "general"},
             )
 
         except Exception as e:
             return ImageAnalysisResult(
                 image_type=image_type,
                 confidence=0.3,
-                description=f"General analysis completed with issues: {str(e)}"
+                description=f"General analysis completed with issues: {str(e)}",
             )
 
-    async def _call_nova_pro(self, prompt: str, image_base64: str,
-                           use_lite_model: bool = False) -> str:
+    async def _call_nova_pro(
+        self, prompt: str, image_base64: str, use_lite_model: bool = False
+    ) -> str:
         """Call Nova Pro API for image analysis"""
         model_id = self.nova_lite_model_id if use_lite_model else self.nova_pro_model_id
 
@@ -327,21 +362,16 @@ Provide a clear, concise analysis focusing on documentation value.
             "textGenerationConfig": {
                 "maxTokenCount": 4000,
                 "temperature": 0.1,
-                "topP": 0.9
+                "topP": 0.9,
             },
-            "inferenceConfig": {
-                "max_tokens": 4000,
-                "temperature": 0.1
-            }
+            "inferenceConfig": {"max_tokens": 4000, "temperature": 0.1},
         }
 
         # Add image data
         if image_base64:
             request_body["inputImage"] = {
                 "format": "png",  # Nova Pro handles format detection
-                "source": {
-                    "bytes": image_base64
-                }
+                "source": {"bytes": image_base64},
             }
 
         try:
@@ -352,11 +382,11 @@ Provide a clear, concise analysis focusing on documentation value.
                 lambda: self.bedrock_runtime.invoke_model(
                     modelId=model_id,
                     body=json.dumps(request_body),
-                    contentType='application/json'
-                )
+                    contentType="application/json",
+                ),
             )
 
-            response_body = json.loads(response['body'].read())
+            response_body = json.loads(response["body"].read())
 
             # Extract text from Nova Pro response
             if "results" in response_body:
@@ -370,8 +400,9 @@ Provide a clear, concise analysis focusing on documentation value.
             logger.error(f"Error calling Nova Pro: {str(e)}")
             raise
 
-    async def validate_diagram_accuracy(self, image_data: Union[str, bytes],
-                                      reference_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def validate_diagram_accuracy(
+        self, image_data: Union[str, bytes], reference_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Validate diagram accuracy against reference data
 
@@ -381,7 +412,9 @@ Provide a clear, concise analysis focusing on documentation value.
         """
         try:
             # Analyze the image
-            analysis = await self.analyze_documentation_image(image_data, reference_data)
+            analysis = await self.analyze_documentation_image(
+                image_data, reference_data
+            )
 
             # Compare with reference data
             validation_results = {
@@ -389,7 +422,7 @@ Provide a clear, concise analysis focusing on documentation value.
                 "validation_passed": analysis.confidence >= 0.7,
                 "image_type": analysis.image_type.value,
                 "issues_found": [],
-                "recommendations": []
+                "recommendations": [],
             }
 
             # Add specific validation logic based on reference data
@@ -401,9 +434,13 @@ Provide a clear, concise analysis focusing on documentation value.
                 extra = found - expected
 
                 if missing:
-                    validation_results["issues_found"].append(f"Missing components: {missing}")
+                    validation_results["issues_found"].append(
+                        f"Missing components: {missing}"
+                    )
                 if extra:
-                    validation_results["issues_found"].append(f"Unexpected components: {extra}")
+                    validation_results["issues_found"].append(
+                        f"Unexpected components: {extra}"
+                    )
 
             # Add validation results from analysis
             if analysis.validation_results:
@@ -421,7 +458,7 @@ Provide a clear, concise analysis focusing on documentation value.
             return {
                 "overall_accuracy": 0.0,
                 "validation_passed": False,
-                "error": str(e)
+                "error": str(e),
             }
 
     def get_supported_formats(self) -> List[str]:
@@ -438,15 +475,17 @@ Provide a clear, concise analysis focusing on documentation value.
                 "Text extraction",
                 "Diagram analysis",
                 "UI documentation analysis",
-                "Accuracy validation"
+                "Accuracy validation",
             ],
             "supported_image_types": [t.value for t in ImageType],
-            "max_image_size": self.max_image_size
+            "max_image_size": self.max_image_size,
         }
 
+
 # Integration function for existing systems
-async def analyze_documentation_image(image_path_or_data: Union[str, bytes],
-                                    context: Optional[Dict[str, Any]] = None) -> ImageAnalysisResult:
+async def analyze_documentation_image(
+    image_path_or_data: Union[str, bytes], context: Optional[Dict[str, Any]] = None
+) -> ImageAnalysisResult:
     """
     Standalone function to analyze documentation images
 
@@ -458,12 +497,13 @@ async def analyze_documentation_image(image_path_or_data: Union[str, bytes],
 
     if isinstance(image_path_or_data, str) and os.path.exists(image_path_or_data):
         # Load image from file
-        with open(image_path_or_data, 'rb') as f:
+        with open(image_path_or_data, "rb") as f:
             image_data = f.read()
     else:
         image_data = image_path_or_data
 
     return await analyzer.analyze_documentation_image(image_data, context)
+
 
 # Example usage and testing
 async def test_nova_pro_integration():
@@ -478,6 +518,7 @@ async def test_nova_pro_integration():
 
     # In a real scenario, you would test with actual images
     logger.info("Nova Pro integration test setup complete")
+
 
 if __name__ == "__main__":
     asyncio.run(test_nova_pro_integration())

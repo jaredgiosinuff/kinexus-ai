@@ -1,97 +1,224 @@
 # Architecture
 
-Kinexus AI combines a FastAPI service layer, asynchronous agent routines, and a PostgreSQL-backed review workflow. The current implementation focuses on reliable change intake and human-supervised documentation updates while keeping hooks in place for forthcoming autonomic features.
+Kinexus AI uses a **serverless event-driven architecture** on AWS to automatically generate, review, and publish documentation. The production system is fully deployed on AWS using Lambda functions, EventBridge, DynamoDB, S3, and API Gateway. A local FastAPI development stack is available for testing.
 
-## High-Level Components
+## Production Architecture (AWS Serverless)
+
+### High-Level Components
+
 ```mermaid
-flowchart LR
-    subgraph Client
-        FE[Frontend Optional]
-        Ops[Ops Tooling]
-        Integrators[External Callers]
-    end
-
-    subgraph API_Tier
-        APISvc[FastAPI Application]
-        WebSockets[WebSocket Hub]
-    end
-
-    subgraph Core
-        Reviews[Review Service]
-        Auth[Auth Service]
-        IntegrationsSvc[Integration Service]
-        AgentsRuntime[Agent Orchestrator]
-    end
-
-    subgraph Data
-        PG[(PostgreSQL)]
-        Redis[(Redis Cache)]
-        OpenSearch[(OpenSearch Vector Index)]
-    end
-
+flowchart TB
     subgraph External
-        Bedrock[(AWS Bedrock Models)]
-        SaaS[Connected SaaS APIs]
+        Jira[Jira/Confluence]
+        Bedrock[AWS Bedrock - Claude]
     end
 
-    Client --> APISvc
-    APISvc --> Reviews
-    APISvc --> Auth
-    APISvc --> IntegrationsSvc
-    Reviews --> PG
-    Auth --> PG
-    IntegrationsSvc --> PG
-    IntegrationsSvc --> Redis
-    AgentsRuntime --> PG
-    AgentsRuntime --> OpenSearch
-    AgentsRuntime --> Bedrock
-    IntegrationsSvc --> SaaS
+    subgraph AWS_Infrastructure
+        subgraph API_Layer
+            APIGW[API Gateway]
+        end
+
+        subgraph Compute
+            L1[JiraWebhookHandler]
+            L2[DocumentOrchestrator]
+            L3[ReviewTicketCreator]
+            L4[ApprovalHandler]
+            Layer[Lambda Layer - Dependencies]
+        end
+
+        subgraph Events
+            EventBus[EventBridge Bus]
+            R1[ChangeDetected Rule]
+            R2[DocumentGenerated Rule]
+        end
+
+        subgraph Storage
+            S3[S3 Bucket - Documents & Diffs]
+            DDB1[(DynamoDB - Changes)]
+            DDB2[(DynamoDB - Documents)]
+        end
+    end
+
+    Jira -->|Webhook: Issue Events| APIGW
+    Jira -->|Webhook: Comment Events| APIGW
+    APIGW -->|/webhooks/jira| L1
+    APIGW -->|/webhooks/approval| L4
+
+    L1 -->|Put Event| EventBus
+    EventBus -->|ChangeDetected| R1
+    R1 -->|Trigger| L2
+
+    L2 -->|Invoke Model| Bedrock
+    L2 -->|Store Content| S3
+    L2 -->|Store Metadata| DDB2
+    L2 -->|Put Event| EventBus
+
+    EventBus -->|DocumentGenerated| R2
+    R2 -->|Trigger| L3
+
+    L3 -->|Read Content| S3
+    L3 -->|Generate Diff| S3
+    L3 -->|Create Ticket| Jira
+
+    L4 -->|Read Content| S3
+    L4 -->|Publish Page| Jira
+    L4 -->|Update Status| DDB2
+
+    L1 -.->|Uses| Layer
+    L2 -.->|Uses| Layer
+    L3 -.->|Uses| Layer
+    L4 -.->|Uses| Layer
+
+    style Bedrock fill:#e1f5e1
+    style S3 fill:#d4edda
+    style EventBus fill:#fff3cd
 ```
 
-- **FastAPI Application** (`src/api`) exposes REST and WebSocket interfaces, wires authentication, and hosts review/document routers.
-- **Core Services** (`src/core/services`) wrap domain logic for reviews, auth, integrations, metrics, and logging.
-- **Agents Runtime** (`src/agents`) contains orchestration, RAG utilities, and Bedrock-facing helpers. Today these modules are invoked manually or via scripts; upcoming work will route change events through them automatically.
-- **Data Stores** use PostgreSQL for durable records (users, documents, reviews, approvals) with Redis acting as a cache/ephemeral coordination layer. OpenSearch is provisioned for semantic search experiments but not wired into production flows yet.
-- **External Dependencies** include direct Bedrock model calls plus REST APIs for integrations (GitHub, Monday.com, ServiceNow, SharePoint, Jira, etc.). Only Monday.com has an end-to-end sync path today; others expose connection scaffolding awaiting credentials and validation.
+### AWS Components
 
-## Runtime Flow
+**Lambda Functions:**
+1. **JiraWebhookHandler** (`src/lambdas/jira_webhook_handler.py`)
+   - Processes Jira webhook events (ticket created, updated, closed)
+   - Smart filtering to determine if documentation needed
+   - Creates change records in DynamoDB
+   - Emits `ChangeDetected` events to EventBridge
+   - Timeout: 30s | Memory: 512MB
+
+2. **DocumentOrchestrator** (`src/lambdas/document_orchestrator.py`)
+   - Triggered by `ChangeDetected` events
+   - Analyzes changes using **Claude 3 Haiku** or **Amazon Nova Lite** (AWS Bedrock)
+   - Generates documentation content with AI
+   - Searches Confluence for related pages (keyword-based CQL search)
+   - Decides: UPDATE existing doc vs CREATE new doc
+   - Stores content in S3 with versioning
+   - Updates document metadata in DynamoDB
+   - Emits `DocumentGenerated` events
+   - Timeout: 5min | Memory: 1024MB
+
+3. **ReviewTicketCreator** (`src/lambdas/review_ticket_creator.py`)
+   - Triggered by `DocumentGenerated` events
+   - Retrieves previous and current versions from S3
+   - Generates HTML visual diffs (red/green highlighting)
+   - Detects image changes (added/removed)
+   - Uploads diff to S3 with presigned URL (7-day expiry)
+   - Auto-creates Jira review ticket with diff link
+   - **Auto-adds labels** after ticket creation: `documentation-review`, `auto-generated`, `kinexus-ai`
+   - Uses update API (works even if labels field not on create screen)
+   - Timeout: 60s | Memory: 512MB
+
+4. **ApprovalHandler** (`src/lambdas/approval_handler.py`)
+   - Processes Jira comment webhooks
+   - **Robust review ticket detection** (two-method approach):
+     - Primary: Check for `documentation-review` label
+     - Fallback: Check if summary starts with "Review:"
+   - **ADF Text Extraction**: Jira REST API v3 returns Atlassian Document Format (JSON)
+   - Recursively extracts plain text from nested ADF content
+   - **Regex with timestamp support**: Pattern `[a-z0-9_.-]+` includes dots for full document IDs
+   - Pattern matches approval commands (APPROVED/REJECTED/NEEDS REVISION)
+   - Publishes approved docs to Confluence
+   - Updates DynamoDB and Jira tickets
+   - Emits `DocumentationPublished` events
+   - Timeout: 90s | Memory: 512MB
+
+**EventBridge:**
+- **Event Bus**: `kinexus-events`
+- **Rules:**
+  - `ChangeDetectedRule`: Routes `kinexus.jira/ChangeDetected` → DocumentOrchestrator
+  - `DocumentGeneratedRule`: Routes `kinexus.orchestrator/DocumentGenerated` → ReviewTicketCreator
+
+**DynamoDB Tables:**
+- **kinexus-changes**: Stores change records from Jira tickets
+  - Partition key: `change_id`
+  - Tracks: ticket_key, summary, status, labels, documentation context
+- **kinexus-documents**: Stores document metadata and versions
+  - Partition key: `document_id`
+  - Tracks: title, content location (S3), version, approval status, review tickets
+
+**S3 Bucket:**
+- **kinexus-documents-{account}-{region}**
+  - `documents/` - Generated documentation content (markdown)
+  - `diffs/` - HTML visual diffs with presigned URLs (7-day expiry)
+  - Versioning enabled for audit trail
+
+**API Gateway:**
+- **Endpoints:**
+  - `POST /webhooks/jira` → JiraWebhookHandler
+  - `POST /webhooks/approval` → ApprovalHandler
+  - `GET /documents` → DocumentOrchestrator (query)
+
+**Lambda Layer:**
+- Shared dependencies: structlog, httpx, anthropic, pydantic, requests, orjson
+- Excludes boto3/botocore (provided by AWS runtime)
+- Size: ~30MB compressed
+
+### Production Workflow
+
 ```mermaid
 sequenceDiagram
-    participant Source as Source System
-    participant API as FastAPI
-    participant Review as Review Service
-    participant Agent as Agent Scripts
-    participant DB as PostgreSQL
+    participant Jira as Jira Ticket
+    participant WH as JiraWebhookHandler
+    participant EB as EventBridge
+    participant Orch as DocumentOrchestrator
+    participant Bedrock as Claude/Bedrock
+    participant S3 as S3 Storage
+    participant Rev as ReviewTicketCreator
+    participant Human as Human Reviewer
+    participant App as ApprovalHandler
+    participant Conf as Confluence
 
-    Source->>API: Webhook / change event (GitHub, Jira, etc.)
-    API->>Review: create_review(change_context)
-    Review->>DB: persist review & document version stubs
-    API-->>Source: 202 Accepted
-    Note right of Review: Review appears in dashboard/API queue
+    Jira->>WH: Webhook: Ticket Closed (needs-docs)
+    WH->>WH: Smart filtering
+    WH->>DynamoDB: Store change record
+    WH->>EB: Event: ChangeDetected
+    EB->>Orch: Trigger Lambda
 
-    loop Manual or Scheduled Trigger
-        Agent->>DB: fetch pending reviews
-        Agent->>Bedrock: analyze change context (planned)
-        Agent->>DB: store generated content/version
-        Agent->>Review: mark review complete or pending human input
-    end
+    Orch->>Bedrock: Analyze change + generate docs
+    Bedrock-->>Orch: Documentation content
+    Orch->>S3: Store content (v2)
+    Orch->>DynamoDB: Update document metadata
+    Orch->>EB: Event: DocumentGenerated
 
-    Reviewer->>API: approve / request changes
-    API->>DB: update review + document state
+    EB->>Rev: Trigger Lambda
+    Rev->>S3: Get previous version (v1)
+    Rev->>S3: Get current version (v2)
+    Rev->>Rev: Generate HTML diff
+    Rev->>S3: Upload diff.html
+    Rev->>Jira: Create review ticket
+    Rev->>Jira: Auto-add labels (update API)
+    Note over Jira: TOAST-43: Review: Docs<br/>Labels: documentation-review
+
+    Human->>Jira: View diff link
+    Human->>Jira: Comment: APPROVED
+
+    Jira->>App: Webhook: Comment Created
+    App->>App: Detect review ticket (label + summary)
+    App->>App: Extract text from ADF format
+    App->>App: Parse approval decision (regex)
+    App->>S3: Read approved content
+    App->>Conf: Publish/Update page
+    App->>DynamoDB: Update status: published
+    App->>Jira: Comment success + URL
+    App->>EB: Event: DocumentationPublished
 ```
 
-- Reviews are created immediately on change intake. Most downstream automation is still manual or scripted while the agent supervisor matures.
-- Agent modules can be executed locally (e.g., `python src/agents/multi_agent_supervisor.py`) to exercise Bedrock integrations and persistent memory utilities. Production orchestration will eventually run in a worker queue.
+**Phase 4 Implementation Highlights:**
+- ✅ **Auto-labeling**: ReviewTicketCreator adds labels automatically
+- ✅ **ADF text extraction**: ApprovalHandler handles Jira's JSON response format
+- ✅ **Robust detection**: Fallback to summary pattern if labels missing
+- ✅ **Timestamp support**: Regex includes dots for full document IDs
 
-## Local Development Topology
+## Local Development Topology (FastAPI Stack)
+
+For **local development and testing**, Kinexus provides a containerized FastAPI stack:
+
 ```mermaid
 flowchart TB
     subgraph Containers
-        API[api]
-        Frontend[frontend]
+        API[api - FastAPI]
+        Frontend[frontend - React]
         Postgres[postgres]
         Redis[redis]
-        LocalStack[localstack]
+        LocalStack[localstack - AWS services]
         OpenSearch[opensearch]
         MockBedrock[mock-bedrock]
     end
@@ -105,12 +232,105 @@ flowchart TB
     Agents --> MockBedrock
 ```
 
-- `./quick-start.sh dev` orchestrates the stack, generates Poetry lock files, builds Docker images, and launches all containerized services.
-- `mock-bedrock` offers deterministic responses for integration tests; switch to live Bedrock by setting `BEDROCK_ENDPOINT_URL` and credentials.
-- LocalStack keeps S3, DynamoDB, and EventBridge APIs available for the agent scripts that expect AWS resources.
+- `./quick-start.sh dev` orchestrates the stack, generates Poetry lock files, builds Docker images, and launches all containerized services
+- `mock-bedrock` offers deterministic responses for integration tests; switch to live Bedrock by setting `BEDROCK_ENDPOINT_URL` and credentials
+- LocalStack keeps S3, DynamoDB, and EventBridge APIs available for the agent scripts that expect AWS resources
+- **Note:** The local stack is for development only. Production uses AWS Lambda.
+
+## Infrastructure as Code
+
+Kinexus uses **AWS CDK (Python)** for infrastructure:
+
+```python
+# infrastructure/app.py
+class KinexusAIMVPStack(Stack):
+    - Lambda functions (5 total)
+    - Lambda layer (shared dependencies)
+    - EventBridge bus and rules
+    - DynamoDB tables (2)
+    - S3 bucket (versioned)
+    - API Gateway REST API
+    - IAM roles and permissions
+
+# Deployment
+cdk deploy --context environment=development \
+  --context jira_base_url=$JIRA_BASE_URL \
+  --context jira_api_token=$JIRA_API_TOKEN
+```
+
+**GitHub Actions CI/CD:**
+- `.github/workflows/dev.yaml`
+- Triggers: Push to `develop` branch
+- Steps:
+  1. Run tests (pytest, black, isort, ruff)
+  2. Build Lambda layer (`scripts/build-layer.sh`)
+  3. Deploy CDK stack with secrets from GitHub
+  4. Verify deployment
+
+## Event Patterns
+
+**ChangeDetected Event:**
+```json
+{
+  "source": "kinexus.jira",
+  "detail-type": "ChangeDetected",
+  "detail": {
+    "change_id": "jira_TOAST-42_...",
+    "ticket_key": "TOAST-42",
+    "summary": "Add OAuth2 authentication",
+    "documentation_context": {...}
+  }
+}
+```
+
+**DocumentGenerated Event:**
+```json
+{
+  "source": "kinexus.orchestrator",
+  "detail-type": "DocumentGenerated",
+  "detail": {
+    "document_id": "doc_api-auth_v3",
+    "title": "API Authentication Guide",
+    "version": 3,
+    "s3_location": "s3://kinexus-documents-.../documents/..."
+  }
+}
+```
+
+**DocumentationPublished Event:**
+```json
+{
+  "source": "kinexus.approval",
+  "detail-type": "DocumentationPublished",
+  "detail": {
+    "document_id": "doc_api-auth_v3",
+    "confluence_url": "https://.../wiki/spaces/SD/pages/98310",
+    "approved_by": "sarah.techwriter",
+    "approved_at": "2025-10-19T20:45:00Z"
+  }
+}
+```
+
+## Security & Permissions
+
+**Lambda IAM Roles:**
+- Bedrock: `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream`
+- DynamoDB: Read/write on `kinexus-changes`, `kinexus-documents`
+- S3: Read/write on `kinexus-documents-*` bucket
+- EventBridge: `events:PutEvents` on `kinexus-events` bus
+- CloudWatch Logs: Write logs (1-week retention)
+
+**Secrets Management:**
+- Jira/Confluence credentials passed via CDK context from GitHub Secrets
+- Environment variables on Lambda functions
+- **Production**: Should migrate to AWS Secrets Manager
 
 ## Planned Enhancements
-- **Event-Driven Agent Orchestration**: connect the webhook pipeline to `multi_agent_supervisor` with async job execution and retry semantics.
-- **Searchable Knowledge Base**: finish wiring OpenSearch for document embeddings and context retrieval before generation.
-- **Observability**: surface metrics and structured logs through the existing `metrics_service` and `logging_service` once Prometheus/Grafana dashboards are reinstated.
-- **Integration Hardening**: graduate GitHub, ServiceNow, SharePoint adapters from scaffolding to fully tested connectors with credentials supplied via Secrets Manager.
+
+- **Automated Image Generation**: AI-generated diagrams using Mermaid/PlantUML
+- **Multi-Stage Approval**: Technical review → Documentation review → Product approval
+- **Slack Integration**: Notifications and inline approval buttons
+- **Metrics Dashboard**: Approval times, rejection rates, quality scores
+- **Revision Workflow**: Track changes after "NEEDS REVISION" feedback
+- **Enhanced RAG**: Use OpenSearch for context retrieval before generation
+- **Integration Hardening**: GitHub, ServiceNow, SharePoint adapters

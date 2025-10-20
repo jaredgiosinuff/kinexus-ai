@@ -1,17 +1,16 @@
-from sqlalchemy.orm import Session, sessionmaker, joinedload
-from sqlalchemy import and_, or_, desc, asc, func
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
 import uuid
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
-from ..models.auth import (
-    User, Role, Permission, UserSession, AuthConfig,
-    UserStatus, AuthProvider, user_roles, role_permissions
-)
+from sqlalchemy import and_, desc, or_
+from sqlalchemy.orm import Session, joinedload
+
 from ..database import get_database_session
+from ..models.auth import Permission, Role, User, UserSession, UserStatus
 from ..services.logging_service import StructuredLogger
 
 logger = StructuredLogger("repository.user")
+
 
 class UserRepository:
     """Repository for managing user data and authentication."""
@@ -26,7 +25,7 @@ class UserRepository:
         password_hash: str,
         is_admin: bool = False,
         provider: str = "local",
-        provider_user_id: Optional[str] = None
+        provider_user_id: Optional[str] = None,
     ) -> User:
         """Create a new user."""
         try:
@@ -41,7 +40,7 @@ class UserRepository:
                 is_active=True,
                 is_verified=provider != "local",  # External providers are pre-verified
                 status=UserStatus.ACTIVE,
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
 
             self.db.add(user)
@@ -54,29 +53,32 @@ class UserRepository:
             else:
                 await self.assign_role(user.id, "user")
 
-            logger.info("User created", {
-                "user_id": user.id,
-                "email": email,
-                "provider": provider,
-                "is_admin": is_admin
-            })
+            logger.info(
+                "User created",
+                {
+                    "user_id": user.id,
+                    "email": email,
+                    "provider": provider,
+                    "is_admin": is_admin,
+                },
+            )
 
             return user
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to create user", {
-                "email": email,
-                "error": str(e)
-            })
+            logger.error("Failed to create user", {"email": email, "error": str(e)})
             raise
 
     async def get_by_id(self, user_id: str) -> Optional[User]:
         """Get a user by ID with roles and permissions."""
         try:
-            user = self.db.query(User).options(
-                joinedload(User.roles).joinedload(Role.permissions)
-            ).filter(User.id == user_id).first()
+            user = (
+                self.db.query(User)
+                .options(joinedload(User.roles).joinedload(Role.permissions))
+                .filter(User.id == user_id)
+                .first()
+            )
 
             if user:
                 logger.debug("User retrieved by ID", {"user_id": user_id})
@@ -84,18 +86,20 @@ class UserRepository:
             return user
 
         except Exception as e:
-            logger.error("Failed to get user by ID", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get user by ID", {"user_id": user_id, "error": str(e)}
+            )
             raise
 
     async def get_by_email(self, email: str) -> Optional[User]:
         """Get a user by email with roles and permissions."""
         try:
-            user = self.db.query(User).options(
-                joinedload(User.roles).joinedload(Role.permissions)
-            ).filter(User.email == email.lower()).first()
+            user = (
+                self.db.query(User)
+                .options(joinedload(User.roles).joinedload(Role.permissions))
+                .filter(User.email == email.lower())
+                .first()
+            )
 
             if user:
                 logger.debug("User retrieved by email", {"email": email})
@@ -103,35 +107,44 @@ class UserRepository:
             return user
 
         except Exception as e:
-            logger.error("Failed to get user by email", {
-                "email": email,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get user by email", {"email": email, "error": str(e)}
+            )
             raise
 
-    async def get_by_provider_id(self, provider: str, provider_user_id: str) -> Optional[User]:
+    async def get_by_provider_id(
+        self, provider: str, provider_user_id: str
+    ) -> Optional[User]:
         """Get a user by provider and provider user ID."""
         try:
-            user = self.db.query(User).options(
-                joinedload(User.roles).joinedload(Role.permissions)
-            ).filter(
-                and_(
-                    User.provider == provider,
-                    User.provider_user_id == provider_user_id
+            user = (
+                self.db.query(User)
+                .options(joinedload(User.roles).joinedload(Role.permissions))
+                .filter(
+                    and_(
+                        User.provider == provider,
+                        User.provider_user_id == provider_user_id,
+                    )
                 )
-            ).first()
+                .first()
+            )
 
             return user
 
         except Exception as e:
-            logger.error("Failed to get user by provider ID", {
-                "provider": provider,
-                "provider_user_id": provider_user_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get user by provider ID",
+                {
+                    "provider": provider,
+                    "provider_user_id": provider_user_id,
+                    "error": str(e),
+                },
+            )
             raise
 
-    async def update_user(self, user_id: str, update_data: Dict[str, Any]) -> Optional[User]:
+    async def update_user(
+        self, user_id: str, update_data: Dict[str, Any]
+    ) -> Optional[User]:
         """Update user information."""
         try:
             user = await self.get_by_id(user_id)
@@ -140,26 +153,23 @@ class UserRepository:
 
             # Update allowed fields
             for field, value in update_data.items():
-                if hasattr(user, field) and field not in ['id', 'created_at']:
+                if hasattr(user, field) and field not in ["id", "created_at"]:
                     setattr(user, field, value)
 
             user.updated_at = datetime.utcnow()
             self.db.commit()
             self.db.refresh(user)
 
-            logger.info("User updated", {
-                "user_id": user_id,
-                "updated_fields": list(update_data.keys())
-            })
+            logger.info(
+                "User updated",
+                {"user_id": user_id, "updated_fields": list(update_data.keys())},
+            )
 
             return user
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to update user", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error("Failed to update user", {"user_id": user_id, "error": str(e)})
             raise
 
     async def delete_user(self, user_id: str) -> bool:
@@ -179,10 +189,7 @@ class UserRepository:
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to delete user", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error("Failed to delete user", {"user_id": user_id, "error": str(e)})
             raise
 
     async def list_users(
@@ -191,13 +198,11 @@ class UserRepository:
         limit: int = 100,
         status_filter: Optional[str] = None,
         provider_filter: Optional[str] = None,
-        search: Optional[str] = None
+        search: Optional[str] = None,
     ) -> List[User]:
         """List users with filtering and pagination."""
         try:
-            query = self.db.query(User).options(
-                joinedload(User.roles)
-            )
+            query = self.db.query(User).options(joinedload(User.roles))
 
             # Apply filters
             if status_filter:
@@ -209,25 +214,27 @@ class UserRepository:
             if search:
                 search_term = f"%{search}%"
                 query = query.filter(
-                    or_(
-                        User.email.ilike(search_term),
-                        User.name.ilike(search_term)
-                    )
+                    or_(User.email.ilike(search_term), User.name.ilike(search_term))
                 )
 
             # Apply pagination
-            users = query.order_by(desc(User.created_at)).offset(skip).limit(limit).all()
+            users = (
+                query.order_by(desc(User.created_at)).offset(skip).limit(limit).all()
+            )
 
-            logger.debug("Users listed", {
-                "count": len(users),
-                "skip": skip,
-                "limit": limit,
-                "filters": {
-                    "status": status_filter,
-                    "provider": provider_filter,
-                    "search": search
-                }
-            })
+            logger.debug(
+                "Users listed",
+                {
+                    "count": len(users),
+                    "skip": skip,
+                    "limit": limit,
+                    "filters": {
+                        "status": status_filter,
+                        "provider": provider_filter,
+                        "search": search,
+                    },
+                },
+            )
 
             return users
 
@@ -254,20 +261,18 @@ class UserRepository:
             user.roles.append(role)
             self.db.commit()
 
-            logger.info("Role assigned to user", {
-                "user_id": user_id,
-                "role_name": role_name
-            })
+            logger.info(
+                "Role assigned to user", {"user_id": user_id, "role_name": role_name}
+            )
 
             return True
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to assign role", {
-                "user_id": user_id,
-                "role_name": role_name,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to assign role",
+                {"user_id": user_id, "role_name": role_name, "error": str(e)},
+            )
             raise
 
     async def remove_role(self, user_id: str, role_name: str) -> bool:
@@ -285,20 +290,19 @@ class UserRepository:
                 user.roles.remove(role)
                 self.db.commit()
 
-                logger.info("Role removed from user", {
-                    "user_id": user_id,
-                    "role_name": role_name
-                })
+                logger.info(
+                    "Role removed from user",
+                    {"user_id": user_id, "role_name": role_name},
+                )
 
             return True
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to remove role", {
-                "user_id": user_id,
-                "role_name": role_name,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to remove role",
+                {"user_id": user_id, "role_name": role_name, "error": str(e)},
+            )
             raise
 
     async def get_user_permissions(self, user_id: str) -> List[str]:
@@ -316,10 +320,9 @@ class UserRepository:
             return list(permissions)
 
         except Exception as e:
-            logger.error("Failed to get user permissions", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get user permissions", {"user_id": user_id, "error": str(e)}
+            )
             raise
 
     async def create_session(
@@ -329,7 +332,7 @@ class UserRepository:
         expires_at: datetime,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        refresh_token_hash: Optional[str] = None
+        refresh_token_hash: Optional[str] = None,
     ) -> UserSession:
         """Create a new user session."""
         try:
@@ -343,39 +346,45 @@ class UserRepository:
                 expires_at=expires_at,
                 created_at=datetime.utcnow(),
                 last_accessed=datetime.utcnow(),
-                is_active=True
+                is_active=True,
             )
 
             self.db.add(session)
             self.db.commit()
             self.db.refresh(session)
 
-            logger.info("User session created", {
-                "user_id": user_id,
-                "session_id": session.id,
-                "ip_address": ip_address
-            })
+            logger.info(
+                "User session created",
+                {
+                    "user_id": user_id,
+                    "session_id": session.id,
+                    "ip_address": ip_address,
+                },
+            )
 
             return session
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to create session", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to create session", {"user_id": user_id, "error": str(e)}
+            )
             raise
 
     async def get_session(self, token_hash: str) -> Optional[UserSession]:
         """Get a session by token hash."""
         try:
-            session = self.db.query(UserSession).filter(
-                and_(
-                    UserSession.token_hash == token_hash,
-                    UserSession.is_active == True,
-                    UserSession.expires_at > datetime.utcnow()
+            session = (
+                self.db.query(UserSession)
+                .filter(
+                    and_(
+                        UserSession.token_hash == token_hash,
+                        UserSession.is_active is True,
+                        UserSession.expires_at > datetime.utcnow(),
+                    )
                 )
-            ).first()
+                .first()
+            )
 
             if session:
                 # Update last accessed time
@@ -391,9 +400,9 @@ class UserRepository:
     async def revoke_session(self, session_id: str) -> bool:
         """Revoke a user session."""
         try:
-            session = self.db.query(UserSession).filter(
-                UserSession.id == session_id
-            ).first()
+            session = (
+                self.db.query(UserSession).filter(UserSession.id == session_id).first()
+            )
 
             if not session:
                 return False
@@ -407,20 +416,18 @@ class UserRepository:
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to revoke session", {
-                "session_id": session_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to revoke session", {"session_id": session_id, "error": str(e)}
+            )
             raise
 
-    async def revoke_user_sessions(self, user_id: str, except_session_id: Optional[str] = None) -> int:
+    async def revoke_user_sessions(
+        self, user_id: str, except_session_id: Optional[str] = None
+    ) -> int:
         """Revoke all sessions for a user."""
         try:
             query = self.db.query(UserSession).filter(
-                and_(
-                    UserSession.user_id == user_id,
-                    UserSession.is_active == True
-                )
+                and_(UserSession.user_id == user_id, UserSession.is_active is True)
             )
 
             if except_session_id:
@@ -436,33 +443,37 @@ class UserRepository:
 
             self.db.commit()
 
-            logger.info("User sessions revoked", {
-                "user_id": user_id,
-                "revoked_count": revoked_count
-            })
+            logger.info(
+                "User sessions revoked",
+                {"user_id": user_id, "revoked_count": revoked_count},
+            )
 
             return revoked_count
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to revoke user sessions", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to revoke user sessions", {"user_id": user_id, "error": str(e)}
+            )
             raise
 
     async def cleanup_expired_sessions(self) -> int:
         """Clean up expired sessions."""
         try:
-            expired_sessions = self.db.query(UserSession).filter(
-                or_(
-                    UserSession.expires_at <= datetime.utcnow(),
-                    and_(
-                        UserSession.is_active == True,
-                        UserSession.last_accessed <= datetime.utcnow() - timedelta(days=30)
+            expired_sessions = (
+                self.db.query(UserSession)
+                .filter(
+                    or_(
+                        UserSession.expires_at <= datetime.utcnow(),
+                        and_(
+                            UserSession.is_active is True,
+                            UserSession.last_accessed
+                            <= datetime.utcnow() - timedelta(days=30),
+                        ),
                     )
                 )
-            ).all()
+                .all()
+            )
 
             cleanup_count = 0
             for session in expired_sessions:
@@ -473,9 +484,7 @@ class UserRepository:
 
             self.db.commit()
 
-            logger.info("Expired sessions cleaned up", {
-                "cleanup_count": cleanup_count
-            })
+            logger.info("Expired sessions cleaned up", {"cleanup_count": cleanup_count})
 
             return cleanup_count
 
@@ -484,7 +493,9 @@ class UserRepository:
             logger.error("Failed to cleanup expired sessions", {"error": str(e)})
             raise
 
-    async def get_user_sessions(self, user_id: str, active_only: bool = True) -> List[UserSession]:
+    async def get_user_sessions(
+        self, user_id: str, active_only: bool = True
+    ) -> List[UserSession]:
         """Get all sessions for a user."""
         try:
             query = self.db.query(UserSession).filter(UserSession.user_id == user_id)
@@ -492,8 +503,8 @@ class UserRepository:
             if active_only:
                 query = query.filter(
                     and_(
-                        UserSession.is_active == True,
-                        UserSession.expires_at > datetime.utcnow()
+                        UserSession.is_active is True,
+                        UserSession.expires_at > datetime.utcnow(),
                     )
                 )
 
@@ -502,10 +513,9 @@ class UserRepository:
             return sessions
 
         except Exception as e:
-            logger.error("Failed to get user sessions", {
-                "user_id": user_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get user sessions", {"user_id": user_id, "error": str(e)}
+            )
             raise
 
     # Role and Permission management methods
@@ -517,7 +527,7 @@ class UserRepository:
                 id=str(uuid.uuid4()),
                 name=name,
                 description=description,
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
 
             self.db.add(role)
@@ -533,7 +543,9 @@ class UserRepository:
             logger.error("Failed to create role", {"name": name, "error": str(e)})
             raise
 
-    async def create_permission(self, name: str, description: Optional[str] = None, category: str = "general") -> Permission:
+    async def create_permission(
+        self, name: str, description: Optional[str] = None, category: str = "general"
+    ) -> Permission:
         """Create a new permission."""
         try:
             permission = Permission(
@@ -541,14 +553,16 @@ class UserRepository:
                 name=name,
                 description=description,
                 category=category,
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
 
             self.db.add(permission)
             self.db.commit()
             self.db.refresh(permission)
 
-            logger.info("Permission created", {"permission_id": permission.id, "name": name})
+            logger.info(
+                "Permission created", {"permission_id": permission.id, "name": name}
+            )
 
             return permission
 
@@ -560,9 +574,7 @@ class UserRepository:
     async def get_all_roles(self) -> List[Role]:
         """Get all roles with their permissions."""
         try:
-            roles = self.db.query(Role).options(
-                joinedload(Role.permissions)
-            ).all()
+            roles = self.db.query(Role).options(joinedload(Role.permissions)).all()
 
             return roles
 

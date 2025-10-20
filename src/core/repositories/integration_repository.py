@@ -1,17 +1,21 @@
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy import and_, or_, desc, asc, func
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
 import uuid
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
-from ..models.integrations import (
-    Integration, IntegrationSyncLog, WebhookDelivery,
-    IntegrationStatus, IntegrationType
-)
+from sqlalchemy import and_, desc, func, or_
+from sqlalchemy.orm import Session
+
 from ..database import get_database_session
+from ..models.integrations import (
+    Integration,
+    IntegrationStatus,
+    IntegrationSyncLog,
+    WebhookDelivery,
+)
 from ..services.logging_service import StructuredLogger
 
 logger = StructuredLogger("repository.integration")
+
 
 class IntegrationRepository:
     """Repository for managing integration data."""
@@ -26,7 +30,7 @@ class IntegrationRepository:
         config: Dict[str, Any],
         auth_type: str,
         auth_config: Dict[str, Any],
-        created_by: Optional[str] = None
+        created_by: Optional[str] = None,
     ) -> Integration:
         """Create a new integration."""
         try:
@@ -39,47 +43,53 @@ class IntegrationRepository:
                 auth_config=auth_config,
                 status=IntegrationStatus.INACTIVE,
                 created_by=created_by,
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
 
             self.db.add(integration)
             self.db.commit()
             self.db.refresh(integration)
 
-            logger.info("Integration created", {
-                "integration_id": integration.id,
-                "name": name,
-                "type": integration_type
-            })
+            logger.info(
+                "Integration created",
+                {
+                    "integration_id": integration.id,
+                    "name": name,
+                    "type": integration_type,
+                },
+            )
 
             return integration
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to create integration", {
-                "name": name,
-                "type": integration_type,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to create integration",
+                {"name": name, "type": integration_type, "error": str(e)},
+            )
             raise
 
     async def get_by_id(self, integration_id: str) -> Optional[Integration]:
         """Get an integration by ID."""
         try:
-            integration = self.db.query(Integration).filter(
-                Integration.id == integration_id
-            ).first()
+            integration = (
+                self.db.query(Integration)
+                .filter(Integration.id == integration_id)
+                .first()
+            )
 
             if integration:
-                logger.debug("Integration retrieved", {"integration_id": integration_id})
+                logger.debug(
+                    "Integration retrieved", {"integration_id": integration_id}
+                )
 
             return integration
 
         except Exception as e:
-            logger.error("Failed to get integration", {
-                "integration_id": integration_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get integration",
+                {"integration_id": integration_id, "error": str(e)},
+            )
             raise
 
     async def get_all(self, status_filter: Optional[str] = None) -> List[Integration]:
@@ -92,10 +102,10 @@ class IntegrationRepository:
 
             integrations = query.order_by(desc(Integration.created_at)).all()
 
-            logger.debug("Integrations retrieved", {
-                "count": len(integrations),
-                "status_filter": status_filter
-            })
+            logger.debug(
+                "Integrations retrieved",
+                {"count": len(integrations), "status_filter": status_filter},
+            )
 
             return integrations
 
@@ -108,9 +118,7 @@ class IntegrationRepository:
         return await self.get_all(IntegrationStatus.ACTIVE)
 
     async def update_integration(
-        self,
-        integration_id: str,
-        update_data: Dict[str, Any]
+        self, integration_id: str, update_data: Dict[str, Any]
     ) -> Optional[Integration]:
         """Update an integration."""
         try:
@@ -127,19 +135,22 @@ class IntegrationRepository:
             self.db.commit()
             self.db.refresh(integration)
 
-            logger.info("Integration updated", {
-                "integration_id": integration_id,
-                "updated_fields": list(update_data.keys())
-            })
+            logger.info(
+                "Integration updated",
+                {
+                    "integration_id": integration_id,
+                    "updated_fields": list(update_data.keys()),
+                },
+            )
 
             return integration
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to update integration", {
-                "integration_id": integration_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to update integration",
+                {"integration_id": integration_id, "error": str(e)},
+            )
             raise
 
     async def delete_integration(self, integration_id: str) -> bool:
@@ -157,10 +168,10 @@ class IntegrationRepository:
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to delete integration", {
-                "integration_id": integration_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to delete integration",
+                {"integration_id": integration_id, "error": str(e)},
+            )
             raise
 
     async def create_sync_log(
@@ -168,7 +179,7 @@ class IntegrationRepository:
         integration_id: str,
         sync_type: str,
         direction: str,
-        status: str = "started"
+        status: str = "started",
     ) -> IntegrationSyncLog:
         """Create a new sync log."""
         try:
@@ -178,39 +189,42 @@ class IntegrationRepository:
                 sync_type=sync_type,
                 direction=direction,
                 status=status,
-                started_at=datetime.utcnow()
+                started_at=datetime.utcnow(),
             )
 
             self.db.add(sync_log)
             self.db.commit()
             self.db.refresh(sync_log)
 
-            logger.debug("Sync log created", {
-                "sync_log_id": sync_log.id,
-                "integration_id": integration_id,
-                "sync_type": sync_type
-            })
+            logger.debug(
+                "Sync log created",
+                {
+                    "sync_log_id": sync_log.id,
+                    "integration_id": integration_id,
+                    "sync_type": sync_type,
+                },
+            )
 
             return sync_log
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to create sync log", {
-                "integration_id": integration_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to create sync log",
+                {"integration_id": integration_id, "error": str(e)},
+            )
             raise
 
     async def update_sync_log(
-        self,
-        sync_log_id: str,
-        update_data: Dict[str, Any]
+        self, sync_log_id: str, update_data: Dict[str, Any]
     ) -> Optional[IntegrationSyncLog]:
         """Update a sync log."""
         try:
-            sync_log = self.db.query(IntegrationSyncLog).filter(
-                IntegrationSyncLog.id == sync_log_id
-            ).first()
+            sync_log = (
+                self.db.query(IntegrationSyncLog)
+                .filter(IntegrationSyncLog.id == sync_log_id)
+                .first()
+            )
 
             if not sync_log:
                 return None
@@ -223,26 +237,23 @@ class IntegrationRepository:
             self.db.commit()
             self.db.refresh(sync_log)
 
-            logger.debug("Sync log updated", {
-                "sync_log_id": sync_log_id,
-                "status": sync_log.status
-            })
+            logger.debug(
+                "Sync log updated",
+                {"sync_log_id": sync_log_id, "status": sync_log.status},
+            )
 
             return sync_log
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to update sync log", {
-                "sync_log_id": sync_log_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to update sync log",
+                {"sync_log_id": sync_log_id, "error": str(e)},
+            )
             raise
 
     async def get_sync_logs(
-        self,
-        integration_id: str,
-        limit: int = 50,
-        status_filter: Optional[str] = None
+        self, integration_id: str, limit: int = 50, status_filter: Optional[str] = None
     ) -> List[IntegrationSyncLog]:
         """Get sync logs for an integration."""
         try:
@@ -253,21 +264,26 @@ class IntegrationRepository:
             if status_filter:
                 query = query.filter(IntegrationSyncLog.status == status_filter)
 
-            sync_logs = query.order_by(desc(IntegrationSyncLog.started_at)).limit(limit).all()
+            sync_logs = (
+                query.order_by(desc(IntegrationSyncLog.started_at)).limit(limit).all()
+            )
 
-            logger.debug("Sync logs retrieved", {
-                "integration_id": integration_id,
-                "count": len(sync_logs),
-                "status_filter": status_filter
-            })
+            logger.debug(
+                "Sync logs retrieved",
+                {
+                    "integration_id": integration_id,
+                    "count": len(sync_logs),
+                    "status_filter": status_filter,
+                },
+            )
 
             return sync_logs
 
         except Exception as e:
-            logger.error("Failed to get sync logs", {
-                "integration_id": integration_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get sync logs",
+                {"integration_id": integration_id, "error": str(e)},
+            )
             raise
 
     async def create_webhook_delivery(
@@ -275,7 +291,7 @@ class IntegrationRepository:
         integration_id: str,
         event_type: str,
         payload: Dict[str, Any],
-        headers: Dict[str, str]
+        headers: Dict[str, str],
     ) -> WebhookDelivery:
         """Create a new webhook delivery record."""
         try:
@@ -286,39 +302,42 @@ class IntegrationRepository:
                 payload=payload,
                 headers=headers,
                 status="pending",
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
 
             self.db.add(delivery)
             self.db.commit()
             self.db.refresh(delivery)
 
-            logger.debug("Webhook delivery created", {
-                "delivery_id": delivery.id,
-                "integration_id": integration_id,
-                "event_type": event_type
-            })
+            logger.debug(
+                "Webhook delivery created",
+                {
+                    "delivery_id": delivery.id,
+                    "integration_id": integration_id,
+                    "event_type": event_type,
+                },
+            )
 
             return delivery
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to create webhook delivery", {
-                "integration_id": integration_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to create webhook delivery",
+                {"integration_id": integration_id, "error": str(e)},
+            )
             raise
 
     async def update_webhook_delivery(
-        self,
-        delivery_id: str,
-        update_data: Dict[str, Any]
+        self, delivery_id: str, update_data: Dict[str, Any]
     ) -> Optional[WebhookDelivery]:
         """Update a webhook delivery."""
         try:
-            delivery = self.db.query(WebhookDelivery).filter(
-                WebhookDelivery.id == delivery_id
-            ).first()
+            delivery = (
+                self.db.query(WebhookDelivery)
+                .filter(WebhookDelivery.id == delivery_id)
+                .first()
+            )
 
             if not delivery:
                 return None
@@ -331,40 +350,43 @@ class IntegrationRepository:
             self.db.commit()
             self.db.refresh(delivery)
 
-            logger.debug("Webhook delivery updated", {
-                "delivery_id": delivery_id,
-                "status": delivery.status
-            })
+            logger.debug(
+                "Webhook delivery updated",
+                {"delivery_id": delivery_id, "status": delivery.status},
+            )
 
             return delivery
 
         except Exception as e:
             self.db.rollback()
-            logger.error("Failed to update webhook delivery", {
-                "delivery_id": delivery_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to update webhook delivery",
+                {"delivery_id": delivery_id, "error": str(e)},
+            )
             raise
 
     async def get_failed_webhook_deliveries(
-        self,
-        max_age_hours: int = 24
+        self, max_age_hours: int = 24
     ) -> List[WebhookDelivery]:
         """Get failed webhook deliveries for retry."""
         try:
             cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
 
-            deliveries = self.db.query(WebhookDelivery).filter(
-                and_(
-                    WebhookDelivery.status == "failed",
-                    WebhookDelivery.attempts < WebhookDelivery.max_attempts,
-                    WebhookDelivery.created_at >= cutoff_time,
-                    or_(
-                        WebhookDelivery.next_retry.is_(None),
-                        WebhookDelivery.next_retry <= datetime.utcnow()
+            deliveries = (
+                self.db.query(WebhookDelivery)
+                .filter(
+                    and_(
+                        WebhookDelivery.status == "failed",
+                        WebhookDelivery.attempts < WebhookDelivery.max_attempts,
+                        WebhookDelivery.created_at >= cutoff_time,
+                        or_(
+                            WebhookDelivery.next_retry.is_(None),
+                            WebhookDelivery.next_retry <= datetime.utcnow(),
+                        ),
                     )
                 )
-            ).all()
+                .all()
+            )
 
             return deliveries
 
@@ -373,8 +395,7 @@ class IntegrationRepository:
             raise
 
     async def get_integration_stats(
-        self,
-        integration_id: Optional[str] = None
+        self, integration_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get statistics for integrations."""
         try:
@@ -395,13 +416,17 @@ class IntegrationRepository:
             ).count()
 
             # Sync statistics for today
-            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start = datetime.utcnow().replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
 
             sync_query = self.db.query(IntegrationSyncLog).filter(
                 IntegrationSyncLog.started_at >= today_start
             )
             if integration_id:
-                sync_query = sync_query.filter(IntegrationSyncLog.integration_id == integration_id)
+                sync_query = sync_query.filter(
+                    IntegrationSyncLog.integration_id == integration_id
+                )
 
             stats["total_syncs_today"] = sync_query.count()
             stats["successful_syncs_today"] = sync_query.filter(
@@ -418,7 +443,7 @@ class IntegrationRepository:
                 and_(
                     IntegrationSyncLog.started_at >= today_start,
                     IntegrationSyncLog.status == "success",
-                    IntegrationSyncLog.duration_seconds.isnot(None)
+                    IntegrationSyncLog.duration_seconds.isnot(None),
                 )
             )
             if integration_id:
@@ -431,9 +456,7 @@ class IntegrationRepository:
             # Data processed today
             data_processed = self.db.query(
                 func.sum(IntegrationSyncLog.records_processed)
-            ).filter(
-                IntegrationSyncLog.started_at >= today_start
-            )
+            ).filter(IntegrationSyncLog.started_at >= today_start)
             if integration_id:
                 data_processed = data_processed.filter(
                     IntegrationSyncLog.integration_id == integration_id
@@ -441,33 +464,38 @@ class IntegrationRepository:
 
             stats["data_processed_today"] = int(data_processed.scalar() or 0)
 
-            logger.debug("Integration stats calculated", {
-                "integration_id": integration_id,
-                "stats": stats
-            })
+            logger.debug(
+                "Integration stats calculated",
+                {"integration_id": integration_id, "stats": stats},
+            )
 
             return stats
 
         except Exception as e:
-            logger.error("Failed to get integration stats", {
-                "integration_id": integration_id,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get integration stats",
+                {"integration_id": integration_id, "error": str(e)},
+            )
             raise
 
     async def cleanup_old_sync_logs(self, cutoff_date: datetime) -> int:
         """Clean up old sync logs."""
         try:
-            deleted_count = self.db.query(IntegrationSyncLog).filter(
-                IntegrationSyncLog.started_at < cutoff_date
-            ).delete()
+            deleted_count = (
+                self.db.query(IntegrationSyncLog)
+                .filter(IntegrationSyncLog.started_at < cutoff_date)
+                .delete()
+            )
 
             self.db.commit()
 
-            logger.info("Old sync logs cleaned up", {
-                "deleted_count": deleted_count,
-                "cutoff_date": cutoff_date.isoformat()
-            })
+            logger.info(
+                "Old sync logs cleaned up",
+                {
+                    "deleted_count": deleted_count,
+                    "cutoff_date": cutoff_date.isoformat(),
+                },
+            )
 
             return deleted_count
 
@@ -479,16 +507,21 @@ class IntegrationRepository:
     async def cleanup_old_webhook_deliveries(self, cutoff_date: datetime) -> int:
         """Clean up old webhook deliveries."""
         try:
-            deleted_count = self.db.query(WebhookDelivery).filter(
-                WebhookDelivery.created_at < cutoff_date
-            ).delete()
+            deleted_count = (
+                self.db.query(WebhookDelivery)
+                .filter(WebhookDelivery.created_at < cutoff_date)
+                .delete()
+            )
 
             self.db.commit()
 
-            logger.info("Old webhook deliveries cleaned up", {
-                "deleted_count": deleted_count,
-                "cutoff_date": cutoff_date.isoformat()
-            })
+            logger.info(
+                "Old webhook deliveries cleaned up",
+                {
+                    "deleted_count": deleted_count,
+                    "cutoff_date": cutoff_date.isoformat(),
+                },
+            )
 
             return deleted_count
 
@@ -497,20 +530,25 @@ class IntegrationRepository:
             logger.error("Failed to cleanup webhook deliveries", {"error": str(e)})
             raise
 
-    async def get_integrations_by_type(self, integration_type: str) -> List[Integration]:
+    async def get_integrations_by_type(
+        self, integration_type: str
+    ) -> List[Integration]:
         """Get all integrations of a specific type."""
         try:
-            integrations = self.db.query(Integration).filter(
-                Integration.integration_type == integration_type
-            ).order_by(desc(Integration.created_at)).all()
+            integrations = (
+                self.db.query(Integration)
+                .filter(Integration.integration_type == integration_type)
+                .order_by(desc(Integration.created_at))
+                .all()
+            )
 
             return integrations
 
         except Exception as e:
-            logger.error("Failed to get integrations by type", {
-                "integration_type": integration_type,
-                "error": str(e)
-            })
+            logger.error(
+                "Failed to get integrations by type",
+                {"integration_type": integration_type, "error": str(e)},
+            )
             raise
 
     async def search_integrations(
@@ -518,7 +556,7 @@ class IntegrationRepository:
         query: str,
         integration_type: Optional[str] = None,
         status: Optional[str] = None,
-        limit: int = 50
+        limit: int = 50,
     ) -> List[Integration]:
         """Search integrations by name or description."""
         try:
@@ -530,7 +568,7 @@ class IntegrationRepository:
                 search_query = search_query.filter(
                     or_(
                         Integration.name.ilike(search_term),
-                        Integration.description.ilike(search_term)
+                        Integration.description.ilike(search_term),
                     )
                 )
 
@@ -544,22 +582,22 @@ class IntegrationRepository:
             if status:
                 search_query = search_query.filter(Integration.status == status)
 
-            integrations = search_query.order_by(
-                desc(Integration.created_at)
-            ).limit(limit).all()
+            integrations = (
+                search_query.order_by(desc(Integration.created_at)).limit(limit).all()
+            )
 
-            logger.debug("Integration search completed", {
-                "query": query,
-                "type": integration_type,
-                "status": status,
-                "results": len(integrations)
-            })
+            logger.debug(
+                "Integration search completed",
+                {
+                    "query": query,
+                    "type": integration_type,
+                    "status": status,
+                    "results": len(integrations),
+                },
+            )
 
             return integrations
 
         except Exception as e:
-            logger.error("Integration search failed", {
-                "query": query,
-                "error": str(e)
-            })
+            logger.error("Integration search failed", {"query": query, "error": str(e)})
             raise
