@@ -234,6 +234,7 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
             "limit": 1
         }
 
+        logger.info(f"Searching Confluence for existing page with title: '{document['title']}'")
         search_response = requests.get(
             search_url,
             auth=(JIRA_EMAIL, JIRA_API_TOKEN),
@@ -242,8 +243,11 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
             timeout=10,
         )
 
+        logger.info(f"Confluence search response: {search_response.status_code}")
+
         if search_response.status_code == 200:
             results = search_response.json().get("results", [])
+            logger.info(f"Search returned {len(results)} results")
             if results:
                 # Page exists - update it instead
                 existing_page = results[0]
@@ -289,8 +293,13 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
                 else:
                     logger.error(f"Failed to update existing page: {update_response.status_code} - {update_response.text}")
                     return {"error": "Failed to update existing Confluence page"}
+            else:
+                logger.info(f"No existing page found with title '{document['title']}' - will create new page")
+        else:
+            logger.error(f"Confluence search failed with status {search_response.status_code}: {search_response.text}")
+            logger.info("Proceeding to create new page despite search failure")
 
-        # No existing page found - create new page
+        # No existing page found or search failed - create new page
         parent_id = document.get("confluence_parent_id", "163964")  # Default parent
 
         create_data = {
