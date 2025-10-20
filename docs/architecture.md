@@ -10,7 +10,7 @@ Kinexus AI uses a **serverless event-driven architecture** on AWS to automatical
 flowchart TB
     subgraph External
         Jira[Jira/Confluence]
-        Bedrock[AWS Bedrock - Claude]
+        Bedrock[AWS Bedrock - Nova Lite]
     end
 
     subgraph AWS_Infrastructure
@@ -86,7 +86,7 @@ flowchart TB
 
 2. **DocumentOrchestrator** (`src/lambdas/document_orchestrator.py`)
    - Triggered by `ChangeDetected` events
-   - Analyzes changes using **Claude 3 Haiku** or **Amazon Nova Lite** (AWS Bedrock)
+   - Analyzes changes using **Amazon Nova Lite** (AWS Bedrock)
    - Generates documentation content with AI
    - Searches Confluence for related pages (keyword-based CQL search)
    - Decides: UPDATE existing doc vs CREATE new doc
@@ -159,7 +159,7 @@ sequenceDiagram
     participant WH as JiraWebhookHandler
     participant EB as EventBridge
     participant Orch as DocumentOrchestrator
-    participant Bedrock as Claude/Bedrock
+    participant Bedrock as Nova Lite/Bedrock
     participant S3 as S3 Storage
     participant Rev as ReviewTicketCreator
     participant Human as Human Reviewer

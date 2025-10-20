@@ -55,8 +55,8 @@ The workflow **only triggers** when tickets transition from an **active work sta
 ### Phase 2: Documentation Generation
 
 6. EventBridge triggers `document_orchestrator` Lambda
-7. Orchestrator analyzes impact using Claude (Bedrock)
-8. Claude generates documentation content
+7. Orchestrator analyzes impact using Amazon Nova Lite (Bedrock)
+8. Nova Lite generates documentation content
 9. Content stored in S3 (`s3://kinexus-documents-{account}/documents/`)
 10. Metadata stored in DynamoDB (`kinexus-documents` table)
 11. **EventBridge event sent** (`kinexus.orchestrator` / `DocumentGenerated`)
@@ -477,7 +477,7 @@ JIRA_PROJECT_KEY=YOUR-PROJECT-KEY
 
 2. **Wait ~2 minutes** for:
    - Jira webhook → Lambda processing
-   - Document generation (Claude)
+   - Document generation (Nova Lite)
    - Review ticket creation
 
 3. **Check for review ticket**:
@@ -627,7 +627,7 @@ graph TB
     C -->|No| Z[Skip]
     D -->|EventBridge: ChangeDetected| E[DocumentOrchestrator]
 
-    E -->|Invoke Model| F[Claude 3 Haiku / Nova Lite]
+    E -->|Invoke Model| F[Amazon Nova Lite]
     F -->|Generated Content| G[Store in S3]
     G -->|Update Metadata| H[DynamoDB: Documents]
     H -->|EventBridge: DocumentGenerated| I[ReviewTicketCreator]

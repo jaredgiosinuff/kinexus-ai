@@ -57,9 +57,12 @@ See: **[Deployment Guide](deployment.md)**
 ### **Autonomous AI Systems**
 
 **Production (AWS Serverless):**
-- **Claude 3 Haiku**: Fast, accurate documentation generation
-- **Amazon Nova Lite**: Confluence search and content analysis
-- **Lambda Functions**: Stateless, event-driven architecture
+- **Amazon Nova Lite**: Single AI model for ALL operations:
+  - Documentation generation from Jira tickets
+  - Confluence search and content analysis
+  - Decision logic (UPDATE vs CREATE)
+  - Cost-effective (~$0.06 per 1M tokens)
+- **Lambda Functions**: 5 stateless, event-driven functions
 - **EventBridge**: Orchestrates workflow (ChangeDetected → DocumentGenerated → Published)
 
 **Development Stack (Local FastAPI with Mock Agents):**
@@ -154,10 +157,10 @@ See [Documentation Workflow](documentation-workflow.md) for details.
 ## 🎯 AWS AI Agent Global Hackathon 2025
 
 This project demonstrates:
-- **Advanced use of Amazon Bedrock Agents** for autonomous documentation management
-- **Integration of latest Claude 4 and Nova models** for enterprise-grade AI
+- **Advanced use of Amazon Bedrock** for autonomous documentation management
+- **Amazon Nova Lite** for cost-effective, production-ready AI operations
 - **Real-world enterprise problem solving** with measurable ROI
-- **Production-ready architecture** with comprehensive observability
+- **Production-ready serverless architecture** with comprehensive observability
 
 ## 📞 Support & Community
 

@@ -1,9 +1,9 @@
 # Kinexus AI
 
-Kinexus AI is a human-supervised documentation assistant powered by AWS serverless architecture. It automatically detects changes in Jira tickets, generates documentation using Claude AI (Bedrock), and orchestrates human review workflows with visual diffs before publishing to Confluence.
+Kinexus AI is a human-supervised documentation assistant powered by AWS serverless architecture. It automatically detects changes in Jira tickets, generates documentation using Amazon Nova Lite (AWS Bedrock), and orchestrates human review workflows with visual diffs before publishing to Confluence.
 
 ## Features
-- **🤖 AI-Powered Documentation Generation** - Uses Claude (AWS Bedrock) to analyze Jira tickets and generate contextual documentation
+- **🤖 AI-Powered Documentation Generation** - Uses Amazon Nova Lite (AWS Bedrock) to analyze Jira tickets and generate contextual documentation
 - **👁️ Visual Diff Review** - HTML diffs with red/green highlighting for easy change review
 - **✅ Jira-Based Approval Workflow** - Simple comment-based approval (APPROVED/REJECTED/NEEDS REVISION)
 - **🔄 Automatic Confluence Publishing** - Approved documentation automatically published to Confluence
@@ -45,7 +45,7 @@ Kinexus AI uses a serverless event-driven architecture:
 ```mermaid
 graph TB
     A[Jira Ticket Closed] -->|Webhook| B[JiraWebhookHandler<br/>Smart Filtering]
-    B -->|EventBridge| C[DocumentOrchestrator<br/>Claude 3 Haiku]
+    B -->|EventBridge| C[DocumentOrchestrator<br/>Amazon Nova Lite]
     C -->|AI Generation| D[Generate Documentation]
     D -->|S3| E[Store Content + Metadata]
     E -->|EventBridge| F[ReviewTicketCreator<br/>Visual Diffs]
