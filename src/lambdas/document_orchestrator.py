@@ -320,8 +320,6 @@ class DocumentOrchestrator:
 
         else:
             # GITHUB WORKFLOW (existing logic)
-            commits = change_data.get("change_data", {}).get("commits", [])
-
             # For MVP, simple logic - if README changed, update it
             if any("README" in f for f in files_changed):
                 return {
