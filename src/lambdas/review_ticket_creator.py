@@ -11,7 +11,6 @@ from typing import Any, Dict, List
 
 import boto3
 import structlog
-
 from diff_generator import (
     compare_image_references,
     generate_html_diff,
