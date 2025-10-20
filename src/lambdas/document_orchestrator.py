@@ -376,16 +376,16 @@ Respond ONLY with valid JSON in this exact format:
 Be conservative - only choose "update" if you're confident the existing page directly covers this topic."""
 
         try:
-            # Amazon Nova Lite uses different API format than Anthropic models
+            # Amazon Nova Lite uses messages format with inferenceConfig
             response = bedrock.invoke_model(
                 modelId=CLAUDE_MODEL_ID,
                 contentType="application/json",
                 accept="application/json",
                 body=json.dumps(
                     {
-                        "inputText": prompt,
-                        "textGenerationConfig": {
-                            "maxTokenCount": 500,
+                        "messages": [{"role": "user", "content": [{"text": prompt}]}],
+                        "inferenceConfig": {
+                            "maxTokens": 500,
                             "temperature": 0.2,
                         },
                     }
@@ -393,7 +393,7 @@ Be conservative - only choose "update" if you're confident the existing page dir
             )
 
             response_body = json.loads(response["body"].read())
-            claude_response = response_body["outputText"]
+            claude_response = response_body["output"]["message"]["content"][0]["text"]
 
             # Parse Claude's JSON response
             # Extract JSON from potential markdown code blocks
@@ -462,16 +462,16 @@ Be conservative - only choose "update" if you're confident the existing page dir
         prompt = self._build_generation_prompt(change_data, analysis, is_update=False)
 
         try:
-            # Amazon Nova Lite uses different API format than Anthropic models
+            # Amazon Nova Lite uses messages format with inferenceConfig
             response = bedrock.invoke_model(
                 modelId=CLAUDE_MODEL_ID,
                 contentType="application/json",
                 accept="application/json",
                 body=json.dumps(
                     {
-                        "inputText": prompt,
-                        "textGenerationConfig": {
-                            "maxTokenCount": 4000,
+                        "messages": [{"role": "user", "content": [{"text": prompt}]}],
+                        "inferenceConfig": {
+                            "maxTokens": 4000,
                             "temperature": 0.5,
                         },
                     }
@@ -479,7 +479,7 @@ Be conservative - only choose "update" if you're confident the existing page dir
             )
 
             response_body = json.loads(response["body"].read())
-            generated_content = response_body["outputText"]
+            generated_content = response_body["output"]["message"]["content"][0]["text"]
 
             # Store in S3
             document_id = (
