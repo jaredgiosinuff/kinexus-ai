@@ -288,7 +288,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         table.put_item(Item=change_record)
 
         # Send to EventBridge for processing
-        eventbridge.put_events(
+        event_response = eventbridge.put_events(
             Entries=[
                 {
                     "Source": "kinexus.jira",
@@ -305,6 +305,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     "EventBusName": EVENT_BUS,
                 }
             ]
+        )
+
+        logger.info(
+            "EventBridge event sent",
+            change_id=change_id,
+            failed_entry_count=event_response.get("FailedEntryCount", 0),
+            entries=event_response.get("Entries", []),
         )
 
         logger.info(
