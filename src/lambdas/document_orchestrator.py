@@ -40,7 +40,8 @@ JIRA_EMAIL = os.environ.get("JIRA_EMAIL", "")
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN", "")
 
 # AI Model configuration
-CLAUDE_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"  # Claude 3 Haiku - fast, cost-effective, on-demand
+# Using Amazon Nova Lite - Amazon's own model, no approval needed, fast and cost-effective
+CLAUDE_MODEL_ID = "amazon.nova-lite-v1:0"
 
 
 def search_confluence(cql_query: str, limit: int = 10) -> List[Dict[str, Any]]:
