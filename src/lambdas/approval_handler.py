@@ -128,8 +128,8 @@ def get_document_from_review_ticket(issue_key: str) -> Optional[Dict[str, Any]]:
     logger.info(f"Extracted description text: {description[:200]}")
 
     # Extract document_id from description
-    # Format: "Document ID: doc_xyz_v3"
-    doc_id_match = re.search(r"Document ID:\s*([a-z0-9_-]+)", description, re.IGNORECASE)
+    # Format: "Document ID: doc_jira_TOAST-4_1760924854.693399_1760924858.240123"
+    doc_id_match = re.search(r"Document ID:\s*([a-z0-9_.-]+)", description, re.IGNORECASE)
     if not doc_id_match:
         logger.warning(f"No document ID found in {issue_key} description")
         return None
