@@ -72,12 +72,20 @@ aws configure
 
 ## 🏗️ System Overview
 
-### Core AI Models (2025)
+### AI Models
+
+**Production (AWS Serverless - Currently Deployed):**
+- **Claude 3 Haiku**: Fast, cost-effective documentation generation
+- **Amazon Nova Lite**: Confluence search result analysis and ranking
+
+**Development Stack (Local FastAPI with Mock Agents):**
 - **Claude 4 Opus 4.1**: Master reasoning engine (74.5% SWE-bench score)
 - **Claude 4 Sonnet**: 1M token context multimodal processing
 - **Amazon Nova Pro**: Advanced multimodal understanding
 - **Amazon Nova Act**: Browser automation and legacy system integration
 - **Amazon Nova Canvas**: Automated diagram generation
+
+**Note:** The production AWS deployment uses Claude 3 Haiku and Nova Lite. The local development stack supports newer models for testing and future enhancements.
 
 ### Architecture
 ```
@@ -104,34 +112,25 @@ When you run `./quick-start.sh dev`, you get these services:
 | OpenSearch | 3103 | Vector search |
 | GraphRAG | 3111 | Relationship-aware retrieval |
 
-## 🤖 AI Agent System
+## 🤖 AI Architecture
 
-Kinexus AI uses 5 specialized Bedrock agents:
+### Production AWS Serverless (Currently Deployed)
+- **5 Lambda Functions**: JiraWebhookHandler, DocumentOrchestrator, ReviewTicketCreator, ApprovalHandler, QueryHandler
+- **Claude 3 Haiku**: Main AI engine for documentation generation
+- **Amazon Nova Lite**: Confluence search result analysis
+- **Event-Driven**: EventBridge orchestrates Lambda invocations
+- **Stateless**: Each function operates independently
 
-### **DocumentOrchestrator** (Claude 4 Opus 4.1)
-- Master coordination and decision-making
-- Highest reasoning capability for complex scenarios
-- Cost-optimized for critical decisions only
+### Development Stack (Local FastAPI)
+Kinexus AI includes a local development environment with 5 specialized mock Bedrock agents:
 
-### **ChangeAnalyzer** (Claude 4 Sonnet)
-- Real-time change detection and impact analysis
-- Fast processing with 1M token context
-- Identifies affected documentation across systems
+- **DocumentOrchestrator** (Claude 4 Opus 4.1): Master coordination and decision-making
+- **ChangeAnalyzer** (Claude 4 Sonnet): Real-time change detection and impact analysis
+- **ContentCreator** (Nova Pro + Canvas): Document generation with diagrams
+- **QualityController** (Nova Pro): Quality assurance and compliance validation
+- **WebAutomator** (Nova Act): Browser automation for legacy systems
 
-### **ContentCreator** (Nova Pro + Canvas)
-- Document generation and updates
-- Maintains existing style and format
-- Multi-modal content creation (text, diagrams, tables)
-
-### **QualityController** (Nova Pro)
-- Quality assurance and compliance validation
-- Consistency checking across documentation
-- Enterprise standards enforcement
-
-### **WebAutomator** (Nova Act)
-- Browser automation for legacy systems
-- Complex UI interactions
-- System integration where APIs aren't available
+**Note:** The agents above are for the local development stack. The production AWS deployment uses Lambda functions with Claude 3 Haiku and Nova Lite.
 
 ## 🔧 Key Features
 

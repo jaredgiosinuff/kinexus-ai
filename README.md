@@ -44,19 +44,20 @@ Kinexus AI uses a serverless event-driven architecture:
 
 ```mermaid
 graph TB
-    A[Jira Ticket Closed] -->|Webhook| B[JiraWebhookHandler]
-    B -->|EventBridge| C[DocumentOrchestrator]
-    C -->|Claude/Bedrock| D[Generate Docs]
-    D -->|S3| E[Store Content]
-    E -->|EventBridge| F[ReviewTicketCreator]
-    F -->|Create| G[Jira Review Ticket]
-    G -->|Human Review| H[Visual Diff]
-    H -->|Comment: APPROVED| I[ApprovalHandler]
-    I -->|Publish| J[Confluence Page]
+    A[Jira Ticket Closed] -->|Webhook| B[JiraWebhookHandler<br/>Smart Filtering]
+    B -->|EventBridge| C[DocumentOrchestrator<br/>Claude 3 Haiku]
+    C -->|AI Generation| D[Generate Documentation]
+    D -->|S3| E[Store Content + Metadata]
+    E -->|EventBridge| F[ReviewTicketCreator<br/>Visual Diffs]
+    F -->|Auto-label| G[Jira Review Ticket<br/>documentation-review]
+    G -->|Human Review| H[View Visual Diff<br/>Red/Green Highlighting]
+    H -->|Comment: APPROVED| I[ApprovalHandler<br/>ADF Text Extraction]
+    I -->|Publish| J[Confluence Page<br/>Version Tracked]
 
-    style D fill:#e1f5e1
+    style C fill:#e1f5e1
     style H fill:#fff3cd
     style J fill:#d4edda
+    style G fill:#ffc107
 ```
 
 **Key Components:**
@@ -66,7 +67,10 @@ graph TB
 - **S3** - Document storage and HTML diffs
 - **API Gateway** - REST endpoints for webhooks and queries
 
-A detailed breakdown lives in [docs/architecture.md](docs/architecture.md) and [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md).
+For complete workflow details, see:
+- **[APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md)** - Complete Phase 1-4 workflow with implementation details
+- **[docs/architecture.md](docs/architecture.md)** - AWS serverless architecture and component details
+- **[docs/documentation-workflow.md](docs/documentation-workflow.md)** - Storage model and event patterns
 
 ## Quick Start Guide
 
@@ -112,13 +116,17 @@ Comment on the review ticket:
 If approved, documentation automatically publishes to Confluence with version tracking and audit trail.
 
 ## Documentation
-- [Architecture](docs/architecture.md) - AWS serverless architecture details
-- [Approval Workflow](APPROVAL_WORKFLOW.md) - Complete Phase 4 workflow documentation
-- [Deployment](docs/deployment.md) - AWS deployment and GitHub Actions setup
-- [Atlassian Setup Guide](docs/atlassian-setup-guide.md) - **NEW:** Jira/Confluence account and API token setup
-- [AWS Deployment Setup](docs/aws-deployment-setup.md) - Infrastructure configuration
-- [Development](docs/development.md) - Local development (FastAPI legacy stack)
-- [Documentation Workflow](docs/documentation-workflow.md) - Document lifecycle and storage
+
+### 🎯 Quick Links
+- **[Approval Workflow](APPROVAL_WORKFLOW.md)** - ⭐ **START HERE** - Complete Phase 1-4 workflow with mermaid diagrams
+- **[Atlassian Setup Guide](docs/atlassian-setup-guide.md)** - Step-by-step Jira/Confluence setup with official links
+- **[Deployment](docs/deployment.md)** - Fork-and-deploy via GitHub Actions or manual CDK
+
+### 📖 Complete Documentation
+- [Architecture](docs/architecture.md) - AWS serverless architecture (Lambda, EventBridge, DynamoDB, S3)
+- [AWS Deployment Setup](docs/aws-deployment-setup.md) - IAM permissions and infrastructure configuration
+- [Documentation Workflow](docs/documentation-workflow.md) - Document lifecycle, storage model, label requirements
+- [Development](docs/development.md) - Local development with Docker/FastAPI stack
 - [Testing](docs/testing.md) - Test suite and coverage
 - [Security](docs/security.md) - Security policies and best practices
 - [Integrations](docs/integrations.md) - External system connections

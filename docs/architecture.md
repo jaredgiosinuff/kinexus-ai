@@ -86,8 +86,10 @@ flowchart TB
 
 2. **DocumentOrchestrator** (`src/lambdas/document_orchestrator.py`)
    - Triggered by `ChangeDetected` events
-   - Analyzes changes using Claude (AWS Bedrock)
-   - Generates documentation content
+   - Analyzes changes using **Claude 3 Haiku** or **Amazon Nova Lite** (AWS Bedrock)
+   - Generates documentation content with AI
+   - Searches Confluence for related pages (keyword-based CQL search)
+   - Decides: UPDATE existing doc vs CREATE new doc
    - Stores content in S3 with versioning
    - Updates document metadata in DynamoDB
    - Emits `DocumentGenerated` events
@@ -98,12 +100,20 @@ flowchart TB
    - Retrieves previous and current versions from S3
    - Generates HTML visual diffs (red/green highlighting)
    - Detects image changes (added/removed)
-   - Uploads diff to S3 with presigned URL
+   - Uploads diff to S3 with presigned URL (7-day expiry)
    - Auto-creates Jira review ticket with diff link
+   - **Auto-adds labels** after ticket creation: `documentation-review`, `auto-generated`, `kinexus-ai`
+   - Uses update API (works even if labels field not on create screen)
    - Timeout: 60s | Memory: 512MB
 
 4. **ApprovalHandler** (`src/lambdas/approval_handler.py`)
    - Processes Jira comment webhooks
+   - **Robust review ticket detection** (two-method approach):
+     - Primary: Check for `documentation-review` label
+     - Fallback: Check if summary starts with "Review:"
+   - **ADF Text Extraction**: Jira REST API v3 returns Atlassian Document Format (JSON)
+   - Recursively extracts plain text from nested ADF content
+   - **Regex with timestamp support**: Pattern `[a-z0-9_.-]+` includes dots for full document IDs
    - Pattern matches approval commands (APPROVED/REJECTED/NEEDS REVISION)
    - Publishes approved docs to Confluence
    - Updates DynamoDB and Jira tickets
@@ -174,19 +184,28 @@ sequenceDiagram
     Rev->>Rev: Generate HTML diff
     Rev->>S3: Upload diff.html
     Rev->>Jira: Create review ticket
-    Note over Jira: TOAST-43: Review: Docs
+    Rev->>Jira: Auto-add labels (update API)
+    Note over Jira: TOAST-43: Review: Docs<br/>Labels: documentation-review
 
     Human->>Jira: View diff link
     Human->>Jira: Comment: APPROVED
 
     Jira->>App: Webhook: Comment Created
-    App->>App: Parse approval decision
+    App->>App: Detect review ticket (label + summary)
+    App->>App: Extract text from ADF format
+    App->>App: Parse approval decision (regex)
     App->>S3: Read approved content
     App->>Conf: Publish/Update page
     App->>DynamoDB: Update status: published
     App->>Jira: Comment success + URL
     App->>EB: Event: DocumentationPublished
 ```
+
+**Phase 4 Implementation Highlights:**
+- ✅ **Auto-labeling**: ReviewTicketCreator adds labels automatically
+- ✅ **ADF text extraction**: ApprovalHandler handles Jira's JSON response format
+- ✅ **Robust detection**: Fallback to summary pattern if labels missing
+- ✅ **Timestamp support**: Regex includes dots for full document IDs
 
 ## Local Development Topology (FastAPI Stack)
 
