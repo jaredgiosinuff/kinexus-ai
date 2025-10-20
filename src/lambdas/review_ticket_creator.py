@@ -6,8 +6,9 @@ Automatically triggered after documentation generation
 
 import json
 import os
+import re
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import boto3
 import structlog
@@ -452,8 +453,6 @@ def create_review_ticket_for_document(document_id: str) -> Dict[str, Any]:
     Main function to create review ticket for a generated document
     Called by document orchestrator after document generation
     """
-    import re
-
     # Get document from DynamoDB
     documents_table = os.environ.get("DOCUMENTS_TABLE", "kinexus-documents")
     table = dynamodb.Table(documents_table)

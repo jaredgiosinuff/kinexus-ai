@@ -8,7 +8,6 @@ import os
 import re
 from datetime import datetime
 from typing import Any, Dict, List
-from urllib.parse import quote
 
 import boto3
 import requests
@@ -322,11 +321,6 @@ class DocumentOrchestrator:
         else:
             # GITHUB WORKFLOW (existing logic)
             commits = change_data.get("change_data", {}).get("commits", [])
-            context = {
-                "files_changed": files_changed,
-                "commit_messages": [c["message"] for c in commits],
-                "repository": change_data.get("change_data", {}).get("repository_name"),
-            }
 
             # For MVP, simple logic - if README changed, update it
             if any("README" in f for f in files_changed):

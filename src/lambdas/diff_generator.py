@@ -23,15 +23,6 @@ def generate_html_diff(
     original_lines = original.splitlines(keepends=True)
     modified_lines = modified.splitlines(keepends=True)
 
-    # Generate diff using SequenceMatcher
-    diff = difflib.unified_diff(
-        original_lines,
-        modified_lines,
-        lineterm="",
-        fromfile="Original",
-        tofile="Modified",
-    )
-
     # Build HTML
     html_parts = [
         """<!DOCTYPE html>
