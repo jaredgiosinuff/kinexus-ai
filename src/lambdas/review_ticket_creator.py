@@ -56,8 +56,12 @@ def get_current_version_content(document: Dict[str, Any]) -> str:
     """
     Get content from current version of document
     """
-    s3_location = document.get("s3_location", "")
-    s3_key = s3_location.split(f"{DOCUMENTS_BUCKET}/")[-1]
+    # Get s3_key directly from document
+    s3_key = document.get("s3_key", "")
+
+    if not s3_key:
+        logger.error("Document missing s3_key field")
+        return ""
 
     try:
         response = s3.get_object(Bucket=DOCUMENTS_BUCKET, Key=s3_key)
@@ -73,10 +77,20 @@ def upload_diff_to_s3(html_diff: str, document_id: str) -> str:
     """
     s3_key = f"diffs/{document_id}_diff_{int(datetime.utcnow().timestamp())}.html"
 
-    s3.put_object(Bucket=DOCUMENTS_BUCKET, Key=s3_key, Body=html_diff.encode("utf-8"), ContentType="text/html", CacheControl="max-age=86400")
+    s3.put_object(
+        Bucket=DOCUMENTS_BUCKET,
+        Key=s3_key,
+        Body=html_diff.encode("utf-8"),
+        ContentType="text/html",
+        CacheControl="max-age=86400",
+    )
 
     # Generate presigned URL (7 days expiry)
-    url = s3.generate_presigned_url("get_object", Params={"Bucket": DOCUMENTS_BUCKET, "Key": s3_key}, ExpiresIn=604800)
+    url = s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": DOCUMENTS_BUCKET, "Key": s3_key},
+        ExpiresIn=604800,
+    )
 
     return url
 
@@ -93,141 +107,280 @@ def create_jira_review_ticket(
     description_parts = []
 
     # Header
-    description_parts.append({
-        "type": "heading",
-        "attrs": {"level": 1},
-        "content": [{"type": "text", "text": "📚 Documentation Review Required"}]
-    })
+    description_parts.append(
+        {
+            "type": "heading",
+            "attrs": {"level": 1},
+            "content": [{"type": "text", "text": "📚 Documentation Review Required"}],
+        }
+    )
 
     # Document info
-    description_parts.append({
-        "type": "paragraph",
-        "content": [
-            {"type": "text", "text": "Document: ", "marks": [{"type": "strong"}]},
-            {"type": "text", "text": document.get("title", "Untitled")}
-        ]
-    })
+    description_parts.append(
+        {
+            "type": "paragraph",
+            "content": [
+                {"type": "text", "text": "Document: ", "marks": [{"type": "strong"}]},
+                {"type": "text", "text": document.get("title", "Untitled")},
+            ],
+        }
+    )
 
-    description_parts.append({
-        "type": "paragraph",
-        "content": [
-            {"type": "text", "text": "Document ID: ", "marks": [{"type": "strong"}]},
-            {"type": "text", "text": document["document_id"], "marks": [{"type": "code"}]}
-        ]
-    })
+    description_parts.append(
+        {
+            "type": "paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Document ID: ",
+                    "marks": [{"type": "strong"}],
+                },
+                {
+                    "type": "text",
+                    "text": document["document_id"],
+                    "marks": [{"type": "code"}],
+                },
+            ],
+        }
+    )
 
-    description_parts.append({
-        "type": "paragraph",
-        "content": [
-            {"type": "text", "text": "Version: ", "marks": [{"type": "strong"}]},
-            {"type": "text", "text": str(document.get("version", 1))}
-        ]
-    })
+    description_parts.append(
+        {
+            "type": "paragraph",
+            "content": [
+                {"type": "text", "text": "Version: ", "marks": [{"type": "strong"}]},
+                {"type": "text", "text": str(document.get("version", 1))},
+            ],
+        }
+    )
 
     # Source change
     if document.get("source_change_id"):
         source_match = re.search(r"jira_([A-Z]+-\d+)_", document["source_change_id"])
         if source_match:
             source_ticket = source_match.group(1)
-            description_parts.append({
-                "type": "paragraph",
-                "content": [
-                    {"type": "text", "text": "Source Ticket: ", "marks": [{"type": "strong"}]},
-                    {"type": "text", "text": source_ticket, "marks": [{"type": "link", "attrs": {"href": f"{JIRA_BASE_URL}/browse/{source_ticket}"}}]}
-                ]
-            })
+            description_parts.append(
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Source Ticket: ",
+                            "marks": [{"type": "strong"}],
+                        },
+                        {
+                            "type": "text",
+                            "text": source_ticket,
+                            "marks": [
+                                {
+                                    "type": "link",
+                                    "attrs": {
+                                        "href": f"{JIRA_BASE_URL}/browse/{source_ticket}"
+                                    },
+                                }
+                            ],
+                        },
+                    ],
+                }
+            )
 
     # Diff preview link
     description_parts.append({"type": "rule"})
-    description_parts.append({
-        "type": "heading",
-        "attrs": {"level": 2},
-        "content": [{"type": "text", "text": "📊 Review Changes"}]
-    })
+    description_parts.append(
+        {
+            "type": "heading",
+            "attrs": {"level": 2},
+            "content": [{"type": "text", "text": "📊 Review Changes"}],
+        }
+    )
 
-    description_parts.append({
-        "type": "paragraph",
-        "content": [
-            {"type": "text", "text": "🔗 ", "marks": [{"type": "strong"}]},
-            {"type": "text", "text": "View Full Diff (HTML)", "marks": [{"type": "link", "attrs": {"href": diff_url}}, {"type": "strong"}]}
-        ]
-    })
+    description_parts.append(
+        {
+            "type": "paragraph",
+            "content": [
+                {"type": "text", "text": "🔗 ", "marks": [{"type": "strong"}]},
+                {
+                    "type": "text",
+                    "text": "View Full Diff (HTML)",
+                    "marks": [
+                        {"type": "link", "attrs": {"href": diff_url}},
+                        {"type": "strong"},
+                    ],
+                },
+            ],
+        }
+    )
 
     # Add diff summary
-    description_parts.append({
-        "type": "codeBlock",
-        "attrs": {"language": "text"},
-        "content": [{"type": "text", "text": diff_summary}]
-    })
+    description_parts.append(
+        {
+            "type": "codeBlock",
+            "attrs": {"language": "text"},
+            "content": [{"type": "text", "text": diff_summary}],
+        }
+    )
 
     # Image changes section
     if image_changes["added"] or image_changes["removed"]:
         description_parts.append({"type": "rule"})
-        description_parts.append({
-            "type": "heading",
-            "attrs": {"level": 2},
-            "content": [{"type": "text", "text": "🖼️ Image Changes"}]
-        })
+        description_parts.append(
+            {
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": "🖼️ Image Changes"}],
+            }
+        )
 
         if image_changes["added"]:
-            description_parts.append({
-                "type": "paragraph",
-                "content": [{"type": "text", "text": f"✅ {len(image_changes['added'])} new images added", "marks": [{"type": "strong"}]}]
-            })
+            description_parts.append(
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"✅ {len(image_changes['added'])} new images added",
+                            "marks": [{"type": "strong"}],
+                        }
+                    ],
+                }
+            )
 
         if image_changes["removed"]:
-            description_parts.append({
-                "type": "paragraph",
-                "content": [{"type": "text", "text": f"❌ {len(image_changes['removed'])} images removed", "marks": [{"type": "strong"}]}]
-            })
+            description_parts.append(
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"❌ {len(image_changes['removed'])} images removed",
+                            "marks": [{"type": "strong"}],
+                        }
+                    ],
+                }
+            )
 
-        description_parts.append({
-            "type": "panel",
-            "attrs": {"panelType": "warning"},
-            "content": [{
-                "type": "paragraph",
-                "content": [{"type": "text", "text": "⚠️ Image changes require separate review. Please verify all images after approving text changes.", "marks": [{"type": "em"}]}]
-            }]
-        })
+        description_parts.append(
+            {
+                "type": "panel",
+                "attrs": {"panelType": "warning"},
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "⚠️ Image changes require separate review. Please verify all images after approving text changes.",
+                                "marks": [{"type": "em"}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
 
     # Approval instructions
     description_parts.append({"type": "rule"})
-    description_parts.append({
-        "type": "heading",
-        "attrs": {"level": 2},
-        "content": [{"type": "text", "text": "✅ How to Approve"}]
-    })
+    description_parts.append(
+        {
+            "type": "heading",
+            "attrs": {"level": 2},
+            "content": [{"type": "text", "text": "✅ How to Approve"}],
+        }
+    )
 
-    description_parts.append({
-        "type": "paragraph",
-        "content": [{"type": "text", "text": "Comment on this ticket with one of the following:"}]
-    })
+    description_parts.append(
+        {
+            "type": "paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Comment on this ticket with one of the following:",
+                }
+            ],
+        }
+    )
 
-    description_parts.append({
-        "type": "bulletList",
-        "content": [
-            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "APPROVED", "marks": [{"type": "code"}]}, {"type": "text", "text": " - Approve and publish"}]}]},
-            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "REJECTED", "marks": [{"type": "code"}]}, {"type": "text", "text": " - Reject and request regeneration"}]}]},
-            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "NEEDS REVISION", "marks": [{"type": "code"}]}, {"type": "text", "text": " - Request specific changes"}]}]}
-        ]
-    })
+    description_parts.append(
+        {
+            "type": "bulletList",
+            "content": [
+                {
+                    "type": "listItem",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "APPROVED",
+                                    "marks": [{"type": "code"}],
+                                },
+                                {"type": "text", "text": " - Approve and publish"},
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "type": "listItem",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "REJECTED",
+                                    "marks": [{"type": "code"}],
+                                },
+                                {
+                                    "type": "text",
+                                    "text": " - Reject and request regeneration",
+                                },
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "type": "listItem",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "NEEDS REVISION",
+                                    "marks": [{"type": "code"}],
+                                },
+                                {"type": "text", "text": " - Request specific changes"},
+                            ],
+                        }
+                    ],
+                },
+            ],
+        }
+    )
 
     # Created by
     description_parts.append({"type": "rule"})
-    description_parts.append({
-        "type": "paragraph",
-        "content": [
-            {"type": "text", "text": "Generated by Kinexus AI at ", "marks": [{"type": "em"}]},
-            {"type": "text", "text": datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"), "marks": [{"type": "em"}]}
-        ]
-    })
+    description_parts.append(
+        {
+            "type": "paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Generated by Kinexus AI at ",
+                    "marks": [{"type": "em"}],
+                },
+                {
+                    "type": "text",
+                    "text": datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+                    "marks": [{"type": "em"}],
+                },
+            ],
+        }
+    )
 
     # Build full description
-    description_doc = {
-        "version": 1,
-        "type": "doc",
-        "content": description_parts
-    }
+    description_doc = {"version": 1, "type": "doc", "content": description_parts}
 
     # Create Jira issue
     issue_data = {
@@ -236,8 +389,7 @@ def create_jira_review_ticket(
             "summary": f"Review: {document.get('title', 'Untitled Document')}",
             "description": description_doc,
             "issuetype": {"name": "Task"},
-            "labels": ["documentation-review", "auto-generated", "kinexus-ai"],
-            "priority": {"name": document.get("priority", "Medium")},
+            # Note: labels and priority removed as they may not be configured on all Jira screens
         }
     }
 
@@ -263,7 +415,9 @@ def create_jira_review_ticket(
             "issue_url": f"{JIRA_BASE_URL}/browse/{issue['key']}",
         }
     else:
-        logger.error(f"Failed to create Jira ticket: {response.status_code} - {response.text}")
+        logger.error(
+            f"Failed to create Jira ticket: {response.status_code} - {response.text}"
+        )
         return {"success": False, "error": response.text}
 
 
@@ -290,9 +444,15 @@ def create_review_ticket_for_document(document_id: str) -> Dict[str, Any]:
     modified_content = get_current_version_content(document)
 
     # Generate diffs
-    html_diff = generate_html_diff(original_content, modified_content, title=document.get("title", "Documentation Changes"))
+    html_diff = generate_html_diff(
+        original_content,
+        modified_content,
+        title=document.get("title", "Documentation Changes"),
+    )
 
-    text_diff_summary = generate_jira_description_diff(original_content, modified_content)
+    text_diff_summary = generate_jira_description_diff(
+        original_content, modified_content
+    )
 
     # Compare image references
     image_changes = compare_image_references(original_content, modified_content)
@@ -301,7 +461,9 @@ def create_review_ticket_for_document(document_id: str) -> Dict[str, Any]:
     diff_url = upload_diff_to_s3(html_diff, document_id)
 
     # Create Jira review ticket
-    ticket_result = create_jira_review_ticket(document, text_diff_summary, diff_url, image_changes)
+    ticket_result = create_jira_review_ticket(
+        document, text_diff_summary, diff_url, image_changes
+    )
 
     if ticket_result["success"]:
         # Update document with review ticket info
@@ -336,14 +498,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     try:
         # Check if this is an EventBridge event
-        if event.get("source") == "kinexus.orchestrator" and event.get("detail-type") == "DocumentGenerated":
+        if (
+            event.get("source") == "kinexus.orchestrator"
+            and event.get("detail-type") == "DocumentGenerated"
+        ):
             document_id = event["detail"]["document_id"]
         else:
             # Direct invocation
             document_id = event.get("document_id")
 
         if not document_id:
-            return {"statusCode": 400, "body": json.dumps({"error": "document_id required"})}
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "document_id required"}),
+            }
 
         result = create_review_ticket_for_document(document_id)
 
