@@ -219,6 +219,32 @@ class DocumentOrchestrator:
             },
         )
 
+        # Emit DocumentGenerated event if documentation was created/updated
+        if result.get("document_id"):
+            try:
+                eventbridge.put_events(
+                    Entries=[
+                        {
+                            "Source": "kinexus.orchestrator",
+                            "DetailType": "DocumentGenerated",
+                            "Detail": json.dumps(
+                                {
+                                    "document_id": result["document_id"],
+                                    "change_id": change_id,
+                                    "action": analysis["action"],
+                                    "title": analysis.get("target", "Documentation"),
+                                }
+                            ),
+                            "EventBusName": EVENT_BUS,
+                        }
+                    ]
+                )
+                logger.info(
+                    "DocumentGenerated event emitted", document_id=result["document_id"]
+                )
+            except Exception as e:
+                logger.error(f"Failed to emit DocumentGenerated event: {str(e)}")
+
         return result
 
     async def analyze_documentation_impact(
