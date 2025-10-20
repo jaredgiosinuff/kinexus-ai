@@ -417,8 +417,13 @@ def create_jira_review_ticket(
             update_response = requests.put(
                 update_url,
                 auth=(JIRA_EMAIL, JIRA_API_TOKEN),
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
-                json={"update": {"labels": [{"add": label} for label in labels_to_add]}},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "update": {"labels": [{"add": label} for label in labels_to_add]}
+                },
             )
 
             if update_response.status_code in [200, 204]:

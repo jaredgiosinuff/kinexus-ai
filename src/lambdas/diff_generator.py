@@ -10,7 +10,9 @@ import re
 from typing import List, Tuple
 
 
-def generate_html_diff(original: str, modified: str, title: str = "Documentation Changes") -> str:
+def generate_html_diff(
+    original: str, modified: str, title: str = "Documentation Changes"
+) -> str:
     """
     Generate HTML diff with red/green highlighting
     Red = deletions from original
@@ -22,7 +24,13 @@ def generate_html_diff(original: str, modified: str, title: str = "Documentation
     modified_lines = modified.splitlines(keepends=True)
 
     # Generate diff using SequenceMatcher
-    diff = difflib.unified_diff(original_lines, modified_lines, lineterm="", fromfile="Original", tofile="Modified")
+    diff = difflib.unified_diff(
+        original_lines,
+        modified_lines,
+        lineterm="",
+        fromfile="Original",
+        tofile="Modified",
+    )
 
     # Build HTML
     html_parts = [
@@ -186,7 +194,9 @@ def generate_html_diff(original: str, modified: str, title: str = "Documentation
             <button onclick="showView('unified')" id="btn-unified">Unified Diff</button>
         </div>
         <div class="diff-container">
-""".format(title=html.escape(title))
+""".format(
+            title=html.escape(title)
+        )
     ]
 
     # Side-by-side view
@@ -203,7 +213,9 @@ def generate_html_diff(original: str, modified: str, title: str = "Documentation
 
     for i, line in enumerate(original_lines, 1):
         escaped_line = html.escape(line.rstrip("\n"))
-        html_parts.append(f'<div class="diff-line diff-unchanged"><span class="line-number">{i}</span>{escaped_line}</div>\n')
+        html_parts.append(
+            f'<div class="diff-line diff-unchanged"><span class="line-number">{i}</span>{escaped_line}</div>\n'
+        )
 
     html_parts.append(
         """
@@ -223,7 +235,9 @@ def generate_html_diff(original: str, modified: str, title: str = "Documentation
 
     for i, line in enumerate(modified_lines, 1):
         escaped_line = html.escape(line.rstrip("\n"))
-        html_parts.append(f'<div class="diff-line diff-unchanged"><span class="line-number">{i}</span>{escaped_line}</div>\n')
+        html_parts.append(
+            f'<div class="diff-line diff-unchanged"><span class="line-number">{i}</span>{escaped_line}</div>\n'
+        )
 
     html_parts.append(
         """
@@ -244,7 +258,16 @@ def generate_html_diff(original: str, modified: str, title: str = "Documentation
     )
 
     # Generate unified diff with inline highlighting
-    unified_diff = list(difflib.unified_diff(original_lines, modified_lines, lineterm="", fromfile="Original", tofile="Modified", n=3))
+    unified_diff = list(
+        difflib.unified_diff(
+            original_lines,
+            modified_lines,
+            lineterm="",
+            fromfile="Original",
+            tofile="Modified",
+            n=3,
+        )
+    )
 
     line_num_old = 0
     line_num_new = 0
@@ -255,7 +278,9 @@ def generate_html_diff(original: str, modified: str, title: str = "Documentation
             continue
         elif line.startswith("@@"):
             # Hunk header
-            html_parts.append(f'<div class="diff-line diff-change"><strong>{html.escape(line)}</strong></div>\n')
+            html_parts.append(
+                f'<div class="diff-line diff-change"><strong>{html.escape(line)}</strong></div>\n'
+            )
             # Parse line numbers
             match = re.search(r"-(\d+),\d+ \+(\d+),\d+", line)
             if match:
@@ -264,17 +289,23 @@ def generate_html_diff(original: str, modified: str, title: str = "Documentation
         elif line.startswith("-"):
             # Deletion
             escaped_line = html.escape(line[1:].rstrip("\n"))
-            html_parts.append(f'<div class="diff-line diff-del"><span class="line-number">{line_num_old}</span><span class="inline-del">{escaped_line}</span></div>\n')
+            html_parts.append(
+                f'<div class="diff-line diff-del"><span class="line-number">{line_num_old}</span><span class="inline-del">{escaped_line}</span></div>\n'
+            )
             line_num_old += 1
         elif line.startswith("+"):
             # Addition
             escaped_line = html.escape(line[1:].rstrip("\n"))
-            html_parts.append(f'<div class="diff-line diff-add"><span class="line-number">{line_num_new}</span><span class="inline-add">{escaped_line}</span></div>\n')
+            html_parts.append(
+                f'<div class="diff-line diff-add"><span class="line-number">{line_num_new}</span><span class="inline-add">{escaped_line}</span></div>\n'
+            )
             line_num_new += 1
         elif line.startswith(" "):
             # Unchanged context
             escaped_line = html.escape(line[1:].rstrip("\n"))
-            html_parts.append(f'<div class="diff-line diff-unchanged"><span class="line-number">{line_num_old}/{line_num_new}</span>{escaped_line}</div>\n')
+            html_parts.append(
+                f'<div class="diff-line diff-unchanged"><span class="line-number">{line_num_old}/{line_num_new}</span>{escaped_line}</div>\n'
+            )
             line_num_old += 1
             line_num_new += 1
 
@@ -371,7 +402,9 @@ def generate_jira_description_diff(original: str, modified: str) -> str:
 
     # Summary
     diff_lines.append("━" * 50)
-    diff_lines.append(f"📊 Summary: {additions} additions, {deletions} deletions, {changes} changes")
+    diff_lines.append(
+        f"📊 Summary: {additions} additions, {deletions} deletions, {changes} changes"
+    )
 
     return "\n".join(diff_lines)
 
@@ -389,10 +422,14 @@ def detect_image_references(content: str) -> List[Tuple[str, str]]:
     images.extend(markdown_images)
 
     # HTML img tags
-    html_images = re.findall(r'<img[^>]+alt=["\']([^"\']*)["\'][^>]+src=["\']([^"\']+)["\']', content)
+    html_images = re.findall(
+        r'<img[^>]+alt=["\']([^"\']*)["\'][^>]+src=["\']([^"\']+)["\']', content
+    )
     images.extend(html_images)
 
-    html_images2 = re.findall(r'<img[^>]+src=["\']([^"\']+)["\'][^>]+alt=["\']([^"\']*)["\']', content)
+    html_images2 = re.findall(
+        r'<img[^>]+src=["\']([^"\']+)["\'][^>]+alt=["\']([^"\']*)["\']', content
+    )
     images.extend([(alt, src) for src, alt in html_images2])
 
     return images
@@ -407,4 +444,8 @@ def compare_image_references(original: str, modified: str) -> dict:
     original_images = set(detect_image_references(original))
     modified_images = set(detect_image_references(modified))
 
-    return {"added": list(modified_images - original_images), "removed": list(original_images - modified_images), "unchanged": list(original_images & modified_images)}
+    return {
+        "added": list(modified_images - original_images),
+        "removed": list(original_images - modified_images),
+        "unchanged": list(original_images & modified_images),
+    }
