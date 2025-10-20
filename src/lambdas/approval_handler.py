@@ -384,7 +384,7 @@ def update_jira_ticket(
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Lambda handler for approval processing
-    Triggered by Jira webhook when comments are added to review tickets
+    Triggered by Jira webhook when review ticket status is changed to DONE
     """
     try:
         # Parse webhook payload
@@ -392,23 +392,40 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         webhook_event = body.get("webhookEvent", "")
         issue = body.get("issue", {})
-        comment = body.get("comment", {})
+        changelog = body.get("changelog", {})
 
         issue_key = issue.get("key")
-        comment_body = comment.get("body", "")
-        comment_author = comment.get("author", {}).get("displayName", "Unknown")
+        issue_status = issue.get("fields", {}).get("status", {}).get("name", "")
+        change_author = body.get("user", {}).get("displayName", "Unknown")
 
         logger.info(
-            "Processing approval comment",
+            "Processing approval webhook",
             issue_key=issue_key,
             webhook_event=webhook_event,
+            status=issue_status,
         )
 
-        # Only process comment_created events on review tickets
-        if webhook_event != "comment_created":
+        # Only process issue_updated events (status changes)
+        if webhook_event != "jira:issue_updated":
+            logger.info(f"Ignoring non-update event: {webhook_event}")
             return {
                 "statusCode": 200,
-                "body": json.dumps({"message": "Not a comment event"}),
+                "body": json.dumps({"message": "Not an issue update event"}),
+            }
+
+        # Check if this is a status change to Done
+        status_changed_to_done = False
+        if changelog and "items" in changelog:
+            for item in changelog["items"]:
+                if item.get("field") == "status" and item.get("toString", "").lower() == "done":
+                    status_changed_to_done = True
+                    break
+
+        if not status_changed_to_done:
+            logger.info(f"Not a status change to Done for {issue_key}")
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"message": "Not a status change to Done"}),
             }
 
         # Check if this is a review ticket
@@ -428,17 +445,49 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "body": json.dumps({"message": "Not a review ticket"}),
             }
 
-        # Extract approval decision
-        decision = extract_approval_decision(comment_body)
+        # Status changed to Done - now fetch comments to find approval decision
+        logger.info(f"Review ticket moved to Done - checking comments for decision", author=change_author)
 
-        if not decision:
-            logger.info("No approval decision found in comment")
+        # Fetch all comments on this ticket
+        import requests
+        comments_url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}/comment"
+        response = requests.get(
+            comments_url,
+            auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+            headers={"Accept": "application/json"},
+            timeout=10,
+        )
+
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch comments for {issue_key}: {response.status_code}")
             return {
-                "statusCode": 200,
-                "body": json.dumps({"message": "No approval decision found"}),
+                "statusCode": 500,
+                "body": json.dumps({"error": "Failed to fetch comments"}),
             }
 
-        logger.info(f"Approval decision: {decision}", author=comment_author)
+        comments_data = response.json()
+        comments = comments_data.get("comments", [])
+
+        # Find most recent comment with an approval decision
+        decision = None
+        decision_author = None
+        for comment in reversed(comments):  # Most recent first
+            comment_body_adf = comment.get("body", "")
+            comment_body = extract_text_from_adf(comment_body_adf)
+            comment_author_name = comment.get("author", {}).get("displayName", "Unknown")
+
+            decision = extract_approval_decision(comment_body)
+            if decision:
+                decision_author = comment_author_name
+                logger.info(f"Found decision: {decision}", author=decision_author, comment=comment_body[:100])
+                break
+
+        if not decision:
+            logger.warning(f"No approval decision found in comments for {issue_key}")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "No approval decision found in comments"}),
+            }
 
         # Get associated document
         document = get_document_from_review_ticket(issue_key)
@@ -449,7 +498,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "body": json.dumps({"error": "Associated document not found"}),
             }
 
-        # Process based on decision
+        # Process based on decision from comments
         if decision == "approved":
             # Publish to Confluence
             publish_result = publish_to_confluence(document)
@@ -463,7 +512,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     ExpressionAttributeNames={"#status": "status"},
                     ExpressionAttributeValues={
                         ":status": "published",
-                        ":approver": comment_author,
+                        ":approver": decision_author,
                         ":timestamp": datetime.utcnow().isoformat(),
                         ":page_id": publish_result.get("page_id"),
                         ":url": publish_result.get("url"),
@@ -471,8 +520,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 )
 
                 # Update Jira ticket with success
-                success_comment = f"✅ Documentation approved and published!\n\n📚 Confluence: {publish_result.get('url')}\n\nApproved by: {comment_author}"
-                update_jira_ticket(issue_key, success_comment, transition_to="Done")
+                success_comment = f"✅ Documentation approved and published!\n\n📚 Confluence: {publish_result.get('url')}\n\nApproved by: {decision_author}"
+                update_jira_ticket(issue_key, success_comment)
 
                 # Comment on original source ticket
                 if document.get("source_change_id"):
@@ -496,7 +545,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                                 {
                                     "document_id": document["document_id"],
                                     "confluence_url": publish_result.get("url"),
-                                    "approved_by": comment_author,
+                                    "approved_by": decision_author,
                                     "review_ticket": issue_key,
                                 }
                             ),
@@ -532,14 +581,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "rejected",
-                    ":rejector": comment_author,
+                    ":rejector": decision_author,
                     ":timestamp": datetime.utcnow().isoformat(),
                 },
             )
 
             # Update Jira ticket
-            rejection_comment = f"❌ Documentation rejected by {comment_author}\n\nPlease address feedback and regenerate."
-            update_jira_ticket(issue_key, rejection_comment, transition_to="Done")
+            rejection_comment = f"❌ Documentation rejected by {decision_author}\n\nPlease address feedback and regenerate."
+            update_jira_ticket(issue_key, rejection_comment)
 
             return {
                 "statusCode": 200,
@@ -555,13 +604,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "needs_revision",
-                    ":requester": comment_author,
+                    ":requester": decision_author,
                     ":timestamp": datetime.utcnow().isoformat(),
                 },
             )
 
             # Update Jira ticket
-            revision_comment = f"🔄 Revisions requested by {comment_author}\n\nPlease address feedback."
+            revision_comment = f"🔄 Revisions requested by {decision_author}\n\nPlease address feedback."
             update_jira_ticket(issue_key, revision_comment)
 
             return {
