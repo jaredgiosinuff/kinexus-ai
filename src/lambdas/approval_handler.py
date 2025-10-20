@@ -220,11 +220,77 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
             return {"error": "Failed to update Confluence page"}
 
     else:
-        # Create new page
-        # Note: You'll need to determine space_id and parent_id based on your Confluence structure
+        # No confluence_page_id in document - search for existing page by title
         space_id = document.get(
             "confluence_space_id", "163845"
         )  # Software development space
+
+        # Search for existing page with this title in the space
+        search_url = f"{CONFLUENCE_URL}/wiki/rest/api/content"
+        search_params = {
+            "title": document["title"],
+            "spaceKey": "SD",  # Space key for space ID 163845
+            "expand": "version",
+            "limit": 1
+        }
+
+        search_response = requests.get(
+            search_url,
+            auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+            headers={"Accept": "application/json"},
+            params=search_params,
+            timeout=10,
+        )
+
+        if search_response.status_code == 200:
+            results = search_response.json().get("results", [])
+            if results:
+                # Page exists - update it instead
+                existing_page = results[0]
+                page_id = existing_page["id"]
+                current_version = existing_page.get("version", {}).get("number", 1)
+
+                logger.info(f"Found existing Confluence page {page_id} with title '{document['title']}' - updating instead of creating")
+
+                # Update existing page using v1 API
+                update_url = f"{CONFLUENCE_URL}/wiki/rest/api/content/{page_id}"
+                update_data = {
+                    "id": page_id,
+                    "type": "page",
+                    "title": document["title"],
+                    "space": {"key": "SD"},
+                    "body": {
+                        "storage": {
+                            "value": confluence_content,
+                            "representation": "storage"
+                        }
+                    },
+                    "version": {
+                        "number": current_version + 1,
+                        "message": f"Updated via Kinexus AI - {document.get('source_change_id', '')}"
+                    }
+                }
+
+                update_response = requests.put(
+                    update_url,
+                    auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+                    headers={"Accept": "application/json", "Content-Type": "application/json"},
+                    json=update_data,
+                    timeout=15,
+                )
+
+                if update_response.status_code in [200, 201]:
+                    logger.info(f"Updated existing Confluence page {page_id}")
+                    return {
+                        "page_id": page_id,
+                        "action": "updated",
+                        "url": f"{CONFLUENCE_URL}/wiki{existing_page.get('_links', {}).get('webui', '')}",
+                    }
+                else:
+                    logger.error(f"Failed to update existing page: {update_response.status_code} - {update_response.text}")
+                    return {"error": "Failed to update existing Confluence page"}
+
+        # No existing page found - create new page
         parent_id = document.get("confluence_parent_id", "163964")  # Default parent
 
         create_data = {
