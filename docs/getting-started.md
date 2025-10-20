@@ -4,7 +4,7 @@ Welcome to Kinexus AI - the autonomous knowledge management system that keeps en
 
 ## What is Kinexus AI?
 
-Kinexus AI is an enterprise platform that leverages Amazon Bedrock Agents, Claude 4, and Nova models to **automatically manage your EXISTING documentation** by:
+Kinexus AI is an enterprise platform that leverages Amazon Bedrock with Amazon Nova Lite to **automatically manage your EXISTING documentation** by:
 
 - **Detecting** system changes from multiple sources (Jira, Git, ServiceNow, Slack)
 - **Finding** affected documentation wherever it lives (GitHub, Confluence, SharePoint)
@@ -75,8 +75,12 @@ aws configure
 ### AI Models
 
 **Production (AWS Serverless - Currently Deployed):**
-- **Claude 3 Haiku**: Fast, cost-effective documentation generation
-- **Amazon Nova Lite**: Confluence search result analysis and ranking
+- **Amazon Nova Lite**: Fast, cost-effective AI for ALL tasks:
+  - Documentation generation from Jira tickets
+  - Confluence search result analysis and ranking
+  - Decision logic (UPDATE vs CREATE)
+  - Cost: ~$0.06 per 1M input tokens
+  - No AWS approval needed (native Amazon model)
 
 **Development Stack (Local FastAPI with Mock Agents):**
 - **Claude 4 Opus 4.1**: Master reasoning engine (74.5% SWE-bench score)
@@ -85,7 +89,7 @@ aws configure
 - **Amazon Nova Act**: Browser automation and legacy system integration
 - **Amazon Nova Canvas**: Automated diagram generation
 
-**Note:** The production AWS deployment uses Claude 3 Haiku and Nova Lite. The local development stack supports newer models for testing and future enhancements.
+**Note:** Production uses ONLY Amazon Nova Lite for all AI operations. The local development stack provides mock agents for testing without AWS costs.
 
 ### Architecture
 ```
@@ -116,10 +120,13 @@ When you run `./quick-start.sh dev`, you get these services:
 
 ### Production AWS Serverless (Currently Deployed)
 - **5 Lambda Functions**: JiraWebhookHandler, DocumentOrchestrator, ReviewTicketCreator, ApprovalHandler, QueryHandler
-- **Claude 3 Haiku**: Main AI engine for documentation generation
-- **Amazon Nova Lite**: Confluence search result analysis
+- **Amazon Nova Lite**: Single AI model for ALL tasks:
+  - Documentation generation
+  - Confluence search analysis
+  - Decision logic
 - **Event-Driven**: EventBridge orchestrates Lambda invocations
 - **Stateless**: Each function operates independently
+- **Cost-Effective**: ~$0.06 per 1M tokens (no AWS approval required)
 
 ### Development Stack (Local FastAPI)
 Kinexus AI includes a local development environment with 5 specialized mock Bedrock agents:
@@ -130,7 +137,7 @@ Kinexus AI includes a local development environment with 5 specialized mock Bedr
 - **QualityController** (Nova Pro): Quality assurance and compliance validation
 - **WebAutomator** (Nova Act): Browser automation for legacy systems
 
-**Note:** The agents above are for the local development stack. The production AWS deployment uses Lambda functions with Claude 3 Haiku and Nova Lite.
+**Note:** The agents above are mock services for local development only. Production uses Lambda functions with Amazon Nova Lite exclusively.
 
 ## 🔧 Key Features
 
