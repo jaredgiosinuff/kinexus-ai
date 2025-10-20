@@ -407,12 +407,34 @@ def create_jira_review_ticket(
 
     if response.status_code in [200, 201]:
         issue = response.json()
-        logger.info(f"Created review ticket {issue['key']}")
+        issue_key = issue["key"]
+        logger.info(f"Created review ticket {issue_key}")
+
+        # Add labels via update API (labels field may not be on create screen)
+        labels_to_add = ["documentation-review", "auto-generated", "kinexus-ai"]
+        try:
+            update_url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}"
+            update_response = requests.put(
+                update_url,
+                auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                json={"update": {"labels": [{"add": label} for label in labels_to_add]}},
+            )
+
+            if update_response.status_code in [200, 204]:
+                logger.info(f"Added labels to {issue_key}: {labels_to_add}")
+            else:
+                logger.warning(
+                    f"Failed to add labels to {issue_key}: {update_response.status_code}"
+                )
+        except Exception as e:
+            logger.warning(f"Could not add labels to {issue_key}: {e}")
+
         return {
             "success": True,
-            "issue_key": issue["key"],
+            "issue_key": issue_key,
             "issue_id": issue["id"],
-            "issue_url": f"{JIRA_BASE_URL}/browse/{issue['key']}",
+            "issue_url": f"{JIRA_BASE_URL}/browse/{issue_key}",
         }
     else:
         logger.error(

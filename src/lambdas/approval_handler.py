@@ -124,7 +124,11 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
     import requests
 
     # Download content from S3
-    s3_key = document["s3_location"].split(f"{DOCUMENTS_BUCKET}/")[-1]
+    s3_key = document.get("s3_key", "")
+    if not s3_key:
+        logger.error("Document missing s3_key field")
+        return {"error": "Document missing s3_key field"}
+
     s3_response = s3.get_object(Bucket=DOCUMENTS_BUCKET, Key=s3_key)
     markdown_content = s3_response["Body"].read().decode("utf-8")
 
@@ -312,9 +316,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if webhook_event != "comment_created":
             return {"statusCode": 200, "body": json.dumps({"message": "Not a comment event"})}
 
-        # Check if this is a review ticket (has label "documentation-review")
+        # Check if this is a review ticket
+        # Primary: Check for "documentation-review" label
+        # Fallback: Check if summary starts with "Review:"
         labels = issue.get("fields", {}).get("labels", [])
-        if "documentation-review" not in labels:
+        summary = issue.get("fields", {}).get("summary", "")
+
+        is_review_ticket = (
+            "documentation-review" in labels or
+            summary.startswith("Review:")
+        )
+
+        if not is_review_ticket:
+            logger.info(f"Not a review ticket: labels={labels}, summary={summary}")
             return {"statusCode": 200, "body": json.dumps({"message": "Not a review ticket"})}
 
         # Extract approval decision
