@@ -564,9 +564,11 @@ Be conservative - only choose "update" if you're confident the existing page dir
 
         # Check if this is a Jira ticket or GitHub change
         files = change_data.get("change_data", {}).get("files_changed", [])
-        ticket_summary = change_data.get("summary", "")
-        ticket_description = change_data.get("documentation_context", {}).get(
-            "description", ""
+        ticket_summary = change_data.get("change_data", {}).get("summary", "")
+        ticket_description = (
+            change_data.get("change_data", {})
+            .get("documentation_context", {})
+            .get("description", "")
         )
 
         if ticket_summary and not files:
