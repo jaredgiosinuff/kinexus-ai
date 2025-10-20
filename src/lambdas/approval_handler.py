@@ -226,7 +226,8 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
         )  # Software development space
 
         # Search for existing page with this title in the space
-        search_url = f"{CONFLUENCE_URL}/wiki/rest/api/content"
+        # Note: CONFLUENCE_URL already includes /wiki
+        search_url = f"{CONFLUENCE_URL}/rest/api/content"
         search_params = {
             "title": document["title"],
             "spaceKey": "SD",  # Space key for space ID 163845
@@ -257,7 +258,8 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
                 logger.info(f"Found existing Confluence page {page_id} with title '{document['title']}' - updating instead of creating")
 
                 # Update existing page using v1 API
-                update_url = f"{CONFLUENCE_URL}/wiki/rest/api/content/{page_id}"
+                # Note: CONFLUENCE_URL already includes /wiki
+                update_url = f"{CONFLUENCE_URL}/rest/api/content/{page_id}"
                 update_data = {
                     "id": page_id,
                     "type": "page",
