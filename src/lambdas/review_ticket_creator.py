@@ -403,6 +403,7 @@ def create_jira_review_ticket(
         auth=(JIRA_EMAIL, JIRA_API_TOKEN),
         headers={"Accept": "application/json", "Content-Type": "application/json"},
         json=issue_data,
+        timeout=10,
     )
 
     if response.status_code in [200, 201]:
@@ -424,6 +425,7 @@ def create_jira_review_ticket(
                 json={
                     "update": {"labels": [{"add": label} for label in labels_to_add]}
                 },
+                timeout=10,
             )
 
             if update_response.status_code in [200, 204]:

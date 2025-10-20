@@ -112,7 +112,10 @@ def get_document_from_review_ticket(issue_key: str) -> Optional[Dict[str, Any]]:
 
     url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}"
     response = requests.get(
-        url, auth=(JIRA_EMAIL, JIRA_API_TOKEN), headers={"Accept": "application/json"}
+        url,
+        auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+        headers={"Accept": "application/json"},
+        timeout=10,
     )
 
     if response.status_code != 200:
@@ -179,6 +182,7 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
             url,
             auth=(JIRA_EMAIL, JIRA_API_TOKEN),
             headers={"Accept": "application/json"},
+            timeout=10,
         )
         current_version = response.json().get("version", {}).get("number", 1)
 
@@ -199,6 +203,7 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
             auth=(JIRA_EMAIL, JIRA_API_TOKEN),
             headers={"Accept": "application/json", "Content-Type": "application/json"},
             json=update_data,
+            timeout=15,
         )
 
         if response.status_code in [200, 201]:
@@ -236,6 +241,7 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
             auth=(JIRA_EMAIL, JIRA_API_TOKEN),
             headers={"Accept": "application/json", "Content-Type": "application/json"},
             json=create_data,
+            timeout=15,
         )
 
         if response.status_code in [200, 201]:
@@ -325,6 +331,7 @@ def update_jira_ticket(
                 ],
             }
         },
+        timeout=10,
     )
 
     if response.status_code not in [200, 201]:
@@ -338,6 +345,7 @@ def update_jira_ticket(
             transitions_url,
             auth=(JIRA_EMAIL, JIRA_API_TOKEN),
             headers={"Accept": "application/json"},
+            timeout=10,
         )
 
         if response.status_code == 200:
@@ -362,6 +370,7 @@ def update_jira_ticket(
                         "Content-Type": "application/json",
                     },
                     json=transition_data,
+                    timeout=10,
                 )
 
                 if response.status_code in [200, 204]:
