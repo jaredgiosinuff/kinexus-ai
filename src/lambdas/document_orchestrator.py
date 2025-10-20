@@ -376,23 +376,24 @@ Respond ONLY with valid JSON in this exact format:
 Be conservative - only choose "update" if you're confident the existing page directly covers this topic."""
 
         try:
+            # Amazon Nova Lite uses different API format than Anthropic models
             response = bedrock.invoke_model(
                 modelId=CLAUDE_MODEL_ID,
                 contentType="application/json",
                 accept="application/json",
                 body=json.dumps(
                     {
-                        "anthropic_version": "bedrock-2023-05-31",
-                        "max_tokens": 500,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": 0.2,
-                        "top_p": 0.9,
+                        "inputText": prompt,
+                        "textGenerationConfig": {
+                            "maxTokenCount": 500,
+                            "temperature": 0.2,
+                        },
                     }
                 ),
             )
 
             response_body = json.loads(response["body"].read())
-            claude_response = response_body["content"][0]["text"]
+            claude_response = response_body["outputText"]
 
             # Parse Claude's JSON response
             # Extract JSON from potential markdown code blocks
@@ -461,24 +462,24 @@ Be conservative - only choose "update" if you're confident the existing page dir
         prompt = self._build_generation_prompt(change_data, analysis, is_update=False)
 
         try:
-            # Generate content with Claude using Messages API
+            # Amazon Nova Lite uses different API format than Anthropic models
             response = bedrock.invoke_model(
                 modelId=CLAUDE_MODEL_ID,
                 contentType="application/json",
                 accept="application/json",
                 body=json.dumps(
                     {
-                        "anthropic_version": "bedrock-2023-05-31",
-                        "max_tokens": 4000,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": 0.5,
-                        "top_p": 0.95,
+                        "inputText": prompt,
+                        "textGenerationConfig": {
+                            "maxTokenCount": 4000,
+                            "temperature": 0.5,
+                        },
                     }
                 ),
             )
 
             response_body = json.loads(response["body"].read())
-            generated_content = response_body["content"][0]["text"]
+            generated_content = response_body["outputText"]
 
             # Store in S3
             document_id = (
