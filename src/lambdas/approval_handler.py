@@ -78,6 +78,31 @@ def extract_approval_decision(comment_body: str) -> Optional[str]:
     return None
 
 
+def extract_text_from_adf(adf_content: Any) -> str:
+    """
+    Extract plain text from Atlassian Document Format (ADF)
+    ADF is a JSON structure used by Jira REST API v3
+    """
+    if isinstance(adf_content, str):
+        return adf_content
+
+    if not isinstance(adf_content, dict):
+        return ""
+
+    text_parts = []
+
+    # Handle different ADF node types
+    if adf_content.get("type") == "text":
+        text_parts.append(adf_content.get("text", ""))
+
+    # Recursively extract from content array
+    if "content" in adf_content:
+        for item in adf_content["content"]:
+            text_parts.append(extract_text_from_adf(item))
+
+    return " ".join(text_parts)
+
+
 def get_document_from_review_ticket(issue_key: str) -> Optional[Dict[str, Any]]:
     """
     Extract document ID from review ticket description
@@ -95,7 +120,12 @@ def get_document_from_review_ticket(issue_key: str) -> Optional[Dict[str, Any]]:
         return None
 
     issue = response.json()
-    description = issue.get("fields", {}).get("description", "")
+    description_adf = issue.get("fields", {}).get("description", "")
+
+    # Extract plain text from ADF structure
+    description = extract_text_from_adf(description_adf)
+
+    logger.info(f"Extracted description text: {description[:200]}")
 
     # Extract document_id from description
     # Format: "Document ID: doc_xyz_v3"
