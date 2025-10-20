@@ -40,8 +40,12 @@ JIRA_EMAIL = os.environ.get("JIRA_EMAIL", "")
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN", "")
 
 # AI Model configuration
-# Using Amazon Nova Lite - Amazon's own model, no approval needed, fast and cost-effective
-CLAUDE_MODEL_ID = "amazon.nova-lite-v1:0"
+# Using Amazon Nova Lite - Amazon's own model for all AI tasks:
+# - Documentation generation
+# - Confluence search result analysis and ranking
+# - Decision logic (UPDATE vs CREATE)
+# Benefits: No approval needed, fast, cost-effective (~$0.06 per 1M input tokens)
+MODEL_ID = "amazon.nova-lite-v1:0"
 
 
 def search_confluence(cql_query: str, limit: int = 10) -> List[Dict[str, Any]]:
@@ -404,7 +408,7 @@ Be conservative - only choose "update" if you're confident the existing page dir
         try:
             # Amazon Nova Lite uses messages format with inferenceConfig
             response = bedrock.invoke_model(
-                modelId=CLAUDE_MODEL_ID,
+                modelId=MODEL_ID,
                 contentType="application/json",
                 accept="application/json",
                 body=json.dumps(
@@ -490,7 +494,7 @@ Be conservative - only choose "update" if you're confident the existing page dir
         try:
             # Amazon Nova Lite uses messages format with inferenceConfig
             response = bedrock.invoke_model(
-                modelId=CLAUDE_MODEL_ID,
+                modelId=MODEL_ID,
                 contentType="application/json",
                 accept="application/json",
                 body=json.dumps(
