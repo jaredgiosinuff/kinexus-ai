@@ -106,11 +106,20 @@ Open the review ticket and click the **"View Full Diff (HTML)"** link to see:
 - Green highlighting for additions
 - Image change warnings
 
-### 4. Approve or Reject
-Comment on the review ticket:
-- `APPROVED` - Publish to Confluence immediately
+### 4. Approve or Reject (Two-Step Process)
+
+**⚠️ IMPORTANT:** The approval workflow requires both a comment AND a status change.
+
+**Step 1: Add Comment**
+Comment on the review ticket with one of:
+- `APPROVED` - Approve for publication
 - `REJECTED` - Reject and mark for regeneration
 - `NEEDS REVISION` - Request specific changes
+
+**Step 2: Move Ticket to "Done"**
+After commenting, transition the review ticket to **"Done"** status. This triggers the webhook that processes your approval decision.
+
+**Note:** Commenting alone will NOT trigger the workflow. You must move the ticket to Done.
 
 ### 5. Documentation Published
 If approved, documentation automatically publishes to Confluence with version tracking and audit trail.

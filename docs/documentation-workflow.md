@@ -232,7 +232,11 @@ Comment on this ticket with:
 
 **Actor:** Human reviewer
 
-**Options:**
+**⚠️ IMPORTANT: Two-Step Approval Process**
+
+The approval workflow requires **both** a comment and a status change:
+
+**Step 1: Add Comment with Decision**
 
 **A. Approve:**
 ```
@@ -260,18 +264,26 @@ Please add:
 3. Security best practices section
 ```
 
+**Step 2: Move Review Ticket to "Done"**
+- After adding the comment, transition the review ticket to **"Done"** status
+- This status change **triggers the Jira webhook**
+- The ApprovalHandler Lambda reads ALL comments to find your decision
+- **The workflow will NOT execute if you only comment without changing status**
+
 ---
 
 #### Phase 6: Approval Processing (Confluence Publication)
 
-**Trigger:** Jira webhook on `comment_created` event
+**Trigger:** Jira webhook on `jira:issue_updated` event (status change to Done)
 
 **Lambda:** `ApprovalHandler` (src/lambdas/approval_handler.py:90s)
 
 **Process:**
-1. Receive comment webhook from Jira
-2. Check if ticket has `documentation-review` label
-3. **Parse comment** for approval patterns:
+1. Receive `jira:issue_updated` webhook from Jira (status change)
+2. Check if status changed to "Done" - workflow only processes tickets moved to Done
+3. Fetch ALL comments on the review ticket via Jira REST API
+4. Check if ticket has `documentation-review` label (or summary starts with "Review:")
+5. **Parse most recent comment** for approval patterns:
    ```python
    APPROVAL_PATTERNS = [
        r"(?i)^approved?$",
@@ -488,8 +500,8 @@ JIRA_PROJECT_KEY=YOUR-PROJECT-KEY
 
 **Webhook #2: Approval Handler**
 - URL: `{API}/webhooks/approval`
-- Events: `comment_created`
-- For: Review ticket comments
+- Events: `jira:issue_updated`
+- For: Review ticket status changes (triggers on move to Done)
 
 ---
 

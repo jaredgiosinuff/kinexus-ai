@@ -476,12 +476,17 @@ Be conservative - only choose "update" if you're confident the existing page dir
             }
 
     async def create_documentation(
-        self, change_data: Dict[str, Any], analysis: Dict[str, Any]
+        self,
+        change_data: Dict[str, Any],
+        analysis: Dict[str, Any],
+        is_update: bool = False,
     ) -> Dict[str, Any]:
         """Create new documentation based on changes"""
 
         # Build generation prompt
-        prompt = self._build_generation_prompt(change_data, analysis, is_update=False)
+        prompt = self._build_generation_prompt(
+            change_data, analysis, is_update=is_update
+        )
 
         try:
             # Amazon Nova Lite uses messages format with inferenceConfig
@@ -557,9 +562,119 @@ Be conservative - only choose "update" if you're confident the existing page dir
     ) -> Dict[str, Any]:
         """Update existing documentation based on changes"""
 
-        # For MVP, similar to create but with context of existing doc
-        # In production, would fetch existing doc and merge changes
-        return await self.create_documentation(change_data, analysis)
+        # Fetch existing Confluence page content
+        existing_content = ""
+        if analysis.get("target_page_id"):
+            try:
+                page_url = (
+                    f"{CONFLUENCE_URL}/rest/api/content/{analysis['target_page_id']}"
+                )
+                params = {"expand": "body.storage,version"}
+
+                response = requests.get(
+                    page_url,
+                    params=params,
+                    auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+                    timeout=10,
+                )
+
+                if response.status_code == 200:
+                    page_data = response.json()
+                    # Extract plain text from Confluence storage format (HTML)
+                    html_content = (
+                        page_data.get("body", {}).get("storage", {}).get("value", "")
+                    )
+
+                    # Convert HTML to approximate markdown (basic conversion)
+                    import html2text
+
+                    h = html2text.HTML2Text()
+                    h.ignore_links = False
+                    h.body_width = 0
+                    existing_content = h.handle(html_content)
+
+                    logger.info(
+                        "Fetched existing Confluence page",
+                        page_id=analysis["target_page_id"],
+                        content_length=len(existing_content),
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to fetch existing page: {response.status_code}",
+                        page_id=analysis["target_page_id"],
+                    )
+            except Exception as e:
+                logger.error(f"Error fetching existing Confluence page: {e}")
+
+        # Add existing content to analysis for prompt context
+        analysis["existing_content"] = existing_content
+
+        # Save original Confluence content to S3 as "previous version" for diff comparison
+        previous_version_id = None
+        if existing_content:
+            try:
+                # Generate unique ID for previous version document
+                previous_version_id = f"previous_{change_data.get('change_id', datetime.utcnow().timestamp())}"
+                previous_version_key = f"documents/{previous_version_id}.md"
+
+                # Save to S3
+                s3.put_object(
+                    Bucket=DOCUMENTS_BUCKET,
+                    Key=previous_version_key,
+                    Body=existing_content.encode("utf-8"),
+                    ContentType="text/markdown",
+                )
+
+                logger.info(
+                    "Saved previous version to S3 for diff comparison",
+                    previous_version_id=previous_version_id,
+                    content_length=len(existing_content),
+                )
+            except Exception as e:
+                logger.error(f"Failed to save previous version to S3: {e}")
+                previous_version_id = None
+
+        # Generate updated content using create_documentation (with is_update=True)
+        result = await self.create_documentation(change_data, analysis, is_update=True)
+
+        # If successful, add Confluence page metadata and previous_version for ApprovalHandler
+        if result.get("document_id") and analysis.get("target_page_id"):
+            try:
+                # Build update expression dynamically
+                update_expr_parts = [
+                    "confluence_page_id = :page_id",
+                    "confluence_page_title = :page_title",
+                    "confluence_page_version = :page_version",
+                ]
+                expr_values = {
+                    ":page_id": analysis["target_page_id"],
+                    ":page_title": analysis.get("target_page_title", ""),
+                    ":page_version": analysis.get("target_page_version", 1),
+                }
+
+                # Add previous_version if we saved it
+                if previous_version_id:
+                    update_expr_parts.append("previous_version = :prev_version")
+                    expr_values[":prev_version"] = previous_version_id
+
+                # Update DynamoDB record with Confluence page info and previous_version
+                self.documents_table.update_item(
+                    Key={"document_id": result["document_id"]},
+                    UpdateExpression="SET " + ", ".join(update_expr_parts),
+                    ExpressionAttributeValues=expr_values,
+                )
+
+                logger.info(
+                    "Document marked for update",
+                    document_id=result["document_id"],
+                    confluence_page_id=analysis["target_page_id"],
+                    confluence_page_title=analysis.get("target_page_title"),
+                    previous_version=previous_version_id,
+                )
+            except Exception as e:
+                logger.error(f"Failed to add Confluence metadata: {str(e)}")
+
+        return result
 
     def _build_analysis_prompt(self, context: Dict[str, Any]) -> str:
         """Build prompt for impact analysis"""
@@ -602,7 +717,47 @@ Be conservative - only choose "update" if you're confident the existing page dir
                 "target_page_title", analysis.get("suggested_title", ticket_summary)
             )
 
-            prompt = f"""Generate technical documentation for a Jira ticket that describes a system change or new feature.
+            # Debug logging for UPDATE mode troubleshooting
+            has_existing = bool(analysis.get("existing_content"))
+            logger.info(
+                "Building generation prompt",
+                is_update=is_update,
+                has_existing_content=has_existing,
+                existing_content_length=len(analysis.get("existing_content", "")),
+            )
+
+            if is_update and analysis.get("existing_content"):
+                # UPDATE MODE: Preserve existing content, make minimal targeted modifications
+                prompt = f"""Update existing documentation with new information from a Jira ticket.
+
+EXISTING DOCUMENTATION:
+{analysis.get('existing_content')}
+
+NEW CHANGE TO INCORPORATE:
+Summary: {ticket_summary}
+Description: {ticket_description}
+
+INSTRUCTIONS:
+You must UPDATE the existing documentation above to incorporate the new change. Follow these rules:
+
+1. **PRESERVE existing content** - Keep all existing sections, text, and structure intact
+2. **Make MINIMAL modifications** - Only add/modify what's necessary for the new change
+3. **Be CONCISE and DIRECT** - No flavor text, marketing language, or unnecessary rewrites
+4. **Integrate seamlessly** - New content should fit naturally into existing structure
+5. **Maintain formatting** - Keep the same Markdown style and heading levels
+
+Common update patterns:
+- Add new section if feature is entirely new (e.g., "### OAuth2 Authentication")
+- Add bullet points to existing lists (e.g., add new endpoint to API list)
+- Update existing sections with new parameters/options
+- Add brief notes about changes in relevant sections
+
+Output the COMPLETE updated documentation in Markdown format (with existing + new content merged).
+Do NOT add preambles, explanations, or meta-commentary - output ONLY the documentation."""
+
+            else:
+                # CREATE MODE: Generate comprehensive new documentation
+                prompt = f"""Generate technical documentation for a Jira ticket that describes a system change or new feature.
 
 JIRA TICKET:
 Summary: {ticket_summary}
@@ -610,9 +765,7 @@ Description: {ticket_description}
 Keywords: {', '.join(analysis.get('keywords', []))}
 
 DOCUMENTATION TASK:
-{action_type} documentation titled: "{target}"
-
-{"Existing page to update: " + analysis.get('target_page_url', '') if is_update else "Creating new documentation."}
+Create new documentation titled: "{target}"
 
 {"Related pages for reference: " + ', '.join(analysis.get('related_pages', [])) if analysis.get('related_pages') else ""}
 

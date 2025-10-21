@@ -220,11 +220,101 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
             return {"error": "Failed to update Confluence page"}
 
     else:
-        # Create new page
-        # Note: You'll need to determine space_id and parent_id based on your Confluence structure
+        # No confluence_page_id in document - search for existing page by title
         space_id = document.get(
             "confluence_space_id", "163845"
         )  # Software development space
+
+        # Search for existing page with this title in the space
+        # Note: CONFLUENCE_URL already includes /wiki
+        search_url = f"{CONFLUENCE_URL}/rest/api/content"
+        search_params = {
+            "title": document["title"],
+            "spaceKey": "SD",  # Space key for space ID 163845
+            "expand": "version",
+            "limit": 1,
+        }
+
+        logger.info(
+            f"Searching Confluence for existing page with title: '{document['title']}'"
+        )
+        search_response = requests.get(
+            search_url,
+            auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+            headers={"Accept": "application/json"},
+            params=search_params,
+            timeout=10,
+        )
+
+        logger.info(f"Confluence search response: {search_response.status_code}")
+
+        if search_response.status_code == 200:
+            results = search_response.json().get("results", [])
+            logger.info(f"Search returned {len(results)} results")
+            if results:
+                # Page exists - update it instead
+                existing_page = results[0]
+                page_id = existing_page["id"]
+                current_version = existing_page.get("version", {}).get("number", 1)
+
+                logger.info(
+                    f"Found existing Confluence page {page_id} with title '{document['title']}' - updating instead of creating"
+                )
+
+                # Update existing page using v1 API
+                # Note: CONFLUENCE_URL already includes /wiki
+                update_url = f"{CONFLUENCE_URL}/rest/api/content/{page_id}"
+                update_data = {
+                    "id": page_id,
+                    "type": "page",
+                    "title": document["title"],
+                    "space": {"key": "SD"},
+                    "body": {
+                        "storage": {
+                            "value": confluence_content,
+                            "representation": "storage",
+                        }
+                    },
+                    "version": {
+                        "number": current_version + 1,
+                        "message": f"Updated via Kinexus AI - {document.get('source_change_id', '')}",
+                    },
+                }
+
+                update_response = requests.put(
+                    update_url,
+                    auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+                    headers={
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                    },
+                    json=update_data,
+                    timeout=15,
+                )
+
+                if update_response.status_code in [200, 201]:
+                    logger.info(f"Updated existing Confluence page {page_id}")
+                    return {
+                        "page_id": page_id,
+                        "action": "updated",
+                        "url": f"{CONFLUENCE_URL}/wiki{existing_page.get('_links', {}).get('webui', '')}",
+                    }
+                else:
+                    logger.error(
+                        f"Failed to update existing page: {update_response.status_code} - {update_response.text}"
+                    )
+                    return {"error": "Failed to update existing Confluence page"}
+            else:
+                logger.info(
+                    f"No existing page found with title '{document['title']}' - will create new page"
+                )
+        else:
+            logger.error(
+                f"Confluence search failed with status {search_response.status_code}: {search_response.text}"
+            )
+            logger.info("Proceeding to create new page despite search failure")
+
+        # No existing page found or search failed - create new page
         parent_id = document.get("confluence_parent_id", "163964")  # Default parent
 
         create_data = {
@@ -384,7 +474,7 @@ def update_jira_ticket(
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Lambda handler for approval processing
-    Triggered by Jira webhook when comments are added to review tickets
+    Triggered by Jira webhook when review ticket status is changed to DONE
     """
     try:
         # Parse webhook payload
@@ -392,23 +482,43 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         webhook_event = body.get("webhookEvent", "")
         issue = body.get("issue", {})
-        comment = body.get("comment", {})
+        changelog = body.get("changelog", {})
 
         issue_key = issue.get("key")
-        comment_body = comment.get("body", "")
-        comment_author = comment.get("author", {}).get("displayName", "Unknown")
+        issue_status = issue.get("fields", {}).get("status", {}).get("name", "")
+        change_author = body.get("user", {}).get("displayName", "Unknown")
 
         logger.info(
-            "Processing approval comment",
+            "Processing approval webhook",
             issue_key=issue_key,
             webhook_event=webhook_event,
+            status=issue_status,
         )
 
-        # Only process comment_created events on review tickets
-        if webhook_event != "comment_created":
+        # Only process issue_updated events (status changes)
+        if webhook_event != "jira:issue_updated":
+            logger.info(f"Ignoring non-update event: {webhook_event}")
             return {
                 "statusCode": 200,
-                "body": json.dumps({"message": "Not a comment event"}),
+                "body": json.dumps({"message": "Not an issue update event"}),
+            }
+
+        # Check if this is a status change to Done
+        status_changed_to_done = False
+        if changelog and "items" in changelog:
+            for item in changelog["items"]:
+                if (
+                    item.get("field") == "status"
+                    and item.get("toString", "").lower() == "done"
+                ):
+                    status_changed_to_done = True
+                    break
+
+        if not status_changed_to_done:
+            logger.info(f"Not a status change to Done for {issue_key}")
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"message": "Not a status change to Done"}),
             }
 
         # Check if this is a review ticket
@@ -428,17 +538,61 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "body": json.dumps({"message": "Not a review ticket"}),
             }
 
-        # Extract approval decision
-        decision = extract_approval_decision(comment_body)
+        # Status changed to Done - now fetch comments to find approval decision
+        logger.info(
+            f"Review ticket moved to Done - checking comments for decision",
+            author=change_author,
+        )
 
-        if not decision:
-            logger.info("No approval decision found in comment")
+        # Fetch all comments on this ticket
+        import requests
+
+        comments_url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}/comment"
+        response = requests.get(
+            comments_url,
+            auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+            headers={"Accept": "application/json"},
+            timeout=10,
+        )
+
+        if response.status_code != 200:
+            logger.error(
+                f"Failed to fetch comments for {issue_key}: {response.status_code}"
+            )
             return {
-                "statusCode": 200,
-                "body": json.dumps({"message": "No approval decision found"}),
+                "statusCode": 500,
+                "body": json.dumps({"error": "Failed to fetch comments"}),
             }
 
-        logger.info(f"Approval decision: {decision}", author=comment_author)
+        comments_data = response.json()
+        comments = comments_data.get("comments", [])
+
+        # Find most recent comment with an approval decision
+        decision = None
+        decision_author = None
+        for comment in reversed(comments):  # Most recent first
+            comment_body_adf = comment.get("body", "")
+            comment_body = extract_text_from_adf(comment_body_adf)
+            comment_author_name = comment.get("author", {}).get(
+                "displayName", "Unknown"
+            )
+
+            decision = extract_approval_decision(comment_body)
+            if decision:
+                decision_author = comment_author_name
+                logger.info(
+                    f"Found decision: {decision}",
+                    author=decision_author,
+                    comment=comment_body[:100],
+                )
+                break
+
+        if not decision:
+            logger.warning(f"No approval decision found in comments for {issue_key}")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "No approval decision found in comments"}),
+            }
 
         # Get associated document
         document = get_document_from_review_ticket(issue_key)
@@ -449,7 +603,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "body": json.dumps({"error": "Associated document not found"}),
             }
 
-        # Process based on decision
+        # Process based on decision from comments
         if decision == "approved":
             # Publish to Confluence
             publish_result = publish_to_confluence(document)
@@ -463,7 +617,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     ExpressionAttributeNames={"#status": "status"},
                     ExpressionAttributeValues={
                         ":status": "published",
-                        ":approver": comment_author,
+                        ":approver": decision_author,
                         ":timestamp": datetime.utcnow().isoformat(),
                         ":page_id": publish_result.get("page_id"),
                         ":url": publish_result.get("url"),
@@ -471,8 +625,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 )
 
                 # Update Jira ticket with success
-                success_comment = f"✅ Documentation approved and published!\n\n📚 Confluence: {publish_result.get('url')}\n\nApproved by: {comment_author}"
-                update_jira_ticket(issue_key, success_comment, transition_to="Done")
+                success_comment = f"✅ Documentation approved and published!\n\n📚 Confluence: {publish_result.get('url')}\n\nApproved by: {decision_author}"
+                update_jira_ticket(issue_key, success_comment)
 
                 # Comment on original source ticket
                 if document.get("source_change_id"):
@@ -496,7 +650,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                                 {
                                     "document_id": document["document_id"],
                                     "confluence_url": publish_result.get("url"),
-                                    "approved_by": comment_author,
+                                    "approved_by": decision_author,
                                     "review_ticket": issue_key,
                                 }
                             ),
@@ -532,14 +686,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "rejected",
-                    ":rejector": comment_author,
+                    ":rejector": decision_author,
                     ":timestamp": datetime.utcnow().isoformat(),
                 },
             )
 
             # Update Jira ticket
-            rejection_comment = f"❌ Documentation rejected by {comment_author}\n\nPlease address feedback and regenerate."
-            update_jira_ticket(issue_key, rejection_comment, transition_to="Done")
+            rejection_comment = f"❌ Documentation rejected by {decision_author}\n\nPlease address feedback and regenerate."
+            update_jira_ticket(issue_key, rejection_comment)
 
             return {
                 "statusCode": 200,
@@ -555,13 +709,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "needs_revision",
-                    ":requester": comment_author,
+                    ":requester": decision_author,
                     ":timestamp": datetime.utcnow().isoformat(),
                 },
             )
 
             # Update Jira ticket
-            revision_comment = f"🔄 Revisions requested by {comment_author}\n\nPlease address feedback."
+            revision_comment = f"🔄 Revisions requested by {decision_author}\n\nPlease address feedback."
             update_jira_ticket(issue_key, revision_comment)
 
             return {

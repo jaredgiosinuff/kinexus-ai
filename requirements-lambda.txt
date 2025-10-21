@@ -24,3 +24,6 @@ orjson>=3.9,<4
 
 # HTTP requests for Jira/Confluence API
 requests>=2.31,<3
+
+# HTML to Markdown conversion (for Confluence content)
+html2text>=2020.1.16
