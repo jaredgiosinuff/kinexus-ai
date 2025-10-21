@@ -1,6 +1,14 @@
 # Administration Guide
 
-This comprehensive guide covers all administrative aspects of Kinexus AI, from user management to system configuration and monitoring.
+> **⚠️ Local Development Environment Only**
+>
+> This administration guide describes the **local FastAPI development stack** only. These features are NOT deployed to production AWS.
+>
+> **Production Environment**: Uses AWS Lambda functions, API Gateway, EventBridge, DynamoDB, and S3. No admin dashboard, no PostgreSQL, no authentication system, no multi-agent system.
+>
+> See [Production Architecture](../architecture.md) for the actual deployed AWS serverless system.
+
+This comprehensive guide covers all administrative aspects of Kinexus AI **local development environment**, from user management to system configuration and monitoring.
 
 ## 🎛️ Admin Dashboard Overview
 
