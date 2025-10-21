@@ -61,8 +61,11 @@ flowchart TB
     L3 -->|Create Ticket| Jira
 
     L4 -->|Read Content| S3
-    L4 -->|Publish Page| Jira
+    L4 -->|Publish Page| Conf
     L4 -->|Update Status| DDB2
+
+    Conf[Confluence]
+    L4 --> Conf
 
     L1 -.->|Uses| Layer
     L2 -.->|Uses| Layer
@@ -144,7 +147,6 @@ flowchart TB
 - **Endpoints:**
   - `POST /webhooks/jira` → JiraWebhookHandler
   - `POST /webhooks/approval` → ApprovalHandler
-  - `GET /documents` → DocumentOrchestrator (query)
 
 **Lambda Layer:**
 - Shared dependencies: structlog, httpx, anthropic, pydantic, requests, orjson
@@ -189,9 +191,11 @@ sequenceDiagram
 
     Human->>Jira: View diff link
     Human->>Jira: Comment: APPROVED
+    Human->>Jira: Move to Done status
 
-    Jira->>App: Webhook: Comment Created
+    Jira->>App: Webhook: Issue Updated (Done)
     App->>App: Detect review ticket (label + summary)
+    App->>App: Fetch all comments via API
     App->>App: Extract text from ADF format
     App->>App: Parse approval decision (regex)
     App->>S3: Read approved content
@@ -244,7 +248,7 @@ Kinexus uses **AWS CDK (Python)** for infrastructure:
 ```python
 # infrastructure/app.py
 class KinexusAIMVPStack(Stack):
-    - Lambda functions (5 total)
+    - Lambda functions (4 total: JiraWebhookHandler, DocumentOrchestrator, ReviewTicketCreator, ApprovalHandler)
     - Lambda layer (shared dependencies)
     - EventBridge bus and rules
     - DynamoDB tables (2)
@@ -327,10 +331,11 @@ cdk deploy --context environment=development \
 
 ## Planned Enhancements
 
+- **GitHub Webhook Integration**: GitHubWebhookHandler Lambda to process code changes and trigger documentation updates
 - **Automated Image Generation**: AI-generated diagrams using Mermaid/PlantUML
 - **Multi-Stage Approval**: Technical review → Documentation review → Product approval
 - **Slack Integration**: Notifications and inline approval buttons
 - **Metrics Dashboard**: Approval times, rejection rates, quality scores
 - **Revision Workflow**: Track changes after "NEEDS REVISION" feedback
 - **Enhanced RAG**: Use OpenSearch for context retrieval before generation
-- **Integration Hardening**: GitHub, ServiceNow, SharePoint adapters
+- **Integration Hardening**: ServiceNow, SharePoint, Monday.com adapters
