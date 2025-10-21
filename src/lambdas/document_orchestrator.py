@@ -599,27 +599,67 @@ Be conservative - only choose "update" if you're confident the existing page dir
         # Add existing content to analysis for prompt context
         analysis["existing_content"] = existing_content
 
+        # Save original Confluence content to S3 as "previous version" for diff comparison
+        previous_version_id = None
+        if existing_content:
+            try:
+                # Generate unique ID for previous version document
+                previous_version_id = f"previous_{change_data.get('change_id', datetime.utcnow().timestamp())}"
+                previous_version_key = f"documents/{previous_version_id}.md"
+
+                # Save to S3
+                s3.put_object(
+                    Bucket=DOCUMENTS_BUCKET,
+                    Key=previous_version_key,
+                    Body=existing_content.encode('utf-8'),
+                    ContentType='text/markdown'
+                )
+
+                logger.info(
+                    "Saved previous version to S3 for diff comparison",
+                    previous_version_id=previous_version_id,
+                    content_length=len(existing_content),
+                )
+            except Exception as e:
+                logger.error(f"Failed to save previous version to S3: {e}")
+                previous_version_id = None
+
         # Generate updated content using create_documentation (with is_update=True)
         result = await self.create_documentation(change_data, analysis, is_update=True)
 
-        # If successful, add Confluence page metadata for ApprovalHandler
+        # If successful, add Confluence page metadata and previous_version for ApprovalHandler
         if result.get("document_id") and analysis.get("target_page_id"):
             try:
-                # Update DynamoDB record with Confluence page info
+                # Build update expression dynamically
+                update_expr_parts = [
+                    "confluence_page_id = :page_id",
+                    "confluence_page_title = :page_title",
+                    "confluence_page_version = :page_version"
+                ]
+                expr_values = {
+                    ":page_id": analysis["target_page_id"],
+                    ":page_title": analysis.get("target_page_title", ""),
+                    ":page_version": analysis.get("target_page_version", 1),
+                }
+
+                # Add previous_version if we saved it
+                if previous_version_id:
+                    update_expr_parts.append("previous_version = :prev_version")
+                    expr_values[":prev_version"] = previous_version_id
+
+                # Update DynamoDB record with Confluence page info and previous_version
                 self.documents_table.update_item(
                     Key={"document_id": result["document_id"]},
-                    UpdateExpression="SET confluence_page_id = :page_id, confluence_page_title = :page_title, confluence_page_version = :page_version",
-                    ExpressionAttributeValues={
-                        ":page_id": analysis["target_page_id"],
-                        ":page_title": analysis.get("target_page_title", ""),
-                        ":page_version": analysis.get("target_page_version", 1),
-                    },
+                    UpdateExpression="SET " + ", ".join(update_expr_parts),
+                    ExpressionAttributeValues=expr_values,
                 )
+
                 logger.info(
                     "Document marked for update",
                     document_id=result["document_id"],
                     confluence_page_id=analysis["target_page_id"],
                     confluence_page_title=analysis.get("target_page_title"),
+                    previous_version=previous_version_id,
                 )
             except Exception as e:
                 logger.error(f"Failed to add Confluence metadata: {str(e)}")
