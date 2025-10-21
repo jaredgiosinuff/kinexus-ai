@@ -7,20 +7,25 @@ Welcome to the comprehensive documentation for Kinexus AI - the autonomous knowl
 ### **New to Kinexus AI?**
 Start here: **[Getting Started Guide](getting-started.md)**
 
-### **Setting Up Development?**
-Go to: **[Development Guide](development.md)**
+### **Deploying to Production AWS?**
+See: **[Deployment Guide](deployment.md)** for Lambda + EventBridge + DynamoDB
 
-### **Deploying to Production?**
-See: **[Deployment Guide](deployment.md)**
+### **Setting Up Local Development?**
+Go to: **[Local Development Stack](local-dev-stack/)** for FastAPI + PostgreSQL + Multi-Agent AI
 
 ## 📚 Complete Documentation
 
 ### Core Guides
 - **[Getting Started](getting-started.md)** - Complete onboarding for new users and evaluators
-- **[Development Guide](development.md)** - Comprehensive local development setup and workflows
-- **[Deployment Guide](deployment.md)** - Production deployment options and procedures
-- **[Administration Guide](administration.md)** - User management, system configuration, and monitoring
+- **[Deployment Guide](deployment.md)** - AWS production deployment (Lambda + EventBridge)
 - **[API Reference](api-reference.md)** - Complete API documentation with examples
+
+### Local Development Stack (FastAPI + Docker)
+> **Note**: These features are NOT in production AWS. See [local-dev-stack/](local-dev-stack/) for details.
+
+- **[Local Development Guide](local-dev-stack/development.md)** - Docker setup and workflows
+- **[Administration Guide](local-dev-stack/administration.md)** - Admin dashboard and user management
+- **[CRAG System](local-dev-stack/crag-system.md)** - Self-Corrective RAG implementation
 
 ### Operational Guides
 - **[Architecture](architecture.md)** - System architecture and technical design

@@ -94,38 +94,35 @@ export JIRA_API_TOKEN="your-token"
 
 Kinexus AI deploys as a serverless application on AWS:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        AWS Account                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐ │
-│  │ API Gateway  │───▶│   Lambda     │───▶│  DynamoDB    │ │
-│  │  REST API    │    │  Functions   │    │   Tables     │ │
-│  └──────────────┘    │  (5 total)   │    └──────────────┘ │
-│                      └──────────────┘                      │
-│         │                   │                  │            │
-│         │                   ▼                  │            │
-│         │            ┌──────────────┐         │            │
-│         │            │ EventBridge  │         │            │
-│         │            │  Event Bus   │         │            │
-│         │            └──────────────┘         │            │
-│         │                   │                  │            │
-│         └──────────┬────────┴─────────────────┘            │
-│                    │                                        │
-│                    ▼                                        │
-│           ┌──────────────┐    ┌──────────────┐            │
-│           │      S3      │    │   Bedrock    │            │
-│           │   Bucket     │    │   (Claude)   │            │
-│           └──────────────┘    └──────────────┘            │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-             │                      │
-             ▼                      ▼
-      ┌────────────┐        ┌────────────┐
-      │    Jira    │        │ Confluence │
-      │   Cloud    │        │   Cloud    │
-      └────────────┘        └────────────┘
+```mermaid
+graph TB
+    subgraph AWS["AWS Account"]
+        API["API Gateway<br/>REST API"]
+        Lambda["Lambda Functions<br/>(5 total)"]
+        DDB["DynamoDB<br/>Tables"]
+        EB["EventBridge<br/>Event Bus"]
+        S3["S3 Bucket<br/>Documents & Diffs"]
+        Bedrock["Amazon Bedrock<br/>Nova Lite"]
+
+        API --> Lambda
+        Lambda --> DDB
+        Lambda --> EB
+        EB --> Lambda
+        Lambda --> S3
+        Lambda --> Bedrock
+    end
+
+    Jira["Jira Cloud<br/>Change Source"]
+    Confluence["Confluence Cloud<br/>Publication Target"]
+
+    Jira --> API
+    Lambda --> Confluence
+
+    style AWS fill:#fff3cd
+    style Lambda fill:#d4edda
+    style Bedrock fill:#cce5ff
+    style Jira fill:#f8d7da
+    style Confluence fill:#f8d7da
 ```
 
 ### Deployment Methods
@@ -150,15 +147,15 @@ git push origin main
 ```
 
 **Deployment Triggers:**
-- `develop` branch → Development environment (MVP stack)
-- `main` branch → Production environment (full stack)
+- `develop` branch → Development environment (AWS serverless)
+- `main` branch → Production environment (AWS serverless)
 - `release/*` branch → Staging environment
 - Manual workflow dispatch → Custom environment/type
 
 **What Happens:**
 1. Runs linting (black, isort, ruff)
 2. Runs tests (pytest with coverage)
-3. Builds Lambda layer (MVP) or Docker images (production)
+3. Builds Lambda layer with dependencies
 4. Deploys CDK stack to AWS
 5. Runs health checks
 6. Posts deployment summary to PR (if applicable)
@@ -192,7 +189,7 @@ export AWS_DEFAULT_REGION="us-east-1"
 aws sts get-caller-identity
 ```
 
-**Step 4: Build Lambda layer** (required for MVP deployment)
+**Step 4: Build Lambda layer** (required for AWS serverless deployment)
 ```bash
 cd ..  # Back to project root
 ./scripts/build-layer.sh
@@ -205,22 +202,11 @@ cdk bootstrap aws://ACCOUNT_ID/us-east-1
 
 **Step 6: Deploy**
 
-**MVP Deployment** (5 Lambda functions, DynamoDB, S3, EventBridge):
+**AWS Production Deployment** (5 Lambda functions, DynamoDB, S3, EventBridge):
 ```bash
 cdk deploy \
   -c deployment_type=mvp \
   -c environment=development \
-  -c jira_base_url="https://yourcompany.atlassian.net" \
-  -c jira_email="user@company.com" \
-  -c jira_api_token="ATATT3x..." \
-  -c confluence_url="https://yourcompany.atlassian.net/wiki"
-```
-
-**Production Deployment** (ECS, RDS, ElastiCache, ALB):
-```bash
-cdk deploy \
-  -c deployment_type=production \
-  -c environment=production \
   -c jira_base_url="https://yourcompany.atlassian.net" \
   -c jira_email="user@company.com" \
   -c jira_api_token="ATATT3x..." \
@@ -327,13 +313,13 @@ aws s3api get-bucket-versioning --bucket kinexus-documents-ACCOUNT_ID-REGION
 
 ### AWS Resources Created
 
-#### MVP Deployment (Lambda-based)
+The AWS serverless deployment creates the following resources:
 
 | Resource | Name/Pattern | Purpose |
 |----------|--------------|---------|
 | **Lambda Functions** | | |
 | - JiraWebhookHandler | `KinexusAIMVPStack-*-JiraWebhookHandler*` | Processes Jira webhooks |
-| - DocumentOrchestrator | `KinexusAIMVPStack-*-DocumentOrchestrator*` | Generates documentation with Claude |
+| - DocumentOrchestrator | `KinexusAIMVPStack-*-DocumentOrchestrator*` | Generates documentation with Amazon Nova Lite |
 | - ReviewTicketCreator | `KinexusAIMVPStack-*-ReviewTicketCreator*` | Creates review tickets with diffs |
 | - ApprovalHandler | `KinexusAIMVPStack-*-ApprovalHandler*` | Processes approvals, publishes to Confluence |
 | **Lambda Layer** | `KinexusLayer*` | Shared dependencies |
@@ -347,24 +333,7 @@ aws s3api get-bucket-versioning --bucket kinexus-documents-ACCOUNT_ID-REGION
 | **API Gateway** | `KinexusAPI` | REST API endpoints |
 | **CloudWatch Logs** | `/aws/lambda/KinexusAIMVPStack-*` | Lambda logs (7-day retention) |
 
-#### Production Deployment (Container-based)
-
-Additional resources for production:
-
-| Resource | Name/Pattern | Purpose |
-|----------|--------------|---------|
-| **ECS Cluster** | `kinexus-ai-production` | Container orchestration |
-| **ECS Services** | API, Orchestrator, Agents | Microservices |
-| **RDS PostgreSQL** | `kinexus-db-production` | Relational database |
-| **ElastiCache Redis** | `kinexus-cache-production` | Caching layer |
-| **Application Load Balancer** | `kinexus-ai-alb` | Traffic distribution |
-| **Cognito User Pool** | `kinexus-users` | Authentication |
-| **VPC** | `kinexus-vpc` | Network isolation |
-| **ECR Repositories** | `kinexus-ai-*` | Container images |
-
 ### Cost Estimation
-
-#### MVP Deployment (Serverless)
 
 **Monthly costs for low-moderate usage:**
 - Lambda: ~$5-20 (1M requests, 512MB-1GB memory)
@@ -372,7 +341,7 @@ Additional resources for production:
 - S3: ~$1-5 (10GB storage, 10k requests)
 - EventBridge: ~$1 (1M events)
 - API Gateway: ~$3.50 (1M requests)
-- Bedrock (Claude): ~$10-50 (varies by usage)
+- Bedrock (Amazon Nova Lite): ~$10-50 (varies by usage, ~$0.06 per 1M input tokens)
 - **Total: ~$25-90/month**
 
 **Cost optimization tips:**
@@ -380,16 +349,7 @@ Additional resources for production:
 - Enable S3 Intelligent-Tiering for storage
 - Set Lambda concurrency limits
 - Use CloudWatch Insights to monitor Bedrock usage
-
-#### Production Deployment (Containers)
-
-**Monthly costs:**
-- ECS Fargate: ~$50-150 (2 vCPU, 4GB memory, 24/7)
-- RDS PostgreSQL: ~$30-80 (db.t3.small Multi-AZ)
-- ElastiCache Redis: ~$20-50 (cache.t3.small)
-- ALB: ~$20
-- NAT Gateway: ~$35
-- **Total: ~$155-335/month** (before Bedrock usage)
+- Amazon Nova Lite is significantly cheaper than Claude models (~10-20x cost reduction)
 
 ### Updating the Deployment
 
@@ -414,7 +374,7 @@ cdk deploy
 
 **Delete the CloudFormation stack:**
 ```bash
-# MVP stack
+# Via CDK
 cdk destroy
 
 # Or via AWS CLI
@@ -435,7 +395,13 @@ aws dynamodb delete-table --table-name kinexus-documents
 
 ## 🐳 Docker Deployment (Local Development)
 
-**Note:** Docker deployment is for **local development and testing only**. The production-ready deployment uses AWS serverless architecture (see above).
+> **⚠️ Local Development Only**
+>
+> Docker deployment is for **local development and testing ONLY**. This is NOT a production deployment method.
+>
+> **Production Environment**: Uses AWS Lambda + EventBridge + DynamoDB + S3 serverless architecture (see [AWS Deployment](#aws-deployment-recommended)).
+>
+> **Local Development Environment**: Uses FastAPI + PostgreSQL + Redis + OpenSearch + Multi-Agent AI (see [local-dev-stack](local-dev-stack/) documentation).
 
 ### Prerequisites
 
