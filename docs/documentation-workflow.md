@@ -92,7 +92,7 @@ The webhook handler uses **smart filtering** to avoid generating documentation f
 **Process:**
 1. Receive change event from EventBridge
 2. Query DynamoDB for change details
-3. **Invoke Claude (AWS Bedrock)** with change context:
+3. **Invoke Amazon Nova Lite (AWS Bedrock)** with change context:
    ```python
    prompt = f"""
    Analyze this Jira ticket and generate documentation:
@@ -614,4 +614,4 @@ This ensures the approval workflow works even if label addition fails.
 
 ---
 
-For complete implementation details, see [APPROVAL_WORKFLOW.md](../APPROVAL_WORKFLOW.md) in the project root.
+For complete implementation details, see [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md) in the project root.
