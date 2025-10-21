@@ -1,6 +1,14 @@
-# Security Overview
+# Security Overview - Local Development Stack
 
-Kinexus AI is still maturing toward an enterprise-ready security posture. This document captures what is implemented today and the controls that are planned.
+> **⚠️ Local Development Environment Only**
+>
+> This security guide documents the **local FastAPI development stack** only. These security features (OAuth2, role-based auth, audit logs, admin dashboard, Cognito/SSO) are NOT in production AWS.
+>
+> **Production Environment**: Uses AWS Lambda with EventBridge, API Gateway webhook signature validation, and IAM permissions. No authentication system, role-based access, or admin dashboard exists in production.
+>
+> See [Architecture](../architecture.md) for production AWS security model.
+
+Kinexus AI's local development environment is maturing toward an enterprise-ready security posture. This document captures what is implemented in the local dev stack and the controls that are planned.
 
 ## Implemented Controls
 - **Authentication** — FastAPI OAuth2 password flow backed by bcrypt hashes (`src/api/routers/auth.py`). Tokens expire after `ACCESS_TOKEN_EXPIRE_MINUTES` and include user IDs only.

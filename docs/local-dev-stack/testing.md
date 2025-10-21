@@ -1,6 +1,14 @@
-# Testing Strategy
+# Testing Strategy - Local Development Stack
 
-Kinexus AI uses Pytest for automation. Most suites exercise integration points (agents, AWS mocks, deployment helpers) rather than isolated unit tests, so expect to run them with the container stack online.
+> **⚠️ Local Development Environment Only**
+>
+> This testing guide documents the **local FastAPI development stack** only. These tests (LocalStack, MCP integration, compose stack, PostgreSQL, Redis, mock Bedrock) are NOT applicable to production AWS.
+>
+> **Production Environment**: AWS Lambda functions are tested via CloudWatch Logs monitoring, manual end-to-end workflow testing with Jira/Confluence, and GitHub Actions deployment validation.
+>
+> See [Architecture](../architecture.md) for production monitoring and [Deployment Guide](../deployment.md) for production testing procedures.
+
+Kinexus AI's local development environment uses Pytest for automation. Most suites exercise integration points (agents, AWS mocks, deployment helpers) rather than isolated unit tests, so expect to run them with the container stack online.
 
 ## Test Matrix
 | File | Purpose | Dependencies |
