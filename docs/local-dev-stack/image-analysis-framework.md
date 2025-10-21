@@ -1,8 +1,16 @@
 # Image Analysis Framework for Documentation Validation
 
+> **⚠️ Local Development Environment Only**
+>
+> The Image Analysis Framework is currently **not deployed to production AWS**. It is available only in the local FastAPI development stack for testing and experimentation.
+>
+> **Production Environment**: Uses Amazon Nova Lite for text-based documentation generation only. No image analysis, OCR, or visual content validation is performed in production Lambda functions.
+>
+> See [Production Architecture](../architecture.md) for the actual deployed AWS serverless system.
+
 ## Overview
 
-The Image Analysis Framework provides comprehensive visual content analysis capabilities for Kinexus AI's documentation management system. It uses advanced computer vision, OCR, and AI-powered analysis to validate, assess, and enhance documentation images across the platform.
+The Image Analysis Framework provides comprehensive visual content analysis capabilities for Kinexus AI's **local development environment**. It uses advanced computer vision, OCR, and AI-powered analysis to validate, assess, and enhance documentation images during development and testing.
 
 ## Architecture
 
