@@ -184,76 +184,13 @@ X-Atlassian-Webhook-Identifier: {webhook-id}
 
 ---
 
-### POST /webhooks/github
-
-Receives GitHub push events to trigger documentation updates from code changes.
-
-**Triggered By:**
-- GitHub webhook configured in repository settings
-- Events: `push` (commits to specified branches)
-
-**Request Headers:**
-```
-Content-Type: application/json
-X-GitHub-Event: push
-X-Hub-Signature-256: sha256={signature}
-```
-
-**Request Body:**
-```json
-{
-  "ref": "refs/heads/main",
-  "repository": {
-    "full_name": "your-org/your-repo",
-    "name": "your-repo"
-  },
-  "commits": [
-    {
-      "id": "abc123def456",
-      "message": "feat: Add new authentication endpoint",
-      "added": ["src/api/auth.py"],
-      "modified": ["src/api/__init__.py"],
-      "removed": []
-    }
-  ],
-  "head_commit": {
-    "id": "abc123def456",
-    "message": "feat: Add new authentication endpoint"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "status": "received",
-  "change_id": "github_your-repo_abc123def456_1234567890.123456",
-  "files_analyzed": 2
-}
-```
-
-**Status Codes:**
-- `200 OK` - Event received and processed
-- `400 Bad Request` - Invalid event format
-- `403 Forbidden` - Invalid webhook signature
-- `500 Internal Server Error` - Processing failed
-
-**Workflow Triggered:**
-1. GitHubWebhookHandler Lambda validates signature
-2. Analyzes changed files and commit messages
-3. Stores change data in DynamoDB
-4. Emits `ChangeDetected` event to EventBridge
-5. DocumentOrchestrator Lambda generates documentation based on code changes
-
----
-
 ## Event Flow
 
 All webhooks follow the same general pattern:
 
 ```mermaid
 graph LR
-    A[External System<br/>Jira/GitHub] -->|POST /webhooks/*| B[API Gateway]
+    A[Jira<br/>Issue Events] -->|POST /webhooks/jira| B[API Gateway]
     B --> C[Lambda Handler]
     C --> D[DynamoDB<br/>kinexus-changes]
     C --> E[EventBridge<br/>ChangeDetected]
