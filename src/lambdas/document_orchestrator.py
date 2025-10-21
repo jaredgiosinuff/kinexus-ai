@@ -476,12 +476,12 @@ Be conservative - only choose "update" if you're confident the existing page dir
             }
 
     async def create_documentation(
-        self, change_data: Dict[str, Any], analysis: Dict[str, Any]
+        self, change_data: Dict[str, Any], analysis: Dict[str, Any], is_update: bool = False
     ) -> Dict[str, Any]:
         """Create new documentation based on changes"""
 
         # Build generation prompt
-        prompt = self._build_generation_prompt(change_data, analysis, is_update=False)
+        prompt = self._build_generation_prompt(change_data, analysis, is_update=is_update)
 
         try:
             # Amazon Nova Lite uses messages format with inferenceConfig
