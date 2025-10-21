@@ -557,8 +557,50 @@ Be conservative - only choose "update" if you're confident the existing page dir
     ) -> Dict[str, Any]:
         """Update existing documentation based on changes"""
 
-        # Generate new content using create_documentation
-        result = await self.create_documentation(change_data, analysis)
+        # Fetch existing Confluence page content
+        existing_content = ""
+        if analysis.get("target_page_id"):
+            try:
+                page_url = f"{CONFLUENCE_URL}/rest/api/content/{analysis['target_page_id']}"
+                params = {"expand": "body.storage,version"}
+
+                response = requests.get(
+                    page_url,
+                    params=params,
+                    auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+                    timeout=10,
+                )
+
+                if response.status_code == 200:
+                    page_data = response.json()
+                    # Extract plain text from Confluence storage format (HTML)
+                    html_content = page_data.get("body", {}).get("storage", {}).get("value", "")
+
+                    # Convert HTML to approximate markdown (basic conversion)
+                    import html2text
+                    h = html2text.HTML2Text()
+                    h.ignore_links = False
+                    h.body_width = 0
+                    existing_content = h.handle(html_content)
+
+                    logger.info(
+                        "Fetched existing Confluence page",
+                        page_id=analysis["target_page_id"],
+                        content_length=len(existing_content),
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to fetch existing page: {response.status_code}",
+                        page_id=analysis["target_page_id"],
+                    )
+            except Exception as e:
+                logger.error(f"Error fetching existing Confluence page: {e}")
+
+        # Add existing content to analysis for prompt context
+        analysis["existing_content"] = existing_content
+
+        # Generate updated content using create_documentation (with is_update=True)
+        result = await self.create_documentation(change_data, analysis, is_update=True)
 
         # If successful, add Confluence page metadata for ApprovalHandler
         if result.get("document_id") and analysis.get("target_page_id"):
@@ -625,7 +667,38 @@ Be conservative - only choose "update" if you're confident the existing page dir
                 "target_page_title", analysis.get("suggested_title", ticket_summary)
             )
 
-            prompt = f"""Generate technical documentation for a Jira ticket that describes a system change or new feature.
+            if is_update and analysis.get('existing_content'):
+                # UPDATE MODE: Preserve existing content, make minimal targeted modifications
+                prompt = f"""Update existing documentation with new information from a Jira ticket.
+
+EXISTING DOCUMENTATION:
+{analysis.get('existing_content')}
+
+NEW CHANGE TO INCORPORATE:
+Summary: {ticket_summary}
+Description: {ticket_description}
+
+INSTRUCTIONS:
+You must UPDATE the existing documentation above to incorporate the new change. Follow these rules:
+
+1. **PRESERVE existing content** - Keep all existing sections, text, and structure intact
+2. **Make MINIMAL modifications** - Only add/modify what's necessary for the new change
+3. **Be CONCISE and DIRECT** - No flavor text, marketing language, or unnecessary rewrites
+4. **Integrate seamlessly** - New content should fit naturally into existing structure
+5. **Maintain formatting** - Keep the same Markdown style and heading levels
+
+Common update patterns:
+- Add new section if feature is entirely new (e.g., "### OAuth2 Authentication")
+- Add bullet points to existing lists (e.g., add new endpoint to API list)
+- Update existing sections with new parameters/options
+- Add brief notes about changes in relevant sections
+
+Output the COMPLETE updated documentation in Markdown format (with existing + new content merged).
+Do NOT add preambles, explanations, or meta-commentary - output ONLY the documentation."""
+
+            else:
+                # CREATE MODE: Generate comprehensive new documentation
+                prompt = f"""Generate technical documentation for a Jira ticket that describes a system change or new feature.
 
 JIRA TICKET:
 Summary: {ticket_summary}
@@ -633,9 +706,7 @@ Description: {ticket_description}
 Keywords: {', '.join(analysis.get('keywords', []))}
 
 DOCUMENTATION TASK:
-{action_type} documentation titled: "{target}"
-
-{"Existing page to update: " + analysis.get('target_page_url', '') if is_update else "Creating new documentation."}
+Create new documentation titled: "{target}"
 
 {"Related pages for reference: " + ', '.join(analysis.get('related_pages', [])) if analysis.get('related_pages') else ""}
 
