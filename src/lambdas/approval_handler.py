@@ -177,20 +177,29 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
         # Update existing page
         url = f"{CONFLUENCE_URL}/api/v2/pages/{confluence_page_id}"
 
-        # Get current version
+        # Get current version and title
         response = requests.get(
             url,
             auth=(JIRA_EMAIL, JIRA_API_TOKEN),
             headers={"Accept": "application/json"},
             timeout=10,
         )
-        current_version = response.json().get("version", {}).get("number", 1)
+        page_data = response.json()
+        current_version = page_data.get("version", {}).get("number", 1)
+
+        # Use existing Confluence page title to avoid rename conflicts
+        # The confluence_page_title field stores the actual title in Confluence
+        page_title = document.get("confluence_page_title") or page_data.get("title") or document["title"]
+
+        logger.info(
+            f"Updating page {confluence_page_id}: keeping title '{page_title}'"
+        )
 
         # Update page
         update_data = {
             "id": confluence_page_id,
             "status": "current",
-            "title": document["title"],
+            "title": page_title,
             "body": {"representation": "storage", "value": confluence_content},
             "version": {
                 "number": current_version + 1,
