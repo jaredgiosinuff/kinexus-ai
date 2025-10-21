@@ -232,10 +232,12 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
             "title": document["title"],
             "spaceKey": "SD",  # Space key for space ID 163845
             "expand": "version",
-            "limit": 1
+            "limit": 1,
         }
 
-        logger.info(f"Searching Confluence for existing page with title: '{document['title']}'")
+        logger.info(
+            f"Searching Confluence for existing page with title: '{document['title']}'"
+        )
         search_response = requests.get(
             search_url,
             auth=(JIRA_EMAIL, JIRA_API_TOKEN),
@@ -255,7 +257,9 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
                 page_id = existing_page["id"]
                 current_version = existing_page.get("version", {}).get("number", 1)
 
-                logger.info(f"Found existing Confluence page {page_id} with title '{document['title']}' - updating instead of creating")
+                logger.info(
+                    f"Found existing Confluence page {page_id} with title '{document['title']}' - updating instead of creating"
+                )
 
                 # Update existing page using v1 API
                 # Note: CONFLUENCE_URL already includes /wiki
@@ -268,19 +272,22 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
                     "body": {
                         "storage": {
                             "value": confluence_content,
-                            "representation": "storage"
+                            "representation": "storage",
                         }
                     },
                     "version": {
                         "number": current_version + 1,
-                        "message": f"Updated via Kinexus AI - {document.get('source_change_id', '')}"
-                    }
+                        "message": f"Updated via Kinexus AI - {document.get('source_change_id', '')}",
+                    },
                 }
 
                 update_response = requests.put(
                     update_url,
                     auth=(JIRA_EMAIL, JIRA_API_TOKEN),
-                    headers={"Accept": "application/json", "Content-Type": "application/json"},
+                    headers={
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                    },
                     json=update_data,
                     timeout=15,
                 )
@@ -293,12 +300,18 @@ def publish_to_confluence(document: Dict[str, Any]) -> Dict[str, Any]:
                         "url": f"{CONFLUENCE_URL}/wiki{existing_page.get('_links', {}).get('webui', '')}",
                     }
                 else:
-                    logger.error(f"Failed to update existing page: {update_response.status_code} - {update_response.text}")
+                    logger.error(
+                        f"Failed to update existing page: {update_response.status_code} - {update_response.text}"
+                    )
                     return {"error": "Failed to update existing Confluence page"}
             else:
-                logger.info(f"No existing page found with title '{document['title']}' - will create new page")
+                logger.info(
+                    f"No existing page found with title '{document['title']}' - will create new page"
+                )
         else:
-            logger.error(f"Confluence search failed with status {search_response.status_code}: {search_response.text}")
+            logger.error(
+                f"Confluence search failed with status {search_response.status_code}: {search_response.text}"
+            )
             logger.info("Proceeding to create new page despite search failure")
 
         # No existing page found or search failed - create new page
@@ -494,7 +507,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         status_changed_to_done = False
         if changelog and "items" in changelog:
             for item in changelog["items"]:
-                if item.get("field") == "status" and item.get("toString", "").lower() == "done":
+                if (
+                    item.get("field") == "status"
+                    and item.get("toString", "").lower() == "done"
+                ):
                     status_changed_to_done = True
                     break
 
@@ -523,10 +539,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
 
         # Status changed to Done - now fetch comments to find approval decision
-        logger.info(f"Review ticket moved to Done - checking comments for decision", author=change_author)
+        logger.info(
+            f"Review ticket moved to Done - checking comments for decision",
+            author=change_author,
+        )
 
         # Fetch all comments on this ticket
         import requests
+
         comments_url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}/comment"
         response = requests.get(
             comments_url,
@@ -536,7 +556,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
 
         if response.status_code != 200:
-            logger.error(f"Failed to fetch comments for {issue_key}: {response.status_code}")
+            logger.error(
+                f"Failed to fetch comments for {issue_key}: {response.status_code}"
+            )
             return {
                 "statusCode": 500,
                 "body": json.dumps({"error": "Failed to fetch comments"}),
@@ -551,12 +573,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         for comment in reversed(comments):  # Most recent first
             comment_body_adf = comment.get("body", "")
             comment_body = extract_text_from_adf(comment_body_adf)
-            comment_author_name = comment.get("author", {}).get("displayName", "Unknown")
+            comment_author_name = comment.get("author", {}).get(
+                "displayName", "Unknown"
+            )
 
             decision = extract_approval_decision(comment_body)
             if decision:
                 decision_author = comment_author_name
-                logger.info(f"Found decision: {decision}", author=decision_author, comment=comment_body[:100])
+                logger.info(
+                    f"Found decision: {decision}",
+                    author=decision_author,
+                    comment=comment_body[:100],
+                )
                 break
 
         if not decision:

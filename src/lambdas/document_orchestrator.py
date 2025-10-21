@@ -476,12 +476,17 @@ Be conservative - only choose "update" if you're confident the existing page dir
             }
 
     async def create_documentation(
-        self, change_data: Dict[str, Any], analysis: Dict[str, Any], is_update: bool = False
+        self,
+        change_data: Dict[str, Any],
+        analysis: Dict[str, Any],
+        is_update: bool = False,
     ) -> Dict[str, Any]:
         """Create new documentation based on changes"""
 
         # Build generation prompt
-        prompt = self._build_generation_prompt(change_data, analysis, is_update=is_update)
+        prompt = self._build_generation_prompt(
+            change_data, analysis, is_update=is_update
+        )
 
         try:
             # Amazon Nova Lite uses messages format with inferenceConfig
@@ -561,7 +566,9 @@ Be conservative - only choose "update" if you're confident the existing page dir
         existing_content = ""
         if analysis.get("target_page_id"):
             try:
-                page_url = f"{CONFLUENCE_URL}/rest/api/content/{analysis['target_page_id']}"
+                page_url = (
+                    f"{CONFLUENCE_URL}/rest/api/content/{analysis['target_page_id']}"
+                )
                 params = {"expand": "body.storage,version"}
 
                 response = requests.get(
@@ -574,10 +581,13 @@ Be conservative - only choose "update" if you're confident the existing page dir
                 if response.status_code == 200:
                     page_data = response.json()
                     # Extract plain text from Confluence storage format (HTML)
-                    html_content = page_data.get("body", {}).get("storage", {}).get("value", "")
+                    html_content = (
+                        page_data.get("body", {}).get("storage", {}).get("value", "")
+                    )
 
                     # Convert HTML to approximate markdown (basic conversion)
                     import html2text
+
                     h = html2text.HTML2Text()
                     h.ignore_links = False
                     h.body_width = 0
@@ -611,8 +621,8 @@ Be conservative - only choose "update" if you're confident the existing page dir
                 s3.put_object(
                     Bucket=DOCUMENTS_BUCKET,
                     Key=previous_version_key,
-                    Body=existing_content.encode('utf-8'),
-                    ContentType='text/markdown'
+                    Body=existing_content.encode("utf-8"),
+                    ContentType="text/markdown",
                 )
 
                 logger.info(
@@ -634,7 +644,7 @@ Be conservative - only choose "update" if you're confident the existing page dir
                 update_expr_parts = [
                     "confluence_page_id = :page_id",
                     "confluence_page_title = :page_title",
-                    "confluence_page_version = :page_version"
+                    "confluence_page_version = :page_version",
                 ]
                 expr_values = {
                     ":page_id": analysis["target_page_id"],
@@ -708,15 +718,15 @@ Be conservative - only choose "update" if you're confident the existing page dir
             )
 
             # Debug logging for UPDATE mode troubleshooting
-            has_existing = bool(analysis.get('existing_content'))
+            has_existing = bool(analysis.get("existing_content"))
             logger.info(
                 "Building generation prompt",
                 is_update=is_update,
                 has_existing_content=has_existing,
-                existing_content_length=len(analysis.get('existing_content', ''))
+                existing_content_length=len(analysis.get("existing_content", "")),
             )
 
-            if is_update and analysis.get('existing_content'):
+            if is_update and analysis.get("existing_content"):
                 # UPDATE MODE: Preserve existing content, make minimal targeted modifications
                 prompt = f"""Update existing documentation with new information from a Jira ticket.
 
