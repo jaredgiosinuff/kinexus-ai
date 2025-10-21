@@ -667,6 +667,15 @@ Be conservative - only choose "update" if you're confident the existing page dir
                 "target_page_title", analysis.get("suggested_title", ticket_summary)
             )
 
+            # Debug logging for UPDATE mode troubleshooting
+            has_existing = bool(analysis.get('existing_content'))
+            logger.info(
+                "Building generation prompt",
+                is_update=is_update,
+                has_existing_content=has_existing,
+                existing_content_length=len(analysis.get('existing_content', ''))
+            )
+
             if is_update and analysis.get('existing_content'):
                 # UPDATE MODE: Preserve existing content, make minimal targeted modifications
                 prompt = f"""Update existing documentation with new information from a Jira ticket.
