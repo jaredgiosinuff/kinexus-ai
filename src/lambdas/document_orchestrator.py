@@ -557,9 +557,32 @@ Be conservative - only choose "update" if you're confident the existing page dir
     ) -> Dict[str, Any]:
         """Update existing documentation based on changes"""
 
-        # For MVP, similar to create but with context of existing doc
-        # In production, would fetch existing doc and merge changes
-        return await self.create_documentation(change_data, analysis)
+        # Generate new content using create_documentation
+        result = await self.create_documentation(change_data, analysis)
+
+        # If successful, add Confluence page metadata for ApprovalHandler
+        if result.get("document_id") and analysis.get("target_page_id"):
+            try:
+                # Update DynamoDB record with Confluence page info
+                self.documents_table.update_item(
+                    Key={"document_id": result["document_id"]},
+                    UpdateExpression="SET confluence_page_id = :page_id, confluence_page_title = :page_title, confluence_page_version = :page_version",
+                    ExpressionAttributeValues={
+                        ":page_id": analysis["target_page_id"],
+                        ":page_title": analysis.get("target_page_title", ""),
+                        ":page_version": analysis.get("target_page_version", 1),
+                    },
+                )
+                logger.info(
+                    "Document marked for update",
+                    document_id=result["document_id"],
+                    confluence_page_id=analysis["target_page_id"],
+                    confluence_page_title=analysis.get("target_page_title"),
+                )
+            except Exception as e:
+                logger.error(f"Failed to add Confluence metadata: {str(e)}")
+
+        return result
 
     def _build_analysis_prompt(self, context: Dict[str, Any]) -> str:
         """Build prompt for impact analysis"""
