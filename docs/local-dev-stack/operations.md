@@ -1,6 +1,14 @@
-# Operations & Support
+# Operations & Support - Local Development Stack
 
-This guide covers day-two responsibilities: monitoring the system, responding to incidents, and performing routine maintenance.
+> **⚠️ Local Development Environment Only**
+>
+> This operations guide documents the **local FastAPI development stack** only. These operations are NOT applicable to production AWS.
+>
+> **Production Environment**: Uses AWS Lambda + CloudWatch Logs + DynamoDB + EventBridge. No REST API endpoints, no PostgreSQL, no Redis, no Prometheus metrics.
+>
+> For production operations, see [Architecture](../architecture.md) for CloudWatch monitoring and [Integrations](../integrations.md) for webhook configuration.
+
+This guide covers day-two responsibilities for the local development environment: monitoring the system, responding to incidents, and performing routine maintenance.
 
 ## Health Endpoints
 - `GET /health` — verifies API availability and database connectivity.
