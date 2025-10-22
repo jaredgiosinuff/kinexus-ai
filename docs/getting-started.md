@@ -92,15 +92,31 @@ aws configure
 **Note:** Production uses ONLY Amazon Nova Lite for all AI operations. The local development stack provides mock agents for testing without AWS costs.
 
 ### Architecture
+
+**Production AWS Serverless (Currently Deployed):**
+```mermaid
+graph LR
+    A[Jira<br/>Issue Events] -->|Webhook| B[API Gateway]
+    B --> C[Lambda Functions<br/>4 total]
+    C --> D[Amazon Nova Lite<br/>AWS Bedrock]
+    C --> E[DynamoDB<br/>S3 Storage]
+    C --> F[Confluence<br/>Documentation]
+
+    style D fill:#e1f5e1
+    style C fill:#fff3cd
 ```
-┌─── Change Sources ───┐    ┌── Kinexus AI Core ──┐    ┌── Documentation Targets ──┐
-│ • Jira               │    │ • Bedrock Agents    │    │ • Confluence             │
+
+**Local Development Stack (Future Features):**
+```
+┌─── Change Sources ───┐    ┌── AI Capabilities ──┐    ┌── Documentation Targets ──┐
+│ • Jira               │    │ • 5 Mock Agents     │    │ • Confluence             │
 │ • ServiceNow         │───▶│ • Claude 4 Models   │───▶│ • SharePoint             │
 │ • Git/CI-CD          │    │ • Nova Models       │    │ • Google Drive           │
 │ • Slack/Teams        │    │ • Vector Search     │    │ • Enterprise Wikis       │
 │ • Monday.com         │    │ • Quality Engine    │    │ • ServiceNow KB          │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────────┘
 ```
+> **Note**: Multiple integrations and multi-agent orchestration are available in local dev only. Production uses Jira → Confluence workflow.
 
 ## 📊 Development Environment (Local)
 
@@ -119,7 +135,7 @@ When you run `./quick-start.sh dev`, you get these services:
 ## 🤖 AI Architecture
 
 ### Production AWS Serverless (Currently Deployed)
-- **5 Lambda Functions**: JiraWebhookHandler, DocumentOrchestrator, ReviewTicketCreator, ApprovalHandler, QueryHandler
+- **4 Lambda Functions**: JiraWebhookHandler, DocumentOrchestrator, ReviewTicketCreator, ApprovalHandler
 - **Amazon Nova Lite**: Single AI model for ALL tasks:
   - Documentation generation
   - Confluence search analysis
@@ -141,29 +157,35 @@ Kinexus AI includes a local development environment with 5 specialized mock Bedr
 
 ## 🔧 Key Features
 
-### **Autonomous AI Agents**
+> **⚠️ Note**: The features below describe the **local development stack** with full-featured multi-agent capabilities. Production AWS uses a simpler serverless architecture with Amazon Nova Lite only. See [Local Development Stack](local-dev-stack/) for details.
+
+### **Autonomous AI Agents** (Local Dev Only)
 - **Advanced Multi-Model Reasoning**: Claude 4 Opus/Sonnet, Nova Pro/Lite/Micro
 - **Intelligent Reasoning Patterns**: Chain of Thought, Tree of Thought, Multi-Perspective
 - **Real-Time Conversation Tracking**: Monitor agent decisions and confidence scores
 
-### **Enterprise Authentication & Management**
+### **Enterprise Authentication & Management** (Local Dev Only)
 - **Dual Authentication**: AWS Cognito + Local authentication with seamless switching
 - **Comprehensive Admin Interface**: React-based dashboard with real-time monitoring
 - **Role-Based Access Control**: Granular permissions with enterprise security
 
-### **Complete Observability Stack**
+### **Complete Observability Stack** (Local Dev Only)
 - **Prometheus Metrics**: 15+ detailed system and performance metrics
 - **Grafana Dashboards**: Pre-built dashboards for system overview and agent performance
 - **Structured Logging**: Category-based logging with comprehensive audit trails
 - **Real-Time Monitoring**: Live system health and agent conversation tracking
 
-### **Extensive Integration Framework**
+### **Extensive Integration Framework** (Local Dev Only)
 - **15+ Supported Integrations**: Monday.com, SharePoint, ServiceNow, GitHub, Jira, Slack
 - **Webhook Support**: Real-time event processing with robust retry mechanisms
 - **Configurable Sync**: Bidirectional sync with customizable frequencies
 - **Admin-Managed**: Complete integration lifecycle management through web interface
 
-## 💡 First Steps After Setup
+> **Production AWS**: Uses 2 integrations (Jira + Confluence) with simple webhook architecture. No admin UI or authentication system.
+
+## 💡 First Steps After Local Setup
+
+> **Note**: The following steps are for **local development environment** only (after running `./quick-start.sh dev`). For production AWS deployment, see [Deployment Guide](deployment.md).
 
 ### 1. **Explore the API** (http://localhost:3105/docs)
 ```bash
@@ -217,7 +239,9 @@ curl -X POST http://localhost:3105/api/admin/integrations \
 
 ## 🎯 Common Use Cases
 
-### **Scenario 1: Code Changes Trigger Documentation Updates**
+> **Note**: The scenarios below demonstrate **planned capabilities** available in the local development stack. Production AWS currently supports Jira → Confluence workflow only. See [Documentation Workflow](documentation-workflow.md) for production capabilities.
+
+### **Scenario 1: Code Changes Trigger Documentation Updates** (Planned)
 1. Developer pushes code changes to GitHub
 2. Webhook triggers ChangeAnalyzer agent
 3. Agent identifies affected documentation
@@ -225,14 +249,14 @@ curl -X POST http://localhost:3105/api/admin/integrations \
 5. QualityController validates changes
 6. Updates published to Confluence/SharePoint
 
-### **Scenario 2: Jira Ticket Creates Documentation Plan**
+### **Scenario 2: Jira Ticket Creates Documentation Plan** (Planned)
 1. New feature ticket created in Jira
 2. DocumentOrchestrator analyzes requirements
 3. Creates comprehensive documentation plan
 4. Assigns tasks to appropriate agents
 5. Tracks progress through completion
 
-### **Scenario 3: Legacy System Integration**
+### **Scenario 3: Legacy System Integration** (Planned)
 1. WebAutomator agent navigates legacy UI
 2. Extracts current system documentation
 3. ContentCreator converts to modern format
@@ -242,13 +266,14 @@ curl -X POST http://localhost:3105/api/admin/integrations \
 ## 📚 Next Steps
 
 ### **For Developers**
-- [Development Guide](development.md) - Complete local development setup
-- [API Reference](api-reference.md) - Full API documentation
+- [Development Guide](local-dev-stack/development.md) - Complete local development setup
+- [API Reference](api-reference.md) - Production webhook endpoints
+- [Local Dev API Reference](local-dev-stack/api-reference.md) - Full local API documentation
 - [Testing Guide](testing.md) - Running tests and quality checks
 
 ### **For Administrators**
-- [Administration Guide](administration.md) - User management and system configuration
-- [Deployment Guide](deployment.md) - Production deployment options
+- [Administration Guide](local-dev-stack/administration.md) - Local dev user management and system configuration
+- [Deployment Guide](deployment.md) - Production AWS deployment
 - [Operations Guide](operations.md) - Monitoring and maintenance
 
 ### **For Integrators**

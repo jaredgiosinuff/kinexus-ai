@@ -1,24 +1,35 @@
 # Self-Corrective RAG (CRAG) System
 
+> **⚠️ Development Environment Only**
+>
+> The CRAG system is currently **not deployed to production AWS**. It is available only in the local FastAPI development stack for testing and experimentation.
+>
+> **Production Environment**: Uses simpler direct Bedrock API calls with Amazon Nova Lite (no iterative quality assessment).
+>
+> See [Production Architecture](../README.md#architecture-overview) for the actual deployed system.
+
 ## Overview
 
 The Self-Corrective RAG (CRAG) system enhances Kinexus AI's retrieval-augmented generation capabilities with iterative quality assessment and automatic correction mechanisms. CRAG continuously improves response quality through intelligent feedback loops and multi-layered validation.
+
+**Status**: Development/experimental feature for local testing only.
 
 ## Architecture
 
 ### Core Components
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   RAG Query     │───▶│  Quality         │───▶│  Correction     │
-│   Processing    │    │  Assessment      │    │  Engine         │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Base RAG       │    │  7 Quality       │    │  7 Correction   │
-│  System         │    │  Metrics         │    │  Strategies     │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+```mermaid
+graph LR
+    A[RAG Query<br/>Processing] --> B[Quality<br/>Assessment]
+    B --> C[Correction<br/>Engine]
+
+    A --> D[Base RAG<br/>System]
+    B --> E[7 Quality<br/>Metrics]
+    C --> F[7 Correction<br/>Strategies]
+
+    style A fill:#e1f5e1
+    style B fill:#fff3cd
+    style C fill:#ffc107
 ```
 
 ### 1. Quality Assessment Engine

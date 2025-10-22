@@ -7,75 +7,97 @@ Welcome to the comprehensive documentation for Kinexus AI - the autonomous knowl
 ### **New to Kinexus AI?**
 Start here: **[Getting Started Guide](getting-started.md)**
 
-### **Setting Up Development?**
-Go to: **[Development Guide](development.md)**
+### **Deploying to Production AWS?**
+See: **[Deployment Guide](deployment.md)** for Lambda + EventBridge + DynamoDB
 
-### **Deploying to Production?**
-See: **[Deployment Guide](deployment.md)**
+### **Setting Up Local Development?**
+Go to: **[Local Development Stack](local-dev-stack/)** for FastAPI + PostgreSQL + Multi-Agent AI
 
 ## 📚 Complete Documentation
 
 ### Core Guides
 - **[Getting Started](getting-started.md)** - Complete onboarding for new users and evaluators
-- **[Development Guide](development.md)** - Comprehensive local development setup and workflows
-- **[Deployment Guide](deployment.md)** - Production deployment options and procedures
-- **[Administration Guide](administration.md)** - User management, system configuration, and monitoring
+- **[Deployment Guide](deployment.md)** - AWS production deployment (Lambda + EventBridge)
 - **[API Reference](api-reference.md)** - Complete API documentation with examples
 
+### Local Development Stack (FastAPI + Docker)
+> **Note**: These features are NOT in production AWS. See [local-dev-stack/](local-dev-stack/) for details.
+
+- **[Local Development Guide](local-dev-stack/development.md)** - Docker setup and workflows
+- **[Administration Guide](local-dev-stack/administration.md)** - Admin dashboard and user management
+- **[CRAG System](local-dev-stack/crag-system.md)** - Self-Corrective RAG implementation
+
 ### Operational Guides
-- **[Architecture](architecture.md)** - System architecture and technical design
-- **[Testing Guide](testing.md)** - Test execution, quality gates, and CI/CD
-- **[Security Guide](security.md)** - Security controls, compliance, and best practices
-- **[Operations Guide](operations.md)** - Monitoring, maintenance, and troubleshooting
+- **[Architecture](architecture.md)** - Production AWS serverless architecture
+- **[Testing Guide](local-dev-stack/testing.md)** - Local dev testing (LocalStack, MCP, compose stack)
+- **[Security Guide](local-dev-stack/security.md)** - Local dev security (OAuth2, role-based auth)
+- **[Operations Guide](local-dev-stack/operations.md)** - Local dev monitoring and maintenance
 
 ### Integration & Automation
-- **[Integrations Guide](integrations.md)** - External system connectors and configuration
+- **[Integrations Guide](integrations.md)** - Production Jira + Confluence webhook integrations
 - **[Integration Configuration](integration-configuration.md)** - Step-by-step integration setup
 - **[Integration Troubleshooting](integration-troubleshooting.md)** - Common issues and solutions
-- **[GitHub Actions Deployment](github-actions-deployment.md)** - Automated AWS deployment via GitHub Actions
-- **[GitHub Actions](github-actions.md)** - Automated documentation workflows and CI/CD
+- **[GitHub Actions Deployment](github-actions-deployment.md)** - Automated AWS Lambda deployment via GitHub Actions
 - **[AWS Deployment Setup](aws-deployment-setup.md)** - AWS infrastructure setup and permissions
-- **[Documentation Workflow](documentation-workflow.md)** - How documentation is managed in the system
+- **[Documentation Workflow](documentation-workflow.md)** - Complete Phase 1-7 production workflow
 
 ### Project Management
-- **[Progress & Plans](progress.md)** - Project status, milestones, and roadmap
+- **[Progress & Plans](local-dev-stack/progress.md)** - Local dev project status and roadmap
 
 ## 🏗️ Architecture Overview
 
+**Production AWS Serverless:**
 ```
-┌─── Change Sources ───┐    ┌── Kinexus AI Core ──┐    ┌── Documentation Targets ──┐
-│ • Jira               │    │ • Bedrock Agents    │    │ • Confluence             │
-│ • ServiceNow         │───▶│ • Claude 4 Models   │───▶│ • SharePoint             │
-│ • Git/CI-CD          │    │ • Nova Models       │    │ • Google Drive           │
-│ • Slack/Teams        │    │ • Vector Search     │    │ • Enterprise Wikis       │
-│ • Monday.com         │    │ • Quality Engine    │    │ • ServiceNow KB          │
-└─────────────────────┘    └─────────────────────┘    └─────────────────────────┘
+┌─── Jira Events ──┐    ┌── AWS Lambda (4 functions) ──┐    ┌── Confluence ──┐
+│ • Issue Updates  │───▶│ • JiraWebhookHandler         │───▶│ • Pages        │
+│ • Transitions    │    │ • DocumentOrchestrator       │    │ • Updates      │
+│ • Comments       │    │ • ReviewTicketCreator        │    │ • Publishing   │
+└──────────────────┘    │ • ApprovalHandler            │    └────────────────┘
+                        │ + Amazon Nova Lite (Bedrock) │
+                        └──────────────────────────────┘
+```
+
+**Local Development Stack (Features NOT in Production):**
+```
+┌─── Change Sources ───┐    ┌── AI Capabilities ──┐    ┌── Documentation ──┐
+│ • ServiceNow         │    │ • Claude 4 Models   │    │ • SharePoint      │
+│ • Git/CI-CD          │───▶│ • Nova Pro/Act      │───▶│ • Google Drive    │
+│ • Slack/Teams        │    │ • Vector Search     │    │ • ServiceNow KB   │
+│ • Monday.com         │    │ • Quality Engine    │    │ • Enterprise Wikis│
+└─────────────────────┘    └─────────────────────┘    └───────────────────┘
 ```
 
 ## 🎯 Key Features
 
 ### **Autonomous AI Systems**
 
-**Production (AWS Serverless):**
+**Production (AWS Serverless - Currently Deployed):**
 - **Amazon Nova Lite**: Single AI model for ALL operations:
   - Documentation generation from Jira tickets
   - Confluence search and content analysis
   - Decision logic (UPDATE vs CREATE)
   - Cost-effective (~$0.06 per 1M tokens)
-- **Lambda Functions**: 5 stateless, event-driven functions
+- **Lambda Functions**: 4 stateless, event-driven functions
 - **EventBridge**: Orchestrates workflow (ChangeDetected → DocumentGenerated → Published)
+- **Integrations**: Jira + Confluence webhooks only
 
-**Development Stack (Local FastAPI with Mock Agents):**
+**Development Stack (Local FastAPI with Mock Agents - NOT in Production):**
 - **Claude 4 Opus 4.1**: Master reasoning engine (74.5% SWE-bench)
 - **Claude 4 Sonnet**: Fast processing with 1M token context
 - **Amazon Nova Pro/Act/Canvas**: Multimodal, agentic, and voice capabilities
 - **Real-time conversation tracking** and confidence scoring
 
-### **Enterprise Ready**
-- **Dual authentication**: AWS Cognito + Local authentication
-- **Role-based access control** with granular permissions
-- **Complete observability** with Prometheus metrics and Grafana dashboards
-- **15+ integrations** with enterprise systems
+### **Production Features (AWS Lambda)**
+- **EventBridge orchestration**: Event-driven serverless workflow
+- **CloudWatch monitoring**: Comprehensive logging and metrics
+- **DynamoDB storage**: Persistent change and document records
+- **S3 document storage**: Versioned documentation with visual diffs
+
+### **Local Development Features (NOT in Production)**
+- **Dual authentication**: AWS Cognito + Local OAuth2 (FastAPI only)
+- **Role-based access control**: viewer/reviewer/admin roles (FastAPI only)
+- **Complete observability**: Prometheus metrics + Grafana dashboards (Docker only)
+- **15+ integrations**: Monday.com, SharePoint, ServiceNow, etc. (local dev only)
 
 ### **Document Lifecycle Management**
 - **Detecting** system changes from multiple sources
@@ -106,21 +128,25 @@ cd kinexus-ai
 
 ## 🔌 Integration Setup
 
-Kinexus AI supports multiple enterprise integrations:
+**Production AWS Integrations (Currently Deployed):**
 
 | Integration | Status | Setup Guide |
 |-------------|--------|-------------|
-| **Confluence** | ✅ Production | [Configuration Guide](integration-configuration.md#confluence-integration) |
-| **Jira** | ✅ Production | [Configuration Guide](integration-configuration.md#jira-integration) |
-| **GitHub** | ✅ Production | [Configuration Guide](integration-configuration.md#github-integration) |
-| **Monday.com** | ✅ Working | [Configuration Guide](integration-configuration.md#mondaycom-integration) |
-| **SharePoint** | 📝 Scaffold | [Configuration Guide](integration-configuration.md#sharepoint-integration) |
-| **ServiceNow** | 📝 Scaffold | [Configuration Guide](integration-configuration.md#servicenow-integration) |
+| **Jira** | ✅ Production | [Integrations Guide](integrations.md#jira-integration) |
+| **Confluence** | ✅ Production | [Integrations Guide](integrations.md#confluence-integration) |
+
+**Local Development Integrations (NOT in Production):**
+
+| Integration | Status | Setup Guide |
+|-------------|--------|-------------|
+| **GitHub** | ✅ Local Dev | [Local Dev Integrations](local-dev-stack/integrations.md#github-integration) |
+| **Monday.com** | ✅ Local Dev | [Local Dev Integrations](local-dev-stack/integrations.md#mondaycom-integration) |
+| **SharePoint** | 📝 Scaffold | [Local Dev Integrations](local-dev-stack/integrations.md#sharepoint-integration) |
+| **ServiceNow** | 📝 Scaffold | [Local Dev Integrations](local-dev-stack/integrations.md#servicenow-integration) |
 
 **Quick Setup:**
-1. Choose your integrations from the [Integration Guide](integrations.md)
-2. Follow the [Configuration Guide](integration-configuration.md) for detailed setup
-3. Test connections via Admin Dashboard: http://localhost:3107
+- **Production AWS**: [Jira + Confluence Setup](integrations.md)
+- **Local Development**: [All Integrations Setup](local-dev-stack/integrations.md)
 
 ## 📊 Documentation Quality Standards
 

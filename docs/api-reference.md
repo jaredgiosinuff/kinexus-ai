@@ -1,737 +1,247 @@
-# API Reference
+# Production API Reference
 
-The Kinexus AI API provides comprehensive access to all system functionality, enabling integration with existing enterprise systems and custom application development.
+> **AWS Lambda Production Environment**
+>
+> This API reference documents the **production AWS Lambda webhook endpoints** deployed via API Gateway.
+>
+> **Local Development Environment**: For the full REST API with FastAPI, see [Local Development API Reference](local-dev-stack/api-reference.md).
 
-## Overview
+## Base URL
 
-### API Capabilities
-- **Document Management**: Create, update, and retrieve documentation
-- **AI Agent Control**: Manage and monitor AI agents
-- **Change Management**: Submit and track system changes
-- **Quality Assurance**: Access quality metrics and compliance data
-- **Integration Management**: Configure and monitor external integrations
-- **Real-time Updates**: WebSocket connections for live data
+```
+https://{api-id}.execute-api.{region}.amazonaws.com/prod
+```
 
-### Base URL
-- **Development**: `http://localhost:3105`
-- **Production**: `https://api.kinexusai.com`
-
-### API Versioning
-All endpoints are versioned with the prefix `/api/v1/`
+Replace `{api-id}` and `{region}` with your actual API Gateway deployment values (found in CloudFormation outputs).
 
 ## Authentication
 
-### API Key Authentication (Recommended)
-```http
-GET /api/v1/documents
-Authorization: Bearer your_api_key_here
+**None** - Production webhooks are publicly accessible. Security is provided by:
+- Jira webhook secrets (signature validation)
+- EventBridge event filtering
+- Lambda IAM permissions
+
+## Webhook Endpoints
+
+### POST /webhooks/jira
+
+Receives Jira issue events (created, updated, transitioned) to trigger documentation generation.
+
+**Triggered By:**
+- Jira webhook configured in Atlassian admin console
+- Events: `jira:issue_updated` (status transitions)
+
+**Request Headers:**
+```
 Content-Type: application/json
+X-Atlassian-Webhook-Identifier: {webhook-id}
 ```
 
-### AWS IAM Authentication
-```python
-import boto3
-from botocore.auth import SigV4Auth
-from botocore.awsrequest import AWSRequest
-
-# Using AWS credentials
-session = boto3.Session()
-credentials = session.get_credentials()
-region = 'us-east-1'
-
-request = AWSRequest(
-    method='GET',
-    url='https://api.kinexusai.com/api/v1/documents',
-    headers={'Content-Type': 'application/json'}
-)
-SigV4Auth(credentials, 'execute-api', region).add_auth(request)
-```
-
-### Getting API Keys
-```bash
-# Create API key
-curl -X POST http://localhost:3105/api/auth/api-keys \
-  -H "Authorization: Bearer $USER_TOKEN" \
-  -d '{"name": "My Integration", "scopes": ["documents:read", "agents:invoke"]}'
-```
-
-## Core APIs
-
-### Documents API
-
-#### List Documents
-```http
-GET /api/v1/documents
-```
-
-**Parameters:**
-- `limit` (integer): Number of documents to return (default: 20)
-- `offset` (integer): Number of documents to skip
-- `status` (string): Filter by status (active, archived, draft)
-- `type` (string): Filter by document type
-- `search` (string): Search in title and content
-
-**Response:**
+**Request Body:**
 ```json
 {
-  "documents": [
-    {
-      "id": "doc_123",
-      "title": "User Authentication Guide",
-      "status": "active",
-      "document_type": "guide",
-      "created_at": "2025-01-15T10:30:00Z",
-      "updated_at": "2025-01-15T15:45:00Z",
-      "current_version": 3,
-      "ai_generated": true,
-      "ai_confidence": 85
+  "webhookEvent": "jira:issue_updated",
+  "issue_event_type_name": "issue_generic",
+  "issue": {
+    "id": "10001",
+    "key": "TOAST-42",
+    "fields": {
+      "summary": "Add new API endpoint for user authentication",
+      "description": "...",
+      "status": {
+        "name": "Done"
+      },
+      "labels": ["needs-docs", "api-change"]
     }
-  ],
-  "pagination": {
-    "total": 150,
-    "limit": 20,
-    "offset": 0,
-    "has_more": true
+  },
+  "changelog": {
+    "items": [
+      {
+        "field": "status",
+        "fromString": "In Progress",
+        "toString": "Done"
+      }
+    ]
   }
 }
 ```
 
-#### Get Document
-```http
-GET /api/v1/documents/{document_id}
-```
-
 **Response:**
 ```json
 {
-  "id": "doc_123",
-  "title": "User Authentication Guide",
-  "content": "# Authentication Guide\n\n...",
-  "status": "active",
-  "document_type": "guide",
-  "metadata": {
-    "tags": ["authentication", "security"],
-    "category": "developer-guides"
-  },
-  "versions": [
-    {
-      "version": 3,
-      "content": "# Authentication Guide\n\n...",
-      "created_at": "2025-01-15T15:45:00Z",
-      "ai_generated": true,
-      "ai_model": "claude-4-sonnet",
-      "ai_confidence": 85
-    }
-  ],
-  "integrations": [
-    {
-      "system": "confluence",
-      "external_id": "page_456",
-      "last_sync": "2025-01-15T16:00:00Z"
-    }
-  ]
+  "status": "received",
+  "change_id": "jira_TOAST-42_1234567890.123456"
 }
 ```
 
-#### Create Document
-```http
-POST /api/v1/documents
+**Status Codes:**
+- `200 OK` - Event received and processed
+- `400 Bad Request` - Invalid event format
+- `500 Internal Server Error` - Processing failed
+
+**Workflow Triggered:**
+1. JiraWebhookHandler Lambda validates event
+2. Extracts change data and stores in DynamoDB (kinexus-changes table)
+3. Emits `ChangeDetected` event to EventBridge
+4. DocumentOrchestrator Lambda generates documentation
+5. ReviewTicketCreator Lambda creates Jira review ticket
+
+---
+
+### POST /webhooks/approval
+
+Receives Jira issue events for documentation approval workflow (review ticket status changes).
+
+**Triggered By:**
+- Jira webhook configured in Atlassian admin console
+- Events: `jira:issue_updated` (review ticket moved to "Done")
+
+**Request Headers:**
+```
+Content-Type: application/json
+X-Atlassian-Webhook-Identifier: {webhook-id}
 ```
 
-**Request:**
+**Request Body:**
 ```json
 {
-  "title": "New Feature Guide",
-  "content": "# Feature Guide\n\nThis guide explains...",
-  "document_type": "guide",
-  "metadata": {
-    "tags": ["feature", "guide"],
-    "category": "user-guides"
-  },
-  "integrations": [
-    {
-      "system": "confluence",
-      "space_key": "DOCS",
-      "auto_sync": true
-    }
-  ]
-}
-```
-
-#### Update Document
-```http
-PUT /api/v1/documents/{document_id}
-```
-
-**Request:**
-```json
-{
-  "title": "Updated Feature Guide",
-  "content": "# Updated Feature Guide\n\n...",
-  "metadata": {
-    "tags": ["feature", "guide", "updated"]
-  }
-}
-```
-
-### Reviews API
-
-#### List Reviews
-```http
-GET /api/v1/reviews
-```
-
-**Parameters:**
-- `status` (string): pending, approved, rejected, in_progress
-- `reviewer_id` (string): Filter by reviewer
-- `document_id` (string): Filter by document
-
-**Response:**
-```json
-{
-  "reviews": [
-    {
-      "id": "rev_123",
-      "document_id": "doc_123",
-      "status": "pending",
-      "change_id": "commit_abc123",
-      "impact_score": 7,
-      "ai_confidence": 82,
-      "created_at": "2025-01-15T10:00:00Z",
-      "change_context": {
-        "source": "github",
-        "repository": "company/app",
-        "files": ["src/auth.py", "docs/auth.md"]
+  "webhookEvent": "jira:issue_updated",
+  "issue_event_type_name": "issue_generic",
+  "issue": {
+    "id": "10025",
+    "key": "TOAST-43",
+    "fields": {
+      "summary": "Review: Documentation for TOAST-42",
+      "status": {
+        "name": "Done"
+      },
+      "labels": ["documentation-review", "auto-generated", "kinexus-ai"],
+      "comment": {
+        "comments": [
+          {
+            "author": {
+              "displayName": "John Reviewer"
+            },
+            "body": {
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "APPROVED - Looks good to publish"
+                    }
+                  ]
+                }
+              ]
+            },
+            "created": "2025-01-20T15:30:00.000-0800"
+          }
+        ]
       }
     }
-  ]
-}
-```
-
-#### Get Review
-```http
-GET /api/v1/reviews/{review_id}
-```
-
-#### Create Review
-```http
-POST /api/v1/reviews
-```
-
-**Request:**
-```json
-{
-  "document_id": "doc_123",
-  "change_id": "commit_abc123",
-  "change_context": {
-    "source": "github",
-    "repository": "company/app",
-    "files": ["src/auth.py"],
-    "commit_message": "Add OAuth support"
   },
-  "reviewer_id": "user_456"
-}
-```
-
-## AI Agents API
-
-### Agent Management
-
-#### List Agents
-```http
-GET /api/v1/agents
-```
-
-**Response:**
-```json
-{
-  "agents": [
-    {
-      "id": "document-orchestrator",
-      "name": "Document Orchestrator",
-      "model": "claude-4-opus-4.1",
-      "status": "active",
-      "capabilities": ["reasoning", "planning", "coordination"],
-      "cost_per_1k_tokens": 0.015,
-      "average_response_time": 2.3
-    },
-    {
-      "id": "change-analyzer",
-      "name": "Change Analyzer",
-      "model": "claude-4-sonnet",
-      "status": "active",
-      "capabilities": ["analysis", "impact-assessment"],
-      "cost_per_1k_tokens": 0.003,
-      "average_response_time": 0.8
-    }
-  ]
-}
-```
-
-#### Invoke Agent
-```http
-POST /api/v1/agents/{agent_id}/invoke
-```
-
-**Request:**
-```json
-{
-  "input": "Analyze the impact of adding OAuth authentication to the user system",
-  "context": {
-    "document_id": "doc_123",
-    "change_files": ["src/auth.py", "src/oauth.py"],
-    "reasoning_pattern": "chain_of_thought"
-  },
-  "max_tokens": 4000,
-  "temperature": 0.1
-}
-```
-
-**Response:**
-```json
-{
-  "response": {
-    "content": "Based on the analysis of OAuth integration...",
-    "confidence": 0.87,
-    "reasoning_steps": [
-      "Analyzed existing authentication system",
-      "Identified integration points for OAuth",
-      "Assessed impact on user experience"
+  "changelog": {
+    "items": [
+      {
+        "field": "status",
+        "fromString": "In Progress",
+        "toString": "Done"
+      }
     ]
-  },
-  "usage": {
-    "input_tokens": 450,
-    "output_tokens": 1200,
-    "total_cost": 0.018
-  },
-  "execution_time": 2.1
-}
-```
-
-### Agent Conversations
-
-#### Get Conversation History
-```http
-GET /api/v1/agents/{agent_id}/conversations
-```
-
-#### Get Specific Conversation
-```http
-GET /api/v1/agents/conversations/{conversation_id}
-```
-
-**Response:**
-```json
-{
-  "id": "conv_123",
-  "agent_id": "document-orchestrator",
-  "session_id": "session_456",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Analyze documentation requirements for new feature",
-      "timestamp": "2025-01-15T10:00:00Z"
-    },
-    {
-      "role": "assistant",
-      "content": "I'll analyze the documentation requirements...",
-      "confidence": 0.89,
-      "reasoning_pattern": "tree_of_thought",
-      "timestamp": "2025-01-15T10:00:02Z"
-    }
-  ],
-  "total_cost": 0.024,
-  "total_tokens": 1850
-}
-```
-
-## Integration APIs
-
-### Integration Management
-
-#### List Integrations
-```http
-GET /api/v1/integrations
-```
-
-**Response:**
-```json
-{
-  "integrations": [
-    {
-      "id": "int_123",
-      "name": "GitHub Integration",
-      "type": "github",
-      "status": "active",
-      "config": {
-        "organization": "company",
-        "repositories": ["app", "docs"],
-        "webhook_url": "https://api.kinexusai.com/webhooks/github"
-      },
-      "last_sync": "2025-01-15T16:00:00Z",
-      "sync_status": "success"
-    }
-  ]
-}
-```
-
-#### Create Integration
-```http
-POST /api/v1/integrations
-```
-
-**Request:**
-```json
-{
-  "name": "Confluence Integration",
-  "type": "confluence",
-  "config": {
-    "base_url": "https://company.atlassian.net",
-    "username": "service@company.com",
-    "token": "api_token",
-    "space_key": "DOCS",
-    "auto_sync": true,
-    "sync_frequency": "real-time"
   }
-}
-```
-
-#### Test Integration
-```http
-POST /api/v1/integrations/{integration_id}/test
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "connection_time": 150,
-  "permissions": [
-    "read_content",
-    "write_content",
-    "manage_webhooks"
-  ],
-  "test_results": {
-    "authentication": "success",
-    "permissions": "success",
-    "connectivity": "success"
-  }
-}
-```
-
-## GitHub Actions API
-
-### Change Analysis
-
-#### Analyze Code Changes
-```http
-POST /api/v1/analyze-changes
-```
-
-**Request:**
-```json
-{
-  "repository": "company/app",
-  "ref": "refs/heads/feature/oauth",
-  "sha": "abc123",
-  "changed_files": ["src/auth.py", "docs/auth.md"],
-  "scope": "repository",
-  "pr_number": 42,
-  "branch": "feature/oauth"
 }
 ```
 
 **Response:**
 ```json
 {
-  "status": "analyzed",
-  "impact_score": 7,
-  "affected_documents": ["docs/auth.md", "docs/api.md"],
-  "recommendations": [
-    "Update authentication documentation",
-    "Add OAuth configuration examples",
-    "Update API endpoint documentation"
-  ],
-  "estimated_effort": "120 minutes",
-  "agent_analysis": {
-    "agent_id": "change-analyzer",
-    "confidence": 0.91,
-    "reasoning": "High confidence based on clear OAuth implementation patterns"
-  }
+  "status": "received",
+  "decision": "APPROVED",
+  "document_id": "doc_jira_TOAST-42_1234567890.123456_1234567895.789012"
 }
 ```
 
-#### Update Documentation
-```http
-POST /api/v1/update-documentation
-```
+**Status Codes:**
+- `200 OK` - Approval processed
+- `400 Bad Request` - Invalid event or missing decision
+- `404 Not Found` - Document not found
+- `500 Internal Server Error` - Publishing failed
 
-**Request:**
-```json
-{
-  "action": "update_repository_docs",
-  "repository": "company/app",
-  "branch": "feature/oauth",
-  "changed_files": ["src/auth.py"],
-  "scope": "repository",
-  "targets": ["README.md", "docs/auth.md"]
-}
-```
+**Workflow Triggered:**
+1. ApprovalHandler Lambda detects review ticket transition to "Done"
+2. Fetches all comments via Jira REST API
+3. Extracts decision (APPROVED/REJECTED/NEEDS REVISION) from latest comment
+4. Retrieves document from DynamoDB using document ID from ticket description
+5. If APPROVED: Publishes to Confluence (create or update page)
+6. Updates document status in DynamoDB
+7. Adds comment to original source ticket with Confluence link
 
-**Response:**
-```json
-{
-  "status": "updated",
-  "targets_updated": ["README.md", "docs/auth.md", "CHANGELOG.md"],
-  "changes_made": [
-    "Added OAuth configuration section to README",
-    "Updated authentication flow diagram",
-    "Added OAuth examples to auth documentation"
-  ],
-  "quality_score": 0.94,
-  "agent_details": {
-    "content_creator": {
-      "confidence": 0.92,
-      "tokens_used": 850,
-      "cost": 0.012
-    }
-  }
-}
-```
+**Decision Keywords:**
+- `APPROVED` or `approve` - Publish to Confluence
+- `REJECTED` or `reject` - Do not publish, close workflow
+- `NEEDS REVISION` or `revise` - Request changes, keep review ticket open
 
-## Webhook APIs
+---
 
-### GitHub Webhooks
+## Event Flow
 
-#### GitHub Push Events
-```http
-POST /api/webhooks/github
-```
+All webhooks follow the same general pattern:
 
-**Headers:**
-```
-X-GitHub-Event: push
-X-GitHub-Delivery: 12345
-X-Hub-Signature-256: sha256=...
-```
-
-**Payload:**
-```json
-{
-  "repository": {
-    "full_name": "company/app"
-  },
-  "ref": "refs/heads/main",
-  "after": "abc123",
-  "commits": [
-    {
-      "id": "abc123",
-      "message": "Add OAuth support",
-      "modified": ["src/auth.py", "docs/auth.md"]
-    }
-  ]
-}
-```
-
-### Jira Webhooks
-
-#### Issue Created/Updated
-```http
-POST /api/webhooks/jira
-```
-
-### Slack Webhooks
-
-#### Interactive Components
-```http
-POST /api/webhooks/slack
-```
-
-## WebSocket API
-
-### Real-time Updates
-
-#### Connect to WebSocket
-```javascript
-const ws = new WebSocket('ws://localhost:3105/api/ws');
-
-// Authentication
-ws.send(JSON.stringify({
-  type: 'auth',
-  token: 'your_api_key'
-}));
-
-// Subscribe to document updates
-ws.send(JSON.stringify({
-  type: 'subscribe',
-  channel: 'documents',
-  document_id: 'doc_123'
-}));
-```
-
-#### Event Types
-
-**Document Updates:**
-```json
-{
-  "type": "document_updated",
-  "document_id": "doc_123",
-  "version": 4,
-  "changes": {
-    "title": "Updated title",
-    "content_diff": "..."
-  }
-}
-```
-
-**Agent Activity:**
-```json
-{
-  "type": "agent_activity",
-  "agent_id": "document-orchestrator",
-  "activity": "processing",
-  "progress": 0.7,
-  "estimated_completion": "2025-01-15T10:05:00Z"
-}
-```
-
-**Integration Status:**
-```json
-{
-  "type": "integration_status",
-  "integration_id": "int_123",
-  "status": "syncing",
-  "progress": {
-    "completed": 15,
-    "total": 23
-  }
-}
+```mermaid
+graph LR
+    A[Jira<br/>Issue Events] -->|POST /webhooks/jira| B[API Gateway]
+    B --> C[Lambda Handler]
+    C --> D[DynamoDB<br/>kinexus-changes]
+    C --> E[EventBridge<br/>ChangeDetected]
+    E --> F[DocumentOrchestrator<br/>Lambda]
+    F --> G[DynamoDB<br/>kinexus-documents]
+    F --> H[S3<br/>Documents]
+    F --> I[EventBridge<br/>DocumentGenerated]
+    I --> J[ReviewTicketCreator<br/>Lambda]
+    J --> K[Jira<br/>Review Ticket]
 ```
 
 ## Error Handling
 
-### Error Response Format
+All webhook endpoints return structured error responses:
+
 ```json
 {
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid document format",
-    "details": {
-      "field": "content",
-      "reason": "Content cannot be empty"
-    },
-    "request_id": "req_123"
-  }
+  "error": "Invalid event format",
+  "details": "Missing required field: issue.key",
+  "timestamp": "2025-01-20T15:30:00.000Z"
 }
 ```
 
-### Common Error Codes
+## Monitoring
 
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `AUTHENTICATION_FAILED` | 401 | Invalid or missing API key |
-| `AUTHORIZATION_FAILED` | 403 | Insufficient permissions |
-| `VALIDATION_ERROR` | 400 | Invalid request parameters |
-| `RESOURCE_NOT_FOUND` | 404 | Resource does not exist |
-| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
-| `AGENT_UNAVAILABLE` | 503 | AI agent temporarily unavailable |
-| `INTEGRATION_ERROR` | 502 | External integration failure |
+Production webhook invocations can be monitored via:
+- **CloudWatch Logs**: `/aws/lambda/KinexusAIMVPStack-Develop-*`
+- **CloudWatch Metrics**: Lambda invocation counts, errors, duration
+- **DynamoDB Tables**: `kinexus-changes`, `kinexus-documents`
+- **S3 Bucket**: `kinexus-documents-{account-id}-{region}`
 
-## Rate Limiting
+## Configuration
 
-### Rate Limits
+Webhook URLs are available in CloudFormation stack outputs:
 
-| Endpoint Type | Limit | Window |
-|---------------|-------|--------|
-| General API | 1000 requests | 1 hour |
-| Agent Invocation | 100 requests | 1 hour |
-| Webhook | 10000 requests | 1 hour |
-| WebSocket | 1000 messages | 1 hour |
-
-### Rate Limit Headers
-```http
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 950
-X-RateLimit-Reset: 1642694400
-```
-
-## SDKs and Examples
-
-### Python SDK
-```python
-from kinexus import KinexusClient
-
-client = KinexusClient(api_key='your_api_key')
-
-# Create document
-document = client.documents.create(
-    title='API Guide',
-    content='# API Guide\n\n...',
-    document_type='guide'
-)
-
-# Invoke agent
-response = client.agents.invoke(
-    agent_id='document-orchestrator',
-    input='Analyze documentation requirements',
-    context={'document_id': document.id}
-)
-```
-
-### JavaScript SDK
-```javascript
-import { KinexusClient } from '@kinexus/sdk';
-
-const client = new KinexusClient({
-  apiKey: 'your_api_key',
-  baseUrl: 'https://api.kinexusai.com'
-});
-
-// List documents
-const documents = await client.documents.list({
-  limit: 20,
-  status: 'active'
-});
-
-// Real-time updates
-client.ws.connect();
-client.ws.subscribe('documents', (event) => {
-  console.log('Document updated:', event);
-});
-```
-
-### cURL Examples
 ```bash
-# Get documents
-curl -X GET "http://localhost:3105/api/v1/documents" \
-  -H "Authorization: Bearer your_api_key"
-
-# Create review
-curl -X POST "http://localhost:3105/api/v1/reviews" \
-  -H "Authorization: Bearer your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "document_id": "doc_123",
-    "change_id": "commit_abc"
-  }'
-
-# Invoke agent
-curl -X POST "http://localhost:3105/api/v1/agents/change-analyzer/invoke" \
-  -H "Authorization: Bearer your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input": "Analyze code changes",
-    "context": {"files": ["src/auth.py"]}
-  }'
+aws cloudformation describe-stacks \
+  --stack-name KinexusAIMVPStack-Development \
+  --query 'Stacks[0].Outputs' \
+  --output json
 ```
 
-## Support
+Look for outputs:
+- `WebhookAPIEndpoint` - Base API Gateway URL
+- `JiraWebhookURL` - Full Jira webhook URL
+- `ApprovalWebhookURL` - Full approval webhook URL
+- `GitHubWebhookURL` - Full GitHub webhook URL
 
-### API Documentation
-- **OpenAPI Spec**: Available at `/docs` endpoint
-- **Interactive Docs**: Available at `/redoc` endpoint
+## See Also
 
-### Contact
-- **Technical Support**: api-support@kinexusai.com
-- **Documentation**: [docs.kinexusai.com](https://docs.kinexusai.com)
-- **GitHub Issues**: [github.com/kinexusai/kinexus-ai](https://github.com/kinexusai/kinexus-ai)
+- [Architecture](architecture.md) - AWS Lambda serverless architecture details
+- [Documentation Workflow](documentation-workflow.md) - Complete Phase 1-7 workflow
+- [Deployment Guide](deployment.md) - How to deploy webhook infrastructure
+- [Local Development API](local-dev-stack/api-reference.md) - Full REST API for local testing

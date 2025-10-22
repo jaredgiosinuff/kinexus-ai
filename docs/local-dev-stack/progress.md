@@ -1,6 +1,14 @@
-# Progress & Plans
+# Progress & Plans - Local Development Stack
 
-This document centralizes project milestones, active work, and near-term planning. Updated as of October 2025 to reflect the current containerized, Poetry-based architecture.
+> **⚠️ Local Development Environment Only**
+>
+> This progress document tracks the **local FastAPI development stack** only. Many features mentioned here (5 AI agents, PostgreSQL, Redis, OpenSearch, Monday.com, SharePoint, ServiceNow) are NOT in production AWS.
+>
+> **Production Environment**: Uses 4 AWS Lambda functions with Amazon Nova Lite, EventBridge, DynamoDB, and S3. Only Jira + Confluence webhook integrations are deployed.
+>
+> See [Architecture](../architecture.md) for the actual production AWS serverless system.
+
+This document centralizes project milestones, active work, and near-term planning for the local development environment. Updated as of October 2025 to reflect the current containerized, Poetry-based architecture.
 
 ## Recently Completed (October 2025)
 
